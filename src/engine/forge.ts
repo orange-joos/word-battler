@@ -346,7 +346,14 @@ export function createForge(options: {
 }
 
 export function addForgedWord(catalog: CatalogWords, entry: Word): CatalogWords {
-  const bucket = entry.partOfSpeech === 'adjective' ? 'adjectives' : 'nouns';
+  const bucket: keyof CatalogWords =
+    entry.partOfSpeech === 'adjective'
+      ? 'adjectives'
+      : entry.partOfSpeech === 'verb'
+      ? 'verbs'
+      : entry.partOfSpeech === 'adverb'
+      ? 'adverbs'
+      : 'nouns';
   const existingList = catalog[bucket] || [];
   if (existingList.some((w) => w.id === entry.id)) {
     return catalog;

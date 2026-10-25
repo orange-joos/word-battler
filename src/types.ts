@@ -2,6 +2,19 @@ export type ElementType = 'fire' | 'ice' | string;
 
 export type PartOfSpeech = 'adjective' | 'noun' | 'verb' | 'adverb';
 
+export type MoveCategory = 'ATTACK' | 'DEFEND' | 'BUFF' | 'DEBUFF';
+export type CombatMode = MoveCategory;
+
+export interface StatusEffect {
+  id: string;
+  name: string;
+  type: 'buff' | 'debuff';
+  duration: number;
+  amount?: number;
+  stat?: string;
+  description?: string;
+}
+
 export interface ForgeMetadata {
   layer: number;
   process: 'affixation' | 'compounding';
@@ -55,6 +68,10 @@ export interface Creature {
   allowedWordTypes: PartOfSpeech[];
   allowedElements: ElementType[];
   forged?: CreatureForgeMetadata;
+  statuses?: StatusEffect[];
+  empowered?: boolean;
+  reflectStance?: boolean;
+  evasionStance?: boolean;
 }
 
 export interface Affix {
@@ -78,23 +95,30 @@ export type BattlePhase =
 
 export interface ComboEvaluation {
   valid: boolean;
+  category: MoveCategory;
   phrase: string;
-  adjective: Word;
-  noun: Word;
+  word1: Word;
+  word2?: Word | null;
   power: number;
+  shieldGain: number;
+  effectName: string;
+  tacticalOutcome: string;
   reasons: string[];
 }
 
 export interface CombatEvent {
   type:
-    | 'speak'
-    | 'damage'
-    | 'shield'
-    | 'shield_hit'
-    | 'shield_break'
-    | 'fizzle'
-    | 'victory'
-    | 'defeat';
+    | 'SPEAK'
+    | 'DAMAGE'
+    | 'SHIELD'
+    | 'BUFF'
+    | 'DEBUFF'
+    | 'EVADE'
+    | 'REFLECT'
+    | 'FIZZLE'
+    | 'VICTORY'
+    | 'DEFEAT'
+    | 'STATUS_TICK';
   attackerId?: string;
   targetId?: string;
   amount?: number;
@@ -104,6 +128,9 @@ export interface CombatEvent {
   winnerId?: string;
   absorbed?: number;
   text?: string;
+  effect?: string;
+  duration?: number;
+  stat?: string;
 }
 
 export interface BattleResolution {
@@ -111,7 +138,13 @@ export interface BattleResolution {
   defenderId: string;
   combo: ComboEvaluation;
   damage: number;
+  shieldGain: number;
   defenderHp: number;
+  shieldAbsorbed?: number;
+  shieldBroken?: boolean;
+  evaded?: boolean;
+  reflected?: number;
+  statusEffect?: string;
 }
 
 export interface BattleLogEntry {
@@ -120,6 +153,7 @@ export interface BattleLogEntry {
   message: string;
   isPlayer?: boolean;
   damage?: number;
+  shield?: number;
   valid?: boolean;
   timestamp: number;
 }

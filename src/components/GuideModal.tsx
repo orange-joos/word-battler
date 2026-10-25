@@ -67,22 +67,26 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, onClose }) => {
 
           {/* Layer 3 */}
           <div className="rounded-xl border border-violet-800 bg-violet-950/50 p-4">
-            <h4 className="font-semibold text-violet-200">Layer 3: Sentence Construction (Combat)</h4>
+            <h4 className="font-semibold text-violet-200">Layer 3: Sentence Construction (The 4x4 Action Matrix)</h4>
             <p className="mt-1 text-slate-300">
-              Select one <span className="text-amber-300 font-medium">Adjective</span> and one <span className="text-sky-300 font-medium">Noun</span> to form a phrase.
+              Select one of four move categories and use 1 or 2 words (Modifier + Head) from any grammatical class:
             </p>
-            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <div className="rounded bg-violet-900/40 p-2 border border-violet-700/50">
-                <span className="font-semibold text-orange-300">+4 Element Bonus:</span> When word element matches the creature.
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="rounded bg-violet-900/40 p-2.5 border border-red-900/50">
+                <strong className="text-red-300 block mb-1">⚔️ Attack Category:</strong>
+                <span>Verb = Direct Strike (Heavy damage) · Noun = Object Impact (Armor Pierce) · Adjective = Elemental DOT · Adverb = Momentum (Crit Chance).</span>
               </div>
-              <div className="rounded bg-violet-900/40 p-2 border border-violet-700/50">
-                <span className="font-semibold text-sky-300">+2 Harmony Bonus:</span> When both adjective and noun share the same element.
+              <div className="rounded bg-violet-900/40 p-2.5 border border-violet-900/50">
+                <strong className="text-violet-300 block mb-1">🛡️ Defend Category:</strong>
+                <span>Noun = Fortification (Heavy shield) · Adjective = Barrier Quality (30% Mitigation) · Adverb = Evasive Stance (Dodge) · Verb = Counter-Stance (Reflect 40%).</span>
               </div>
-              <div className="rounded bg-violet-900/40 p-2 border border-violet-700/50">
-                <span className="font-semibold text-amber-300">+Power Bonus:</span> Forged words carry morphology attack bonuses!
+              <div className="rounded bg-violet-900/40 p-2.5 border border-amber-900/50">
+                <strong className="text-amber-300 block mb-1">✨ Buff Category:</strong>
+                <span>Adjective = Attribute Surge (+4 ATK) · Adverb = Regeneration (+6 HP/turn) · Verb = Empower (+50% next attack) · Noun = Catalyst (+4 DEF).</span>
               </div>
-              <div className="rounded bg-violet-900/40 p-2 border border-violet-700/50">
-                <span className="font-semibold text-rose-300">Fizzle Rule:</span> If your creature cannot channel that element, the combo fizzles.
+              <div className="rounded bg-violet-900/40 p-2.5 border border-emerald-900/50">
+                <strong className="text-emerald-300 block mb-1">🌀 Debuff Category:</strong>
+                <span>Adverb = Interference (-4 SPD &amp; Accuracy) · Adjective = Affliction (-3 DEF &amp; DOT) · Verb = Motion Constraint (Skip turn) · Noun = Obstruction Screen.</span>
               </div>
             </div>
           </div>
