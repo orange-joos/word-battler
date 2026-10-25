@@ -11,7 +11,7 @@ const AppContent: React.FC = () => {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#100c18] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-amber-50 text-slate-800 flex flex-col font-sans">
       <Header onOpenGuide={() => setIsGuideOpen(true)} />
 
       <div className="flex-1">
@@ -24,7 +24,7 @@ const AppContent: React.FC = () => {
         )}
       </div>
 
-      <footer className="border-t border-violet-950 py-4 text-center text-xs text-violet-400/80">
+      <footer className="border-t border-amber-200 bg-white/70 py-4 text-center text-xs text-violet-600">
         Word Battler · Educational Vocabulary &amp; English Morphology Combat System
       </footer>
 
