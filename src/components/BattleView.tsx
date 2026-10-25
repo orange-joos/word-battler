@@ -7,6 +7,7 @@ import { evaluateCombo, getMatrixEffectInfo } from '../engine/combat';
 import { juice } from '../engine/juice';
 import { BattleLogEntry, Creature, MoveCategory, PartOfSpeech, Word } from '../types';
 import { FloatingCombatOverlay, CombatPopup } from './FloatingCombatOverlay';
+import { PageHeading } from './PageHeading';
 import { WordInspectorBanner } from './WordInspectorBanner';
 import { WordModal } from './WordModal';
 
@@ -127,6 +128,11 @@ export const BattleView: React.FC = () => {
   return (
     <main className="battle-page text-slate-900">
       <div className="battle-shell">
+        <PageHeading
+          eyebrow="Layer 3 · Sentence construction"
+          title="Battle Arena"
+          description="Choose words from your arsenal, build a combo, and outmaneuver your rival."
+        />
         <section className="battle-stage" aria-label="Battle arena">
           <div className="stage-sky" />
           <div className="stage-sun" />

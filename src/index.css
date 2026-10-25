@@ -1,12 +1,18 @@
 @import "tailwindcss";
 
+@theme {
+  --font-serif: 'Fredoka', 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #fff8e7;
+    background-image: radial-gradient(ellipse at 12% 8%, #dff5ff 0, transparent 35%), radial-gradient(ellipse at 90% 18%, #ffe5eb 0, transparent 32%);
   }
   
   h1, h2, h3, .font-serif {
-    font-family: 'Cinzel', Georgia, serif;
+    font-family: 'Fredoka', 'Plus Jakarta Sans', system-ui, sans-serif;
   }
 }
 
@@ -24,8 +30,8 @@
 }
 
 /* Bright, illustrated battle screen */
-.battle-page{--ink:#342b57;--paper:#fffdf6;flex:1;background:#fff5cf;padding:clamp(10px,2vw,24px);font-family:'Plus Jakarta Sans',system-ui,sans-serif}
-.battle-shell{max-width:1180px;margin:0 auto;display:grid;grid-template-rows:minmax(340px,1.08fr) auto;gap:clamp(12px,2vh,22px)}
+.battle-page{--ink:#342b57;--paper:#fffdf6;flex:1;background:linear-gradient(180deg,#f0f9ff 0%,#fff8e7 54%,#fff1f5 100%);padding:clamp(16px,2vw,28px) clamp(16px,2vw,24px);font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+.battle-shell{max-width:1180px;margin:0 auto;display:grid;grid-template-rows:auto minmax(340px,1.08fr) auto;gap:clamp(16px,2vh,24px)}
 .battle-stage{isolation:isolate;position:relative;overflow:hidden;min-height:390px;border:5px solid #fff;border-radius:30px;background:linear-gradient(180deg,#75d7ff 0%,#b8f2ff 48%,#c8f1a0 49%,#75d44f 73%,#3abf63 100%);box-shadow:0 10px 0 #b7a5f0,0 18px 36px #6f579942}
 .stage-sky{position:absolute;inset:0 0 28%;z-index:-2;background:radial-gradient(ellipse at 50% 110%,#fff6b0 0%,#fff6b000 53%),linear-gradient(#8ce4ff,#c1f5ff)}
 .stage-sun{position:absolute;top:15%;left:49%;width:74px;height:74px;border-radius:50%;background:#fff38b;box-shadow:0 0 0 12px #fff38b40,0 0 46px #ffed7c;transform:translateX(-50%)}
