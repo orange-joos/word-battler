@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../context/GameContext';
-import { Word, Creature, MoveCategory, PartOfSpeech } from '../types';
+import { Word, Creature, MoveCategory, PartOfSpeech, BattleLogEntry } from '../types';
 import { evaluateCombo, getMatrixEffectInfo } from '../engine/combat';
 import { INITIAL_WORDS } from '../data/initialData';
 import { juice } from '../engine/juice';
 import { WordInspectorBanner } from './WordInspectorBanner';
 import { WordModal } from './WordModal';
+import { FloatingCombatOverlay, CombatPopup } from './FloatingCombatOverlay';
 import {
   Swords,
   Shield,
@@ -18,6 +20,7 @@ import {
   Activity,
   Flame,
   ShieldAlert,
+  BookOpen,
 } from 'lucide-react';
 
 export const BattleView: React.FC = () => {
@@ -28,6 +31,7 @@ export const BattleView: React.FC = () => {
     playerId,
     submitCombo,
     restartBattle,
+    goToLoadout,
   } = useGame();
 
   const [activeCategory, setActiveCategory] = useState<MoveCategory>('ATTACK');
@@ -37,9 +41,251 @@ export const BattleView: React.FC = () => {
   const [inspectedWord, setInspectedWord] = useState<Word | null>(null);
   const [modalWord, setModalWord] = useState<Word | null>(null);
 
+  // Framer Motion Combat Animation States
+  const [playerPopups, setPlayerPopups] = useState<CombatPopup[]>([]);
+  const [enemyPopups, setEnemyPopups] = useState<CombatPopup[]>([]);
+  const [playerShake, setPlayerShake] = useState(false);
+  const [enemyShake, setEnemyShake] = useState(false);
+  const [playerShieldPulse, setPlayerShieldPulse] = useState(false);
+  const [enemyShieldPulse, setEnemyShieldPulse] = useState(false);
+
+  const prevLogCount = useRef(battleState.log.length);
+
   const player = battleState.player;
   const enemy = battleState.enemy;
   const isBattleEnd = battleState.phase === 'BATTLE_END';
+
+  // Listen for combat log events and trigger Framer Motion animations
+  useEffect(() => {
+    const currentLength = battleState.log.length;
+    if (currentLength > prevLogCount.current) {
+      const newEntries = battleState.log.slice(prevLogCount.current);
+      prevLogCount.current = currentLength;
+
+      newEntries.forEach((entry) => {
+        const msg = entry.message || '';
+        const isCrit = msg.includes('CRITICAL HIT');
+
+        // 1. Damage numbers
+        if (entry.damage !== undefined && entry.damage > 0) {
+          const popupId = `pop-dmg-${Date.now()}-${Math.random()}`;
+          if (entry.isPlayer) {
+            // Player struck enemy
+            setEnemyPopups((prev) => [
+              ...prev,
+              {
+                id: popupId,
+                text: isCrit ? `💥 CRIT! -${entry.damage}` : `-${entry.damage}`,
+                type: isCrit ? 'crit' : 'damage',
+              },
+            ]);
+            setEnemyShake(true);
+            setTimeout(() => setEnemyShake(false), 500);
+            setTimeout(() => {
+              setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+            }, 1400);
+          } else {
+            // Enemy or counter struck player
+            setPlayerPopups((prev) => [
+              ...prev,
+              {
+                id: popupId,
+                text: `-${entry.damage}`,
+                type: 'damage',
+              },
+            ]);
+            setPlayerShake(true);
+            setTimeout(() => setPlayerShake(false), 500);
+            setTimeout(() => {
+              setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+            }, 1400);
+          }
+        }
+
+        // 2. Shield gains
+        if (entry.shield !== undefined && entry.shield > 0) {
+          const popupId = `pop-shd-${Date.now()}-${Math.random()}`;
+          if (entry.isPlayer) {
+            setPlayerPopups((prev) => [
+              ...prev,
+              {
+                id: popupId,
+                text: `+${entry.shield} SHIELD`,
+                type: 'shield',
+              },
+            ]);
+            setPlayerShieldPulse(true);
+            setTimeout(() => setPlayerShieldPulse(false), 600);
+            setTimeout(() => {
+              setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+            }, 1400);
+          } else {
+            setEnemyPopups((prev) => [
+              ...prev,
+              {
+                id: popupId,
+                text: `+${entry.shield} SHIELD`,
+                type: 'shield',
+              },
+            ]);
+            setEnemyShieldPulse(true);
+            setTimeout(() => setEnemyShieldPulse(false), 600);
+            setTimeout(() => {
+              setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+            }, 1400);
+          }
+        }
+
+        // 3. Counter-Stance Reflect
+        if (msg.includes('counter-stance reflected') || msg.includes('Counter-Stance reflected')) {
+          const match = msg.match(/reflected (\d+) damage/);
+          const amount = match ? match[1] : '';
+          const popupId = `pop-ref-${Date.now()}-${Math.random()}`;
+          if (entry.isPlayer) {
+            setEnemyPopups((prev) => [
+              ...prev,
+              {
+                id: popupId,
+                text: `🛡️ REFLECT -${amount}`,
+                type: 'damage',
+              },
+            ]);
+            setEnemyShake(true);
+            setTimeout(() => setEnemyShake(false), 500);
+            setTimeout(() => {
+              setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+            }, 1400);
+          } else {
+            setPlayerPopups((prev) => [
+              ...prev,
+              {
+                id: popupId,
+                text: `🛡️ REFLECT -${amount}`,
+                type: 'damage',
+              },
+            ]);
+            setPlayerShake(true);
+            setTimeout(() => setPlayerShake(false), 500);
+            setTimeout(() => {
+              setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+            }, 1400);
+          }
+        }
+
+        // 4. Evasion
+        if (msg.includes('Evasive Stance active')) {
+          const popupId = `pop-eva-${Date.now()}-${Math.random()}`;
+          setPlayerPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '💨 EVASION READY', type: 'evade' },
+          ]);
+          setTimeout(() => {
+            setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('dodged')) {
+          const popupId = `pop-eva-d-${Date.now()}-${Math.random()}`;
+          setPlayerPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '💨 DODGED!', type: 'evade' },
+          ]);
+          setTimeout(() => {
+            setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        }
+
+        // 5. Buffs
+        if (msg.includes('Empowered spirit!')) {
+          const popupId = `pop-emp-${Date.now()}-${Math.random()}`;
+          setPlayerPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '⚡ EMPOWERED (+50%)', type: 'buff' },
+          ]);
+          setTimeout(() => {
+            setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('Mighty Surge')) {
+          const popupId = `pop-surge-${Date.now()}-${Math.random()}`;
+          setPlayerPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '⚔️ +4 ATTACK', type: 'buff' },
+          ]);
+          setTimeout(() => {
+            setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('Activated Regeneration')) {
+          const popupId = `pop-regen-${Date.now()}-${Math.random()}`;
+          setPlayerPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '🌿 REGEN (+6 HP/t)', type: 'buff' },
+          ]);
+          setTimeout(() => {
+            setPlayerPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('restored +') && msg.includes('HP from Regeneration')) {
+          const match = msg.match(/restored \+(\d+) HP/);
+          const amount = match ? match[1] : '6';
+          const isPlayerTarget = msg.startsWith(player.name) || msg.startsWith('You');
+          const popupId = `pop-heal-${Date.now()}-${Math.random()}`;
+          const targetSetter = isPlayerTarget ? setPlayerPopups : setEnemyPopups;
+          targetSetter((prev) => [
+            ...prev,
+            { id: popupId, text: `+${amount} HP`, type: 'heal' },
+          ]);
+          setTimeout(() => {
+            targetSetter((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        }
+
+        // 6. Debuffs
+        if (msg.includes('Motion Constraint')) {
+          const popupId = `pop-trap-${Date.now()}-${Math.random()}`;
+          setEnemyPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '🛑 CONSTRAINED', type: 'debuff' },
+          ]);
+          setTimeout(() => {
+            setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('Interference lowered')) {
+          const popupId = `pop-inter-${Date.now()}-${Math.random()}`;
+          setEnemyPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '🌀 -4 SPEED / ACC', type: 'debuff' },
+          ]);
+          setTimeout(() => {
+            setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('Afflicted') || msg.includes('Inflicted')) {
+          const popupId = `pop-affl-${Date.now()}-${Math.random()}`;
+          setEnemyPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '❄️ AFFLICTED (-3 DEF)', type: 'debuff' },
+          ]);
+          setTimeout(() => {
+            setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        } else if (msg.includes('Obstruction Screen')) {
+          const popupId = `pop-obs-${Date.now()}-${Math.random()}`;
+          setEnemyPopups((prev) => [
+            ...prev,
+            { id: popupId, text: '🌫️ OBSTRUCTED', type: 'debuff' },
+          ]);
+          setTimeout(() => {
+            setEnemyPopups((prev) => prev.filter((p) => p.id !== popupId));
+          }, 1400);
+        }
+      });
+    } else if (currentLength < prevLogCount.current) {
+      // Battle was reset or restarted
+      prevLogCount.current = currentLength;
+      setPlayerPopups([]);
+      setEnemyPopups([]);
+      setPlayerShake(false);
+      setEnemyShake(false);
+      setPlayerShieldPulse(false);
+      setEnemyShieldPulse(false);
+    }
+  }, [battleState.log, player.name]);
 
   // Guaranteed word pools
   const allWords = useMemo(() => {
@@ -50,6 +296,17 @@ export const BattleView: React.FC = () => {
       ...(words.adverbs?.length ? words.adverbs : INITIAL_WORDS.adverbs || []),
     ];
   }, [words]);
+
+  // Active pet's 4-card equipped loadout
+  const equippedLoadoutWords = useMemo(() => {
+    const loadout = player.loadout || { verb: null, noun: null, adjective: null, adverb: null };
+    return [
+      { slot: 'verb' as PartOfSpeech, word: allWords.find((w) => w.id === loadout.verb) || null },
+      { slot: 'noun' as PartOfSpeech, word: allWords.find((w) => w.id === loadout.noun) || null },
+      { slot: 'adjective' as PartOfSpeech, word: allWords.find((w) => w.id === loadout.adjective) || null },
+      { slot: 'adverb' as PartOfSpeech, word: allWords.find((w) => w.id === loadout.adverb) || null },
+    ];
+  }, [player.loadout, allWords]);
 
   const canUseWord = (creature: Creature, word: Word) => {
     return creature.allowedElements.includes(word.element);
@@ -118,27 +375,39 @@ export const BattleView: React.FC = () => {
       <div className="mx-auto max-w-4xl space-y-6">
         {/* Roster & Phase Status */}
         <section className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-violet-900 bg-violet-950/40 p-3 sm:p-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <label htmlFor="creature-select" className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-violet-300">
-              Active Pet:
-            </label>
-            <select
-              id="creature-select"
-              value={playerId}
-              onChange={(e) => {
-                restartBattle(e.target.value);
-                handleClearSlots();
-              }}
-              className="rounded-lg border border-violet-700 bg-violet-900 px-3 py-1.5 text-sm font-medium text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <label htmlFor="creature-select" className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-violet-300">
+                Active Pet:
+              </label>
+              <select
+                id="creature-select"
+                value={playerId}
+                onChange={(e) => {
+                  restartBattle(e.target.value);
+                  handleClearSlots();
+                }}
+                className="rounded-lg border border-violet-700 bg-violet-900 px-3 py-1.5 text-sm font-medium text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
+              >
+                {creatures
+                  .filter((c) => c.id !== 'rimepup')
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.forged ? '✦ (Hybrid)' : ''} — {c.element.toUpperCase()}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={goToLoadout}
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/70 bg-emerald-950/60 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/60 hover:text-emerald-100 transition shadow-sm cursor-pointer"
+              title="Customize your pet's 4-card battle arsenal"
             >
-              {creatures
-                .filter((c) => c.id !== 'rimepup')
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.forged ? '✦ (Hybrid)' : ''} — {c.element.toUpperCase()}
-                  </option>
-                ))}
-            </select>
+              <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Change Arsenal</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -149,10 +418,23 @@ export const BattleView: React.FC = () => {
           </div>
         </section>
 
-        {/* Fighter Arenas with Status Effects */}
+        {/* Fighter Arenas with Status Effects & Framer Motion Popups */}
         <section className="grid gap-4 sm:grid-cols-2">
           {/* Player Card */}
-          <article className="relative overflow-hidden rounded-2xl border-2 border-orange-500/80 bg-gradient-to-b from-violet-950/90 to-[#181126] p-5 shadow-lg shadow-orange-950/20">
+          <motion.article
+            animate={{
+              x: playerShake ? [-10, 10, -8, 8, -4, 4, 0] : 0,
+              scale: playerShieldPulse ? [1, 1.04, 1] : 1,
+              boxShadow: playerShieldPulse
+                ? '0 0 30px rgba(168, 85, 247, 0.75)'
+                : '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
+            }}
+            transition={{ duration: 0.45 }}
+            className="relative overflow-visible rounded-2xl border-2 border-orange-500/80 bg-gradient-to-b from-violet-950/90 to-[#181126] p-5 shadow-lg shadow-orange-950/20"
+          >
+            {/* Floating Combat Numbers & Effects */}
+            <FloatingCombatOverlay popups={playerPopups} />
+
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-widest text-orange-400">
@@ -246,10 +528,23 @@ export const BattleView: React.FC = () => {
               <div>SPD: <strong className="text-violet-300">{player.stats.speed}</strong></div>
               <div>SHIELD: <strong className="text-violet-300">{player.shield || 0}</strong></div>
             </div>
-          </article>
+          </motion.article>
 
           {/* Rival Card */}
-          <article className="relative overflow-hidden rounded-2xl border-2 border-sky-500/80 bg-gradient-to-b from-violet-950/90 to-[#181126] p-5 shadow-lg shadow-sky-950/20">
+          <motion.article
+            animate={{
+              x: enemyShake ? [-10, 10, -8, 8, -4, 4, 0] : 0,
+              scale: enemyShieldPulse ? [1, 1.04, 1] : 1,
+              boxShadow: enemyShieldPulse
+                ? '0 0 30px rgba(168, 85, 247, 0.75)'
+                : '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
+            }}
+            transition={{ duration: 0.45 }}
+            className="relative overflow-visible rounded-2xl border-2 border-sky-500/80 bg-gradient-to-b from-violet-950/90 to-[#181126] p-5 shadow-lg shadow-sky-950/20"
+          >
+            {/* Floating Combat Numbers & Effects */}
+            <FloatingCombatOverlay popups={enemyPopups} />
+
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-widest text-sky-400">
@@ -343,7 +638,7 @@ export const BattleView: React.FC = () => {
               <div>SPD: <strong className="text-violet-300">{enemy.stats.speed}</strong></div>
               <div>SHIELD: <strong className="text-violet-300">{enemy.shield || 0}</strong></div>
             </div>
-          </article>
+          </motion.article>
         </section>
 
         {/* Word Inspector Banner */}
@@ -424,6 +719,93 @@ export const BattleView: React.FC = () => {
 
         {/* Word Selection & Part of Speech Filters */}
         <section className="space-y-4 rounded-2xl border border-violet-900/80 bg-violet-950/30 p-5">
+          {/* Active Pet Equipped Arsenal Quick Bar */}
+          <div className="rounded-xl border border-emerald-800/70 bg-gradient-to-r from-emerald-950/40 via-violet-950/50 to-emerald-950/40 p-3.5 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-emerald-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-200">
+                  {player.name}'s Equipped Arsenal (4 Battle Slots)
+                </h4>
+              </div>
+
+              <button
+                type="button"
+                onClick={goToLoadout}
+                className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-100 flex items-center gap-1 transition underline cursor-pointer"
+              >
+                <span>Edit Arsenal Cards</span>
+                <span>→</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {equippedLoadoutWords.map(({ slot, word }) => {
+                if (!word) {
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={goToLoadout}
+                      className="rounded-lg border border-dashed border-violet-700/60 bg-violet-950/30 p-2 text-center hover:border-emerald-500 transition cursor-pointer"
+                    >
+                      <span className="block text-[10px] font-bold uppercase text-violet-400">{slot}</span>
+                      <span className="text-[11px] text-violet-300/80 italic">+ Equip Card</span>
+                    </button>
+                  );
+                }
+
+                const isSelected = slot1Word?.id === word.id || slot2Word?.id === word.id;
+                const isAffinity = word.element === (player.elementAffinity || player.element);
+                const powerBonus = word.powerBonus ?? (word.forge?.powerBonus || 0);
+
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => handleWordClick(word)}
+                    className={`rounded-xl border-2 p-2 text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-amber-300 bg-amber-500/25 ring-2 ring-amber-400 shadow-md scale-[1.02]'
+                        : isAffinity
+                        ? 'border-emerald-500/80 bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-100'
+                        : 'border-violet-700/80 bg-violet-950/80 hover:bg-violet-900/80 text-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-extrabold uppercase px-1 rounded bg-violet-900/80 text-violet-300">
+                        {slot}
+                      </span>
+                      <span className="text-[10px]">
+                        {word.element === 'fire' ? '🔥' : '❄️'}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 flex items-baseline justify-between gap-1">
+                      <span className="font-serif text-sm font-bold truncate">{word.word}</span>
+                      {powerBonus > 0 && (
+                        <span className="text-[9px] font-bold text-amber-300 bg-amber-950/70 px-1 rounded">
+                          +{powerBonus}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-1 flex items-center justify-between text-[10px]">
+                      {isAffinity ? (
+                        <span className="text-amber-300 font-semibold text-[9px]">✦ +4 Synergy</span>
+                      ) : (
+                        <span className="text-violet-400 text-[9px] capitalize">{word.element}</span>
+                      )}
+                      <span className="text-violet-400 text-[9px]">
+                        {isSelected ? '✓ In Action' : 'Tap to slot'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-violet-800/60 pb-3">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-amber-200">
@@ -593,11 +975,13 @@ export const BattleView: React.FC = () => {
                 </button>
               )}
 
-              <button
+              <motion.button
                 type="button"
                 id="submit-combo"
                 onClick={handleSubmit}
                 disabled={!isBattleEnd && !slot1Word}
+                whileHover={!isBattleEnd && !slot1Word ? {} : { scale: 1.03 }}
+                whileTap={!isBattleEnd && !slot1Word ? {} : { scale: 0.95 }}
                 className={`flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base sm:text-lg font-bold transition-all shadow-lg w-full sm:w-auto cursor-pointer ${
                   isBattleEnd
                     ? 'bg-amber-500 text-violet-950 hover:bg-amber-400 ring-2 ring-amber-300 animate-pulse'
@@ -623,7 +1007,7 @@ export const BattleView: React.FC = () => {
                     <span>Execute {activeCategory}</span>
                   </>
                 )}
-              </button>
+              </motion.button>
             </div>
           </div>
 

@@ -5,6 +5,13 @@ export const INITIAL_CREATURES: Creature[] = [
     id: "emberfox",
     name: "Emberfox",
     element: "fire",
+    elementAffinity: "fire",
+    loadout: {
+      verb: "ignite",
+      noun: "flame",
+      adjective: "blazing",
+      adverb: "fiercely"
+    },
     description: "A fox whose fur holds live embers. It attacks with heat adjectives, flame nouns, and fiery strikes.",
     stats: {
       hp: 42,
@@ -19,6 +26,13 @@ export const INITIAL_CREATURES: Creature[] = [
     id: "rimepup",
     name: "Rimepup",
     element: "ice",
+    elementAffinity: "ice",
+    loadout: {
+      verb: "freeze",
+      noun: "shard",
+      adjective: "frozen",
+      adverb: "coldly"
+    },
     description: "A frost-coated pup that breathes pale mist. It attacks with cold adjectives, ice nouns, and frozen strikes.",
     stats: {
       hp: 46,

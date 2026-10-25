@@ -4,28 +4,42 @@
       "id": "emberfox",
       "name": "Emberfox",
       "element": "fire",
-      "description": "A fox whose fur holds live embers. It attacks with heat adjectives and flame nouns.",
+      "elementAffinity": "fire",
+      "loadout": {
+        "verb": "ignite",
+        "noun": "flame",
+        "adjective": "blazing",
+        "adverb": "fiercely"
+      },
+      "description": "A fox whose fur holds live embers. It attacks with heat adjectives, flame nouns, and fiery strikes.",
       "stats": {
         "hp": 42,
         "attack": 14,
         "defense": 8,
         "speed": 12
       },
-      "allowedWordTypes": ["adjective", "noun"],
+      "allowedWordTypes": ["adjective", "noun", "verb", "adverb"],
       "allowedElements": ["fire"]
     },
     {
       "id": "rimepup",
       "name": "Rimepup",
       "element": "ice",
-      "description": "A frost-coated pup that breathes pale mist. It attacks with cold adjectives and ice nouns.",
+      "elementAffinity": "ice",
+      "loadout": {
+        "verb": "freeze",
+        "noun": "shard",
+        "adjective": "frozen",
+        "adverb": "coldly"
+      },
+      "description": "A frost-coated pup that breathes pale mist. It attacks with cold adjectives, ice nouns, and frozen strikes.",
       "stats": {
         "hp": 46,
         "attack": 10,
         "defense": 13,
         "speed": 9
       },
-      "allowedWordTypes": ["adjective", "noun"],
+      "allowedWordTypes": ["adjective", "noun", "verb", "adverb"],
       "allowedElements": ["ice"]
     }
   ]

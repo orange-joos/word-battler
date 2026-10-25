@@ -119,6 +119,17 @@ When students combine two words (e.g. *Adverb + Verb* in Attack, or *Adjective +
    - Update Word Inspector to explain each word's specific 4x4 function.
 4. **Audio Updates (`src/engine/juice.ts`)**:
    - Add sound effects for evasion, buffs, debuffs, and shield reflections.
-5. **Verification**:
-   - Run `lint_applet` and `compile_applet`.
-   - Test combat execution in dev server.
+5. **Framer Motion Combat Animations (`src/components/BattleView.tsx` & `src/components/FloatingCombatOverlay.tsx`)**:
+   - Installed `framer-motion` package.
+   - Built `<FloatingCombatOverlay popups={popups} />` rendering kinetic floating combat text types:
+     - 💥 Damage (`-X` in vibrant rose) & Critical Hits (`💥 CRIT! -X` in gold serif)
+     - 🛡️ Shield gains (`+X SHIELD` in amethyst)
+     - 🌿 Healing ticks (`+X HP` in emerald)
+     - ⚡ Buff triggers (`⚡ EMPOWERED`, `⚔️ +4 ATK`, `🌿 REGEN`)
+     - 🛑 Debuff afflictions (`🛑 CONSTRAINED`, `🌀 -4 SPEED / ACC`, `❄️ AFFLICTED`)
+     - 💨 Evasion alerts (`💨 EVASION READY`, `💨 DODGED!`)
+   - Upgraded Fighter Arena cards to `<motion.article>` with responsive impact shakes (`animate={{ x: [-10, 10, -8, 8, -4, 4, 0] }}`) and shield fortification pulses (`scale: [1, 1.04, 1]` with vibrant purple glow).
+   - Upgraded combat execution button to `<motion.button>` with tactile hover/press physics.
+6. **Verification**:
+   - Ran `lint_applet` and `compile_applet` (100% pass).
+   - Validated zero runtime errors across Chrome dev server.

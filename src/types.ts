@@ -5,6 +5,15 @@ export type PartOfSpeech = 'adjective' | 'noun' | 'verb' | 'adverb';
 export type MoveCategory = 'ATTACK' | 'DEFEND' | 'BUFF' | 'DEBUFF';
 export type CombatMode = MoveCategory;
 
+export interface PetLoadout {
+  verb: string | null;
+  noun: string | null;
+  adjective: string | null;
+  adverb: string | null;
+}
+
+export type TabType = 'battle' | 'loadout' | 'forge';
+
 export interface StatusEffect {
   id: string;
   name: string;
@@ -36,6 +45,8 @@ export interface Word {
   element: ElementType;
   definition: string;
   example: string;
+  powerBonus?: number;
+  fusionDepth?: number;
   forge?: ForgeMetadata;
 }
 
@@ -60,6 +71,8 @@ export interface Creature {
   id: string;
   name: string;
   element: ElementType;
+  elementAffinity?: ElementType;
+  loadout?: PetLoadout;
   description: string;
   stats: CreatureStats;
   currentHp?: number;

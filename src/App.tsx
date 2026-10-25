@@ -3,6 +3,7 @@ import { GameProvider, useGame } from './context/GameContext';
 import { Header } from './components/Header';
 import { BattleView } from './components/BattleView';
 import { WordForgeView } from './components/WordForgeView';
+import { LoadoutView } from './components/LoadoutView';
 import { GuideModal } from './components/GuideModal';
 
 const AppContent: React.FC = () => {
@@ -14,7 +15,13 @@ const AppContent: React.FC = () => {
       <Header onOpenGuide={() => setIsGuideOpen(true)} />
 
       <div className="flex-1">
-        {tab === 'battle' ? <BattleView /> : <WordForgeView />}
+        {tab === 'battle' ? (
+          <BattleView />
+        ) : tab === 'loadout' ? (
+          <LoadoutView />
+        ) : (
+          <WordForgeView />
+        )}
       </div>
 
       <footer className="border-t border-violet-950 py-4 text-center text-xs text-violet-400/80">

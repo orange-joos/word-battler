@@ -145,6 +145,8 @@ export function createForge(options: {
       word: newWordText,
       partOfSpeech: affix.to,
       element: newElement,
+      powerBonus: AFFIXATION_BONUS,
+      fusionDepth: depthOf(base) + 1,
       definition: capitalize(definitionTemplate) + '.',
       example:
         affix.to === 'noun'
@@ -214,6 +216,8 @@ export function createForge(options: {
       word: compoundWord,
       partOfSpeech: resultPos,
       element: head.element,
+      powerBonus: COMPOUND_BONUS + (resonance ? RESONANCE_BONUS : 0),
+      fusionDepth: Math.max(depthOf(modifier), depthOf(head)) + 1,
       definition: capitalize(definition) + '.',
       example:
         resultPos === 'noun'
@@ -278,6 +282,15 @@ export function createForge(options: {
       id: slug(hybridName),
       name: hybridName,
       element: modifier.element,
+      elementAffinity: modifier.element,
+      loadout: creature.loadout
+        ? { ...creature.loadout }
+        : {
+            verb: null,
+            noun: null,
+            adjective: null,
+            adverb: null,
+          },
       description: `${creature.name} fused with "${modifier.word}": a hybrid ${head} shaped by primal ${modifier.element} power.`,
       stats,
       currentHp: stats.hp,

@@ -5,6 +5,8 @@
       "word": "blazing",
       "partOfSpeech": "adjective",
       "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "Burning brightly and with great energy.",
       "example": "A blazing lantern lit the path."
     },
@@ -13,6 +15,8 @@
       "word": "fierce",
       "partOfSpeech": "adjective",
       "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "Intense, powerful, and aggressive.",
       "example": "A fierce spark jumped from the logs."
     },
@@ -21,6 +25,8 @@
       "word": "frozen",
       "partOfSpeech": "adjective",
       "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "Turned into ice or made very cold.",
       "example": "The frozen pond held our footprints."
     },
@@ -29,6 +35,8 @@
       "word": "sharp",
       "partOfSpeech": "adjective",
       "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "Having a thin edge or a sudden, biting quality.",
       "example": "A sharp wind cut across the lake."
     }
@@ -39,6 +47,8 @@
       "word": "flame",
       "partOfSpeech": "noun",
       "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "A hot, glowing tongue of fire.",
       "example": "The flame danced on the candle."
     },
@@ -47,6 +57,8 @@
       "word": "ember",
       "partOfSpeech": "noun",
       "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "A small piece of glowing coal or wood in a fire.",
       "example": "One ember still glowed in the ashes."
     },
@@ -55,6 +67,8 @@
       "word": "shard",
       "partOfSpeech": "noun",
       "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "A sharp, broken piece of something hard.",
       "example": "An ice shard glittered on the step."
     },
@@ -63,8 +77,114 @@
       "word": "blizzard",
       "partOfSpeech": "noun",
       "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
       "definition": "A severe snowstorm with strong wind.",
       "example": "The blizzard covered the trail overnight."
+    }
+  ],
+  "verbs": [
+    {
+      "id": "ignite",
+      "word": "ignite",
+      "partOfSpeech": "verb",
+      "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "To catch fire or cause something to burst into flame.",
+      "example": "A tiny spark can ignite dry autumn leaves."
+    },
+    {
+      "id": "scorch",
+      "word": "scorch",
+      "partOfSpeech": "verb",
+      "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "To burn the surface of something with intense heat.",
+      "example": "Wild embers scorch the blackened stones."
+    },
+    {
+      "id": "flare",
+      "word": "flare",
+      "partOfSpeech": "verb",
+      "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "To burn with a sudden, unsteady bright flame.",
+      "example": "The torches flare brightly in the night wind."
+    },
+    {
+      "id": "freeze",
+      "word": "freeze",
+      "partOfSpeech": "verb",
+      "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "To turn into solid ice through extreme cold.",
+      "example": "Bitter winter gusts freeze the mountain brook."
+    },
+    {
+      "id": "crystallize",
+      "word": "crystallize",
+      "partOfSpeech": "verb",
+      "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "To form into glittering, sharp ice crystals.",
+      "example": "Frost patterns crystallize across the cold glass."
+    },
+    {
+      "id": "shiver",
+      "word": "shiver",
+      "partOfSpeech": "verb",
+      "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "To shake or tremble from intense freezing cold.",
+      "example": "Chill winds make the pine needles shiver."
+    }
+  ],
+  "adverbs": [
+    {
+      "id": "fiercely",
+      "word": "fiercely",
+      "partOfSpeech": "adverb",
+      "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "In a powerful, aggressive, and blazing manner.",
+      "example": "The bonfire burned fiercely against the darkness."
+    },
+    {
+      "id": "blazingly",
+      "word": "blazingly",
+      "partOfSpeech": "adverb",
+      "element": "fire",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "With intense, dazzling heat and brilliant light.",
+      "example": "The sun shone blazingly over the desert sands."
+    },
+    {
+      "id": "sharply",
+      "word": "sharply",
+      "partOfSpeech": "adverb",
+      "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "In a sudden, piercing, or biting manner.",
+      "example": "A cold draft cut sharply through the frosty doorway."
+    },
+    {
+      "id": "coldly",
+      "word": "coldly",
+      "partOfSpeech": "adverb",
+      "element": "ice",
+      "powerBonus": 0,
+      "fusionDepth": 0,
+      "definition": "Without warmth; in a freezing or chilling way.",
+      "example": "The northern star gleamed coldly in the icy sky."
     }
   ]
 }

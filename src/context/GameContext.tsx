@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { Creature, Word, CatalogWords, BattleState, CombatMode, MoveCategory } from '../types';
+import { Creature, Word, CatalogWords, BattleState, MoveCategory, TabType, PartOfSpeech, PetLoadout } from '../types';
 import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData';
 import { createBattle } from '../engine/combat';
-import { addForgedCreature, addForgedWord } from '../engine/forge';
+import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/forge';
 import { juice } from '../engine/juice';
 
 interface GameContextType {
-  tab: 'battle' | 'forge';
-  setTab: (tab: 'battle' | 'forge') => void;
+  tab: TabType;
+  setTab: (tab: TabType) => void;
   creatures: Creature[];
   words: CatalogWords;
   playerId: string;
@@ -20,7 +20,10 @@ interface GameContextType {
   commitWord: (word: Word) => void;
   commitCreature: (creature: Creature) => void;
   goToBattle: () => void;
+  goToLoadout: () => void;
   useCreatureInBattle: (id: string) => void;
+  updatePetLoadout: (petId: string, slot: PartOfSpeech, wordId: string | null) => void;
+  autoEquipBestLoadout: (petId: string) => void;
   resetAll: () => void;
 }
 
@@ -89,15 +92,28 @@ function initializeCreatures(): Creature[] {
     if (!saved) return INITIAL_CREATURES;
     const parsed: Creature[] = JSON.parse(saved);
 
-    // Ensure all creatures have full parts of speech allowed
-    const updated = parsed.map((c) => {
+    // Ensure all creatures have full parts of speech allowed and valid loadout + elementAffinity
+    const updated: Creature[] = parsed.map((c) => {
       const existingTypes = new Set(c.allowedWordTypes || []);
       existingTypes.add('adjective');
       existingTypes.add('noun');
       existingTypes.add('verb');
       existingTypes.add('adverb');
+
+      const initialMatch = INITIAL_CREATURES.find((init) => init.id === c.id);
+      const loadout: PetLoadout = c.loadout && typeof c.loadout === 'object'
+        ? {
+            verb: c.loadout.verb ?? (initialMatch?.loadout?.verb || null),
+            noun: c.loadout.noun ?? (initialMatch?.loadout?.noun || null),
+            adjective: c.loadout.adjective ?? (initialMatch?.loadout?.adjective || null),
+            adverb: c.loadout.adverb ?? (initialMatch?.loadout?.adverb || null),
+          }
+        : (initialMatch?.loadout || { verb: null, noun: null, adjective: null, adverb: null });
+
       return {
         ...c,
+        elementAffinity: c.elementAffinity || initialMatch?.elementAffinity || c.element,
+        loadout,
         allowedWordTypes: Array.from(existingTypes),
       };
     });
@@ -116,7 +132,7 @@ function initializeCreatures(): Creature[] {
 }
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tab, setTab] = useState<'battle' | 'forge'>('battle');
+  const [tab, setTab] = useState<TabType>('battle');
   const [creatures, setCreatures] = useState<Creature[]>(initializeCreatures);
   const [words, setWords] = useState<CatalogWords>(initializeWords);
   const [playerId, setPlayerId] = useState<string>('emberfox');
@@ -197,6 +213,56 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTab('battle');
   };
 
+  const goToLoadout = () => {
+    setTab('loadout');
+  };
+
+  const updatePetLoadout = (petId: string, slot: PartOfSpeech, wordId: string | null) => {
+    setCreatures((prev) =>
+      prev.map((c) => {
+        if (c.id !== petId) return c;
+        const currentLoadout = c.loadout ? { ...c.loadout } : { verb: null, noun: null, adjective: null, adverb: null };
+        currentLoadout[slot] = wordId;
+        return {
+          ...c,
+          loadout: currentLoadout,
+        };
+      })
+    );
+  };
+
+  const autoEquipBestLoadout = (petId: string) => {
+    const pet = creatures.find((c) => c.id === petId);
+    if (!pet) return;
+
+    const allWordsList = getAllWordsList(words);
+    const petAffinity = pet.elementAffinity || pet.element;
+
+    const slots: PartOfSpeech[] = ['verb', 'noun', 'adjective', 'adverb'];
+    const newLoadout: PetLoadout = pet.loadout ? { ...pet.loadout } : { verb: null, noun: null, adjective: null, adverb: null };
+
+    slots.forEach((slot) => {
+      const candidates = allWordsList.filter((w) => w.partOfSpeech === slot);
+      candidates.sort((a, b) => {
+        const aAffinity = a.element === petAffinity ? 1 : 0;
+        const bAffinity = b.element === petAffinity ? 1 : 0;
+        if (bAffinity !== aAffinity) return bAffinity - aAffinity;
+        const aPwr = a.powerBonus ?? (a.forge?.powerBonus || 0);
+        const bPwr = b.powerBonus ?? (b.forge?.powerBonus || 0);
+        return bPwr - aPwr;
+      });
+
+      if (candidates.length > 0) {
+        newLoadout[slot] = candidates[0].id;
+      }
+    });
+
+    setCreatures((prev) =>
+      prev.map((c) => (c.id === petId ? { ...c, loadout: newLoadout } : c))
+    );
+    juice.ding(880, 100);
+  };
+
   const useCreatureInBattle = (id: string) => {
     setPlayerId(id);
     restartBattle(id);
@@ -229,7 +295,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         commitWord,
         commitCreature,
         goToBattle,
+        goToLoadout,
         useCreatureInBattle,
+        updatePetLoadout,
+        autoEquipBestLoadout,
         resetAll,
       }}
     >

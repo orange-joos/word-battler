@@ -45,6 +45,10 @@ export function cloneCreature(template: Creature): Creature {
 
   return {
     ...template,
+    elementAffinity: template.elementAffinity || template.element,
+    loadout: template.loadout
+      ? { ...template.loadout }
+      : { verb: null, noun: null, adjective: null, adverb: null },
     allowedWordTypes,
     stats: { ...template.stats },
     currentHp: template.currentHp ?? template.stats.hp,
@@ -169,10 +173,13 @@ export function evaluateCombo(
 
   if (valid) {
     let synergy = 0;
-    if (headWord!.element === attacker.element) synergy += ELEMENT_SYNERGY_BONUS;
+    const affinity = attacker.elementAffinity || attacker.element;
+    if (headWord!.element === affinity) synergy += ELEMENT_SYNERGY_BONUS;
     if (modifierWord && modifierWord.element === headWord!.element) synergy += 2;
-    if (headWord!.forge?.powerBonus) synergy += headWord!.forge.powerBonus;
-    if (modifierWord?.forge?.powerBonus) synergy += modifierWord.forge.powerBonus;
+    if (headWord!.powerBonus) synergy += headWord!.powerBonus;
+    else if (headWord!.forge?.powerBonus) synergy += headWord!.forge.powerBonus;
+    if (modifierWord?.powerBonus) synergy += modifierWord.powerBonus;
+    else if (modifierWord?.forge?.powerBonus) synergy += modifierWord.forge.powerBonus;
 
     if (category === 'ATTACK') {
       power = BASE_POWER + synergy;

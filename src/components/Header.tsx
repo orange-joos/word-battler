@@ -1,5 +1,5 @@
 import React from 'react';
-import { Swords, Flame, Volume2, VolumeX, HelpCircle, RotateCcw } from 'lucide-react';
+import { Swords, Flame, Volume2, VolumeX, HelpCircle, RotateCcw, BookOpen } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 
 interface HeaderProps {
@@ -7,13 +7,19 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
-  const { tab, setTab, isMuted, toggleMute, words, creatures, resetAll } = useGame();
+  const { tab, setTab, isMuted, toggleMute, words, creatures, playerId, resetAll } = useGame();
 
-  const totalWords = (words.adjectives?.length || 0) + (words.nouns?.length || 0);
+  const activePet = creatures.find((c) => c.id === playerId) || creatures[0];
+  const activeLoadoutCount = activePet?.loadout
+    ? Object.values(activePet.loadout).filter(Boolean).length
+    : 0;
+
   const forgedWordsCount = [
     ...(words.adjectives || []),
     ...(words.nouns || []),
-  ].filter((w) => Boolean(w.forge)).length;
+    ...(words.verbs || []),
+    ...(words.adverbs || []),
+  ].filter((w) => Boolean(w.forge || (w.powerBonus && w.powerBonus > 0))).length;
 
   const forgedCreaturesCount = creatures.filter((c) => Boolean(c.forged)).length;
 
@@ -40,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
           <button
             type="button"
             onClick={() => setTab('battle')}
-            className={`flex items-center gap-2 rounded-lg px-3.5 sm:px-5 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-all ${
+            className={`flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-all ${
               tab === 'battle'
                 ? 'bg-violet-600 text-violet-50 shadow-md shadow-violet-900/50'
                 : 'bg-violet-950 text-violet-300 hover:bg-violet-900 hover:text-violet-100'
@@ -52,8 +58,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
 
           <button
             type="button"
+            onClick={() => setTab('loadout')}
+            className={`flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-all relative ${
+              tab === 'loadout'
+                ? 'bg-violet-600 text-violet-50 shadow-md shadow-violet-900/50'
+                : 'bg-violet-950 text-violet-300 hover:bg-violet-900 hover:text-violet-100'
+            }`}
+          >
+            <BookOpen className="h-4 w-4 text-emerald-400" />
+            <span>Arsenal</span>
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700/80 border border-emerald-500/60 px-1 text-[10px] font-bold text-emerald-200">
+              {activeLoadoutCount}/4
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setTab('forge')}
-            className={`flex items-center gap-2 rounded-lg px-3.5 sm:px-5 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-all relative ${
+            className={`flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-all relative ${
               tab === 'forge'
                 ? 'bg-violet-600 text-violet-50 shadow-md shadow-violet-900/50'
                 : 'bg-violet-950 text-violet-300 hover:bg-violet-900 hover:text-violet-100'
