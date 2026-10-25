@@ -171,7 +171,7 @@ export const WordForgeView: React.FC = () => {
         )}
 
         {/* Forge Slots Workbench */}
-        <section className="rounded-2xl border-2 border-violet-300 bg-gradient-to-b from-white to-violet-50 p-5 shadow-xl shadow-violet-200/50">
+        <section className="rounded-2xl border-[3px] border-[#c88a4e] bg-gradient-to-b from-[#fff9e9] to-[#fffdf6] p-5 shadow-xl shadow-amber-900/15">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* Slot 1 */}
             <div
@@ -305,7 +305,7 @@ export const WordForgeView: React.FC = () => {
         </section>
 
         {/* Inventory Catalogs */}
-        <section className="rounded-2xl border border-violet-300 bg-violet-50/30 p-5 space-y-4">
+        <section className="rounded-2xl border-2 border-amber-300/90 bg-gradient-to-b from-[#fffaf0] to-white p-5 shadow-md shadow-amber-900/10 space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-violet-300/60 pb-3">
             {/* Bin Switcher */}
             <div className="flex gap-1.5">

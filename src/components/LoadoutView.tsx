@@ -167,7 +167,7 @@ export const LoadoutView: React.FC = () => {
           description="Choose your battle pet and equip the words that will shape its combat moves."
         />
         {/* Top Header & Pet Selector */}
-        <section className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-violet-300/80 bg-gradient-to-r from-violet-50/80 via-white to-violet-50/80 p-5 shadow-lg shadow-violet-200/40">
+        <section className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border-2 border-amber-300/90 bg-gradient-to-r from-amber-50 via-[#fffdf3] to-orange-50 p-5 shadow-lg shadow-amber-900/10">
           <div className="flex items-center gap-4">
             <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 shadow-lg ${
               petAffinity === 'fire'
@@ -384,7 +384,7 @@ export const LoadoutView: React.FC = () => {
                     </div>
                   ) : (
                     <div className="py-6 flex flex-col items-center justify-center text-center space-y-2">
-                      <div className="h-10 w-10 rounded-full border border-violet-400/60 bg-violet-100/30 flex items-center justify-center text-violet-600">
+                      <div className="h-10 w-10 rounded-full border border-amber-400/70 bg-amber-50 flex items-center justify-center text-amber-700">
                         {slot.icon}
                       </div>
                       <p className="text-xs text-violet-700 font-medium">
@@ -402,7 +402,7 @@ export const LoadoutView: React.FC = () => {
         </section>
 
         {/* Word Card Arsenal & Collection Vault */}
-        <section className="rounded-2xl border border-violet-300/80 bg-violet-50/40 p-4 sm:p-5 space-y-4">
+        <section className="rounded-2xl border-2 border-amber-300/80 bg-gradient-to-b from-[#fff8e8] to-white p-4 shadow-md shadow-amber-900/10 sm:p-5 space-y-4">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div>
               <h3 className="font-serif text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
