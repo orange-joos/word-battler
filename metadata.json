@@ -1,0 +1,8 @@
+{
+  "name": "Word Battler",
+  "description": "An educational vocabulary pet battler driven by word combinations, English grammar, and morphology rules.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
