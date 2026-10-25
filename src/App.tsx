@@ -24,7 +24,7 @@ const AppContent: React.FC = () => {
         )}
       </div>
 
-      <footer className="border-t border-amber-200 bg-white/70 py-4 text-center text-xs text-violet-600">
+      <footer className="border-t-4 border-[#793d35] bg-[#aa5544] py-4 text-center text-xs text-orange-50">
         Word Battler · Educational Vocabulary &amp; English Morphology Combat System
       </footer>
 

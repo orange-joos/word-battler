@@ -7,7 +7,6 @@ import { evaluateCombo, getMatrixEffectInfo } from '../engine/combat';
 import { juice } from '../engine/juice';
 import { BattleLogEntry, Creature, MoveCategory, PartOfSpeech, Word } from '../types';
 import { FloatingCombatOverlay, CombatPopup } from './FloatingCombatOverlay';
-import { PageHeading } from './PageHeading';
 import { WordInspectorBanner } from './WordInspectorBanner';
 import { WordModal } from './WordModal';
 
@@ -128,11 +127,6 @@ export const BattleView: React.FC = () => {
   return (
     <main className="battle-page text-slate-900">
       <div className="battle-shell">
-        <PageHeading
-          eyebrow="Layer 3 · Sentence construction"
-          title="Battle Arena"
-          description="Choose words from your arsenal, build a combo, and outmaneuver your rival."
-        />
         <section className="battle-stage" aria-label="Battle arena">
           <div className="stage-sky" />
           <div className="stage-sun" />
@@ -140,16 +134,37 @@ export const BattleView: React.FC = () => {
           <div className="stage-hill hill-back" /><div className="stage-hill hill-front" />
           <div className="stage-flower flower-one">🌼</div><div className="stage-flower flower-two">🌸</div><div className="stage-flower flower-three">🌼</div>
           <div className="stage-topline">
-            <div className="stage-level"><span className="level-star">★</span><span>LEVEL 1</span><span className="level-progress"><i /></span></div>
-            <div className="stage-title"><span>🌈</span> WORD WILD ARENA <span>🌈</span></div>
-            <div className="stage-round">{isBattleEnd ? 'BATTLE OVER' : 'ROUND 1'} <span>•</span> {battleState.phase === 'ENEMY_TURN' ? 'RIVAL TURN' : 'YOUR TURN'}</div>
+            <div className="stage-level"><span className="level-star">★</span><span>WORD WILD</span></div>
+            <div className="stage-title"><span>🌈</span> MEADOW ARENA <span>🌈</span></div>
+            <div className="stage-round">{isBattleEnd ? 'BATTLE OVER' : battleState.phase === 'ENEMY_TURN' ? 'RIVAL TURN' : 'YOUR TURN'}</div>
+          </div>
+          <div className="stage-tree tree-one" aria-hidden="true" />
+          <div className="stage-tree tree-two" aria-hidden="true" />
+          <div className="stage-tree tree-three" aria-hidden="true" />
+          <div className="stage-tree tree-four" aria-hidden="true" />
+          <div className="stage-story" role="status" aria-live="polite">
+            <span className="story-guide" aria-hidden="true">🦉</span>
+            <p>
+              <strong>{isBattleEnd ? 'Battle Buddy' : 'Battle Buddy says'}</strong>
+              {isBattleEnd
+                ? battleState.winner === player.id
+                  ? 'You did it! Your word magic saved the day!'
+                  : 'Every great word wizard tries again. Ready for a rematch?'
+                : battleState.phase === 'ENEMY_TURN'
+                  ? `${enemy.name} is making a move. Get ready!`
+                  : slot1Word && slot2Word
+                    ? `${slot1Word.word} + ${slot2Word.word} are ready! Cast your word combo!`
+                    : slot1Word
+                      ? `${slot1Word.word} is ready! Pick a second word or cast it on its own.`
+                      : 'Pick a spell to cast! Tap one of your word cards to get started.'}
+            </p>
           </div>
           <div className="fighter-row">
             <article className={`fighter fighter-player ${playerShake ? 'is-hurt' : ''} ${playerLunge ? 'is-lunging' : ''}`}>
               <div className="fighter-nameplate player-nameplate"><span>YOUR PET</span><strong>{player.name}</strong><small>{player.element} {player.element === 'fire' ? '🔥' : player.element === 'ice' ? '❄️' : '🌿'}</small></div>
               <div className={`fighter-art player-art element-${player.element}`} aria-label={`${player.name} battle sprite`}><div className="art-aura" /><span className="pet-emoji">{creatureEmoji(player)}</span><span className="art-spark">✦</span></div>
               <div className="platform platform-player" />
-              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{player.currentHp} / {player.maxHp}</strong></div><div className="hp-track"><i className={healthColor(player.element)} style={{ width: `${playerHpRatio * 100}%` }} /></div></div>
+              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{player.currentHp} / {player.maxHp}</strong></div><div className="hp-track" role="progressbar" aria-label={`${player.name} health`} aria-valuemin={0} aria-valuemax={player.maxHp} aria-valuenow={player.currentHp}><i className={healthColor(player.element)} style={{ width: `${playerHpRatio * 100}%` }} /></div></div>
               {(player.shield ?? 0) > 0 && <span className="battle-status">🛡️ {player.shield}</span>}
               <FloatingCombatOverlay popups={playerPopups} />
             </article>
@@ -158,7 +173,7 @@ export const BattleView: React.FC = () => {
               <div className="fighter-nameplate enemy-nameplate"><span>WORD BOSS</span><strong>{enemy.name}</strong><small>{enemy.element} {enemy.element === 'fire' ? '🔥' : enemy.element === 'ice' ? '❄️' : '🌿'}</small></div>
               <div className={`fighter-art enemy-art element-${enemy.element}`} aria-label={`${enemy.name} battle sprite`}><div className="art-aura" /><span className="pet-emoji">{creatureEmoji(enemy)}</span><span className="art-spark">✦</span></div>
               <div className="platform platform-enemy" />
-              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{enemy.currentHp} / {enemy.maxHp}</strong></div><div className="hp-track"><i className={healthColor(enemy.element)} style={{ width: `${enemyHpRatio * 100}%` }} /></div></div>
+              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{enemy.currentHp} / {enemy.maxHp}</strong></div><div className="hp-track" role="progressbar" aria-label={`${enemy.name} health`} aria-valuemin={0} aria-valuemax={enemy.maxHp} aria-valuenow={enemy.currentHp}><i className={healthColor(enemy.element)} style={{ width: `${enemyHpRatio * 100}%` }} /></div></div>
               {(enemy.shield ?? 0) > 0 && <span className="battle-status">🛡️ {enemy.shield}</span>}
               <FloatingCombatOverlay popups={enemyPopups} />
             </article>
@@ -182,7 +197,7 @@ export const BattleView: React.FC = () => {
           <div className="deck-controls">
             <div className="category-pills" aria-label="Move style">{([
               ['ATTACK', Swords, 'Strike'], ['DEFEND', Shield, 'Guard'], ['BUFF', Sparkles, 'Boost'], ['DEBUFF', Activity, 'Trick'],
-            ] as const).map(([category, Icon, label]) => <button key={category} onClick={() => { setActiveCategory(category); juice.ding(category === 'ATTACK' ? 520 : category === 'DEFEND' ? 660 : category === 'BUFF' ? 880 : 380, 80); }} className={`category-pill ${activeCategory === category ? 'category-active' : ''}`}><Icon size={15} /> {label}</button>)}</div>
+            ] as const).map(([category, Icon, label]) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => { setActiveCategory(category); juice.ding(category === 'ATTACK' ? 520 : category === 'DEFEND' ? 660 : category === 'BUFF' ? 880 : 380, 80); }} className={`category-pill category-${category.toLowerCase()} ${activeCategory === category ? 'category-active' : ''}`}><Icon size={15} /> {label}</button>)}</div>
             <p className="pick-hint">{slot1Word ? slot2Word ? <><strong>{slot1Word.word} {slot2Word.word}</strong> — ready to go!</> : <>Tap a second word to make a combo, or use <strong>{slot1Word.word}</strong> alone.</> : 'Choose one of your four words to make a move!'}</p>
             <button onClick={handleSubmit} disabled={!slot1Word && !isBattleEnd} className="battle-button">{isBattleEnd ? <><RotateCcw size={20} /> Battle again!</> : <><Zap size={20} fill="currentColor" /> {activeCategory === 'ATTACK' ? 'LET’S GO!' : `${activeCategory} MOVE!`}</>}</button>
             {slot1Word && <button onClick={clearSlots} className="clear-move">Clear move</button>}
