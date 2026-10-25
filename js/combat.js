@@ -614,10 +614,20 @@ export function createBattle(options) {
     const playerEvents = resolveSentence(player, enemy, category, word1, word2);
     battle.log.push(...playerEvents);
 
+    // Track daily missions if adjectives are used
+    if (typeof window !== 'undefined' && typeof window.advanceDailyMission === 'function') {
+      if (word1?.partOfSpeech === 'adjective' || word2?.partOfSpeech === 'adjective') {
+        window.advanceDailyMission('adjective', 1);
+      }
+    }
+
     if (enemy.currentHp <= 0) {
       battle.phase = PHASES.BATTLE_END;
       battle.winner = player;
       battle.log.push({ type: 'VICTORY', winnerId: player.id });
+      if (typeof window !== 'undefined' && typeof window.advanceDailyMission === 'function') {
+        window.advanceDailyMission('combat', 1);
+      }
       return { state: getState(), events: [...startTicks, ...playerEvents] };
     }
 

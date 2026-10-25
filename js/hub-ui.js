@@ -100,6 +100,161 @@ const ELEMENT_PALETTES = {
   },
 };
 
+function playRewardChime() {
+  playHubTone(523, 90, 'triangle');
+  setTimeout(() => playHubTone(659, 90, 'triangle'), 90);
+  setTimeout(() => playHubTone(784, 110, 'triangle'), 180);
+  setTimeout(() => playHubTone(1046, 220, 'triangle'), 280);
+}
+
+function showHubToast(container, messageHtml) {
+  if (!container) return;
+  const old = container.querySelector('.hub-toast-banner');
+  if (old) old.remove();
+
+  const toast = document.createElement('div');
+  toast.className =
+    'hub-toast-banner fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-2xl border-3 border-amber-500 bg-amber-50 px-5 py-3 text-xs sm:text-sm font-black text-amber-950 shadow-[0_6px_0_#b45309] animate-[bounce_0.4s_ease-out]';
+  toast.innerHTML = messageHtml;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s ease-out';
+    setTimeout(() => toast.remove(), 300);
+  }, 2400);
+}
+
+// Daily Vocabulary Missions Schema & Challenges for Grades 3-5
+const DEFAULT_DAILY_MISSIONS = [
+  {
+    id: 'adjective_ace',
+    type: 'adjective',
+    category: 'Grammar Power',
+    categoryTheme: 'bg-amber-100 text-amber-900 border-amber-300',
+    icon: '✨',
+    title: 'Adjective Ace',
+    description: 'Master descriptive words! Identify or unleash 2 Adjectives in battle or practice.',
+    target: 2,
+    progress: 2, // Ready to claim immediately for quick reward delight!
+    rewardCoins: 75,
+    rewardTokens: 1,
+    claimed: false,
+    screen: 'battle-arena',
+    screenLabel: 'Battle',
+    quiz: {
+      question: 'Which word is an ADJECTIVE describing something fiercely hot?',
+      options: ['Scorching', 'Ignite', 'Quickly', 'Furnace'],
+      correctIndex: 0,
+      explanation: '"Scorching" is an adjective that describes blazing hot temperature!',
+    },
+  },
+  {
+    id: 'forge_crafter',
+    type: 'morphology',
+    category: 'Word Forge',
+    categoryTheme: 'bg-purple-100 text-purple-900 border-purple-300',
+    icon: '🧬',
+    title: 'Morphology Crafter',
+    description: 'Fuse prefixes and roots in the Word Forge to synthesize hybrid cards.',
+    target: 1,
+    progress: 1, // Ready to claim!
+    rewardCoins: 100,
+    rewardTokens: 2,
+    claimed: false,
+    screen: 'word-forge',
+    screenLabel: 'Forge',
+    quiz: {
+      question: 'What does the prefix "RE-" mean in the word "REIGNITE"?',
+      options: ['Again / Repeat', 'Not / Never', 'Under', 'Before'],
+      correctIndex: 0,
+      explanation: '"Re-" means to do again — reigniting means lighting up again!',
+    },
+  },
+  {
+    id: 'elemental_tactician',
+    type: 'combat',
+    category: 'Combat Tactics',
+    categoryTheme: 'bg-rose-100 text-rose-900 border-rose-300',
+    icon: '⚔️',
+    title: 'Elemental Tactician',
+    description: 'Win combat rounds using Fire, Ice, or Nature type advantages.',
+    target: 2,
+    progress: 1,
+    rewardCoins: 90,
+    rewardTokens: 1,
+    claimed: false,
+    screen: 'battle-arena',
+    screenLabel: 'Battle',
+    quiz: {
+      question: 'In elemental battles, Fire moves are super effective against which element?',
+      options: ['Ice / Frost', 'Magma', 'Sun', 'Stone'],
+      correctIndex: 0,
+      explanation: 'Fire melts Ice in elemental combat!',
+    },
+  },
+  {
+    id: 'noun_collector',
+    type: 'vocabulary',
+    category: 'Lexicon Lore',
+    categoryTheme: 'bg-sky-100 text-sky-900 border-sky-300',
+    icon: '📖',
+    title: 'Lexicon Detective',
+    description: 'Identify nouns, verbs, and adverbs in your Pet Roster arsenal.',
+    target: 3,
+    progress: 2,
+    rewardCoins: 60,
+    rewardTokens: 0,
+    claimed: false,
+    screen: 'pet-roster',
+    screenLabel: 'Roster',
+    quiz: {
+      question: 'Which word is an ADVERB telling HOW an action was performed?',
+      options: ['Fiercely', 'Dragon', 'Spark', 'Frozen'],
+      correctIndex: 0,
+      explanation: 'Adverbs often end in "-ly" and describe how an action occurs!',
+    },
+  },
+];
+
+function loadSavedDailyMissions() {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const raw = localStorage.getItem('wb_daily_missions');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.date === today && Array.isArray(parsed.missions) && parsed.missions.length > 0) {
+        return {
+          missions: parsed.missions,
+          grandBonusClaimed: Boolean(parsed.grandBonusClaimed),
+        };
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return {
+    missions: JSON.parse(JSON.stringify(DEFAULT_DAILY_MISSIONS)),
+    grandBonusClaimed: false,
+  };
+}
+
+function saveDailyMissionsToStorage(missions, grandBonusClaimed) {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    localStorage.setItem(
+      'wb_daily_missions',
+      JSON.stringify({
+        date: today,
+        missions,
+        grandBonusClaimed,
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Render the Main Hub / Central Camp Screen.
  *
@@ -143,6 +298,13 @@ export function renderHub(container, ctx = {}, actions = {}) {
     };
   }
 
+  // Ensure daily missions are initialized on hubState
+  if (!ctx.hubState.dailyMissions) {
+    const loadedMissions = loadSavedDailyMissions();
+    ctx.hubState.dailyMissions = loadedMissions.missions;
+    ctx.hubState.grandBonusClaimed = loadedMissions.grandBonusClaimed;
+  }
+
   const hub = ctx.hubState;
 
   // Sync to local storage
@@ -161,6 +323,10 @@ export function renderHub(container, ctx = {}, actions = {}) {
     } catch {
       // ignore
     }
+  };
+
+  const saveMissionsState = () => {
+    saveDailyMissionsToStorage(hub.dailyMissions, hub.grandBonusClaimed);
   };
 
   // Find active lead pet
@@ -203,6 +369,184 @@ export function renderHub(container, ctx = {}, actions = {}) {
 
   // Available avatars for the student
   const AVATAR_OPTIONS = ['🦊', '🐺', '🦁', '🦉', '🐼', '🦖', '🦄', '⭐'];
+
+  // Calculate Daily Missions statistics
+  const missions = hub.dailyMissions || [];
+  const totalMissions = missions.length;
+  const completedCount = missions.filter((m) => m.progress >= m.target).length;
+  const claimedCount = missions.filter((m) => Boolean(m.claimed)).length;
+  const allMissionsClaimed = totalMissions > 0 && claimedCount === totalMissions;
+  const completionPercentage = totalMissions > 0 ? Math.round((claimedCount / totalMissions) * 100) : 0;
+
+  const missionsMarkup = missions
+    .map((m) => {
+      const isClaimed = Boolean(m.claimed);
+      const isReadyToClaim = !isClaimed && m.progress >= m.target;
+      const progressPercent = Math.min(100, Math.round((m.progress / m.target) * 100));
+
+      let cardBorderBg = 'border-[#7b4632] bg-white';
+      let progressColor = 'bg-gradient-to-r from-amber-400 to-orange-400';
+
+      if (isClaimed) {
+        cardBorderBg = 'border-emerald-600 bg-emerald-50/70 opacity-95';
+        progressColor = 'bg-emerald-500';
+      } else if (isReadyToClaim) {
+        cardBorderBg = 'border-amber-500 bg-gradient-to-b from-amber-50 to-orange-50 ring-2 ring-amber-300';
+        progressColor = 'bg-gradient-to-r from-amber-400 to-emerald-400';
+      }
+
+      let actionMarkup = '';
+      if (isClaimed) {
+        actionMarkup = `
+          <div class="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-emerald-100 border-2 border-emerald-400 text-emerald-900 text-xs font-black shadow-xs">
+            <span>✓</span>
+            <span>Reward Claimed (+${m.rewardCoins} 🪙)</span>
+          </div>
+        `;
+      } else if (isReadyToClaim) {
+        actionMarkup = `
+          <button
+            type="button"
+            data-claim-mission="${m.id}"
+            class="claim-mission-btn group w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-3 border-[#b45309] bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_4px_0_#b45309] transition hover:scale-102 hover:brightness-110 active:translate-y-1 active:shadow-none animate-pulse cursor-pointer"
+          >
+            <span class="text-base group-hover:scale-125 transition-transform">🎁</span>
+            <span>Claim +${m.rewardCoins} Coins!</span>
+          </button>
+        `;
+      } else {
+        actionMarkup = `
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              data-quiz-mission="${m.id}"
+              class="mission-quiz-btn flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border-2 border-indigo-400 bg-indigo-50 hover:bg-indigo-100 active:translate-y-0.5 text-indigo-900 font-black text-xs shadow-xs transition cursor-pointer"
+            >
+              <span>⚡</span>
+              <span>Quick Quiz (+1)</span>
+            </button>
+            <button
+              type="button"
+              data-nav-mission="${m.screen}"
+              class="mission-go-btn flex items-center gap-1 py-2 px-3 rounded-xl border-2 border-[#7b4632] bg-amber-200 hover:bg-amber-300 active:translate-y-0.5 text-[#542d1d] font-black text-xs shadow-xs transition cursor-pointer"
+            >
+              <span>${m.screenLabel}</span>
+              <span>➜</span>
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="mission-card relative flex flex-col justify-between rounded-2xl border-3 ${cardBorderBg} p-4 shadow-[0_4px_0_#7b4632] transition hover:shadow-[0_6px_0_#7b4632]">
+          
+          <!-- Category & Reward Badges -->
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${m.categoryTheme || 'bg-amber-100 text-amber-900 border-amber-300'}">
+                ${m.icon} ${esc(m.category)}
+              </span>
+              <div class="flex items-center gap-1 font-serif text-xs font-black">
+                <span class="rounded-xl border border-amber-300 bg-amber-100 px-2 py-0.5 text-amber-900 shadow-xs">
+                  🪙 +${m.rewardCoins}
+                </span>
+                ${
+                  m.rewardTokens > 0
+                    ? `
+                  <span class="rounded-xl border border-purple-300 bg-purple-100 px-2 py-0.5 text-purple-900 shadow-xs">
+                    🧬 +${m.rewardTokens}
+                  </span>
+                `
+                    : ''
+                }
+              </div>
+            </div>
+
+            <!-- Title & Description -->
+            <div class="my-2.5 space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-serif text-base font-black tracking-wide text-[#542d1d]">
+                  ${esc(m.title)}
+                </h3>
+                ${
+                  isReadyToClaim
+                    ? '<span class="rounded-md bg-amber-400 px-1.5 py-0.2 text-[9px] font-black uppercase text-[#542d1d] animate-bounce">Ready!</span>'
+                    : ''
+                }
+              </div>
+              <p class="text-xs font-bold text-slate-600 leading-snug">
+                ${esc(m.description)}
+              </p>
+            </div>
+          </div>
+
+          <!-- Progress Bar & Actions -->
+          <div class="space-y-2 mt-2">
+            <div class="space-y-1">
+              <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-[#7a462f]">
+                <span>Challenge Progress</span>
+                <span class="font-mono font-bold">${m.progress} / ${m.target}</span>
+              </div>
+              <div class="h-2.5 w-full overflow-hidden rounded-full bg-amber-100/80 border border-amber-300 shadow-inner">
+                <div class="h-full ${progressColor} transition-all duration-300" style="width: ${progressPercent}%"></div>
+              </div>
+            </div>
+
+            <div class="pt-1">
+              ${actionMarkup}
+            </div>
+          </div>
+
+        </div>
+      `;
+    })
+    .join('');
+
+  let grandChestMarkup = '';
+  if (allMissionsClaimed) {
+    if (!hub.grandBonusClaimed) {
+      grandChestMarkup = `
+        <div class="rounded-2xl border-3 border-[#b45309] bg-gradient-to-r from-amber-200 via-yellow-100 to-orange-200 p-4 shadow-[0_4px_0_#b45309] flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+          <div class="flex items-center gap-3 text-center sm:text-left">
+            <span class="text-4xl">👑</span>
+            <div>
+              <h4 class="font-serif text-base sm:text-lg font-black text-[#542d1d]">
+                Grand Scholar Chest Unlocked!
+              </h4>
+              <p class="text-xs font-bold text-[#824c16]">
+                All 4 daily vocabulary challenges are complete! Claim your master bonus:
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="claim-grand-chest-btn"
+            class="rounded-xl border-3 border-[#7b4632] bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-[0_3px_0_#7b4632] hover:brightness-110 active:translate-y-1 active:shadow-none cursor-pointer"
+          >
+            🎁 Claim +150 🪙 &amp; +3 🧬
+          </button>
+        </div>
+      `;
+    } else {
+      grandChestMarkup = `
+        <div class="rounded-2xl border-2 border-emerald-400 bg-emerald-50/90 p-3 text-center text-xs font-black text-emerald-900 shadow-xs">
+          🏆 Grand Scholar Chest Claimed! Outstanding vocabulary prowess today, Lexi Explorer!
+        </div>
+      `;
+    }
+  } else {
+    grandChestMarkup = `
+      <div class="rounded-2xl border-2 border-dashed border-amber-300 bg-white/70 p-3 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-amber-900 shadow-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🔒</span>
+          <span>Claim all 4 daily quests to unlock the <strong>Grand Scholar Chest</strong>!</span>
+        </div>
+        <div class="rounded-lg bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800 border border-amber-300">
+          Reward: 🪙 +150 &amp; 🧬 +3
+        </div>
+      </div>
+    `;
+  }
 
   // Render HTML scaffolding
   container.innerHTML = `
@@ -407,7 +751,71 @@ export function renderHub(container, ctx = {}, actions = {}) {
         </section>
 
         <!-- ======================================================== -->
-        <!-- 3. QUICK NAVIGATION GRID (6 Chunky Touch Tiles)          -->
+        <!-- 3. DAILY MISSIONS PANEL (Vocabulary Challenges & Rewards) -->
+        <!-- ======================================================== -->
+        <section class="rounded-3xl border-4 border-[#7b4632] bg-gradient-to-b from-[#fff7e6] via-[#fffbf2] to-[#fff3d6] p-4 sm:p-6 shadow-[0_8px_0_#7b4632] space-y-4">
+          
+          <!-- Missions Header & Overall Progress Tracker -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-amber-200/80 pb-3">
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-2xl sm:text-3xl">🎯</span>
+                <h2 class="font-serif text-xl sm:text-2xl font-black tracking-wide text-[#542d1d]">
+                  Daily Vocabulary Quests
+                </h2>
+                <span class="rounded-full border-2 border-[#7b4632] bg-amber-400 px-2.5 py-0.5 text-[10px] font-black uppercase text-[#542d1d] shadow-xs">
+                  Resets Daily
+                </span>
+              </div>
+              <p class="text-xs font-bold text-[#824c16]">
+                Conquer grammar, morphology &amp; combat challenges to earn Lexi-Coins &amp; Fusion Tokens!
+              </p>
+            </div>
+
+            <!-- Summary Progress Pill -->
+            <div class="flex items-center gap-3 bg-white/95 rounded-2xl border-3 border-[#7b4632] px-3.5 py-2 shadow-[0_3px_0_#7b4632]">
+              <div class="text-right">
+                <div class="text-[10px] font-black uppercase tracking-wider text-[#824c16]">
+                  Quests Claimed
+                </div>
+                <div class="font-serif text-base sm:text-lg font-black text-[#542d1d]">
+                  ${claimedCount} / ${totalMissions} Claimed
+                </div>
+              </div>
+              <div class="relative h-11 w-11 flex items-center justify-center rounded-xl bg-gradient-to-b from-amber-300 to-amber-500 border-2 border-[#7b4632] text-2xl shadow-xs">
+                ${allMissionsClaimed ? '👑' : '📜'}
+              </div>
+            </div>
+          </div>
+
+          <!-- Overall Progress Bar -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-[11px] font-black text-[#7a462f]">
+              <span>Daily Completion Meter</span>
+              <span>${completionPercentage}% (${completedCount}/${totalMissions} Quests Ready)</span>
+            </div>
+            <div class="h-3.5 w-full overflow-hidden rounded-full border-2 border-[#7b4632] bg-amber-100 shadow-inner">
+              <div
+                class="h-full bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-500 transition-all duration-500"
+                style="width: ${completionPercentage}%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Grid of Mission Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 pt-1">
+            ${missionsMarkup}
+          </div>
+
+          <!-- Grand Scholar Chest Bonus -->
+          <div id="grand-chest-container">
+            ${grandChestMarkup}
+          </div>
+
+        </section>
+
+        <!-- ======================================================== -->
+        <!-- 4. QUICK NAVIGATION GRID (6 Chunky Touch Tiles)          -->
         <!-- ======================================================== -->
         <section class="space-y-3">
           <div class="flex items-center justify-between px-1">
@@ -541,16 +949,94 @@ export function renderHub(container, ctx = {}, actions = {}) {
     </div>
   `;
 
+  // Store globals for external actions
+  if (typeof window !== 'undefined') {
+    window.__hubActions = actions;
+    window.__hubContainer = container;
+    window.__hubCtx = ctx;
+  }
+
   // Attach all DOM Event Handlers
-  attachHubEvents(container, ctx, hub, actions, saveHubProfile, AVATAR_OPTIONS);
+  attachHubEvents(container, ctx, hub, actions, saveHubProfile, saveMissionsState, AVATAR_OPTIONS);
 }
 
 /**
  * Attach event listeners to the Hub interface
  */
-function attachHubEvents(container, ctx, hub, actions, saveHubProfile, AVATAR_OPTIONS) {
+function attachHubEvents(container, ctx, hub, actions, saveHubProfile, saveMissionsState, AVATAR_OPTIONS) {
   const rerender = () => renderHub(container, ctx, actions);
   const modalLayer = container.querySelector('#hub-modal-layer');
+
+  // Claim Daily Mission Reward
+  container.querySelectorAll('[data-claim-mission]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const missionId = btn.getAttribute('data-claim-mission');
+      const mission = (hub.dailyMissions || []).find((m) => m.id === missionId);
+      if (mission && mission.progress >= mission.target && !mission.claimed) {
+        mission.claimed = true;
+        hub.lexiCoins += mission.rewardCoins;
+        hub.fusionTokens += (mission.rewardTokens || 0);
+        saveHubProfile();
+        saveMissionsState();
+        playRewardChime();
+        showHubToast(
+          container,
+          `🪙 <strong>+${mission.rewardCoins} Lexi-Coins</strong> Claimed for "${esc(mission.title)}"!`
+        );
+        rerender();
+      }
+    });
+  });
+
+  // Claim Grand Scholar Chest
+  container.querySelector('#claim-grand-chest-btn')?.addEventListener('click', () => {
+    if (!hub.grandBonusClaimed) {
+      hub.grandBonusClaimed = true;
+      hub.lexiCoins += 150;
+      hub.fusionTokens += 3;
+      saveHubProfile();
+      saveMissionsState();
+      playRewardChime();
+      showHubToast(
+        container,
+        '👑 <strong>+150 Coins &amp; +3 Fusion Tokens</strong> Claimed from the Grand Scholar Chest!'
+      );
+      rerender();
+    }
+  });
+
+  // Quick Quiz Challenge Button
+  container.querySelectorAll('[data-quiz-mission]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const missionId = btn.getAttribute('data-quiz-mission');
+      const mission = (hub.dailyMissions || []).find((m) => m.id === missionId);
+      if (mission) {
+        playHubTone(600, 80);
+        showMissionQuizModal(modalLayer, mission, hub, saveHubProfile, saveMissionsState, rerender, container);
+      }
+    });
+  });
+
+  // Navigation Shortcut for Missions
+  container.querySelectorAll('[data-nav-mission]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetScreen = btn.getAttribute('data-nav-mission');
+      playHubTone(620, 100);
+      if (actions.navigateTo) {
+        actions.navigateTo(targetScreen);
+      }
+      if (targetScreen === 'battle-arena') {
+        if (actions.goToBattle) actions.goToBattle();
+        else if (typeof window.switchTab === 'function') window.switchTab('battle');
+      } else if (targetScreen === 'word-forge') {
+        if (actions.goToForge) actions.goToForge();
+        else if (typeof window.switchTab === 'function') window.switchTab('forge');
+      } else if (targetScreen === 'pet-roster') {
+        if (actions.goToLoadout) actions.goToLoadout();
+        else if (typeof window.switchTab === 'function') window.switchTab('loadout');
+      }
+    });
+  });
 
   // Speak Lore
   container.querySelector('#hub-speak-pet')?.addEventListener('click', () => {
@@ -936,6 +1422,151 @@ function showWorldSelectModal(modalLayer, actions) {
   modalLayer.querySelector('#launch-quest-1')?.addEventListener('click', launch);
   modalLayer.querySelector('#launch-quest-2')?.addEventListener('click', launch);
   modalLayer.querySelector('#launch-quest-3')?.addEventListener('click', launch);
+}
+
+function showMissionQuizModal(modalLayer, mission, hub, saveHubProfile, saveMissionsState, rerender, container) {
+  if (!modalLayer || !mission || !mission.quiz) return;
+  const q = mission.quiz;
+  const letters = ['A', 'B', 'C', 'D'];
+
+  modalLayer.innerHTML = `
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+      <div id="quiz-card" class="w-full max-w-md rounded-3xl border-4 border-indigo-600 bg-[#fbfaff] p-5 sm:p-6 shadow-[0_8px_0_#4338ca] space-y-4">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b-2 border-indigo-200 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">${mission.icon}</span>
+            <div>
+              <h3 class="font-serif text-lg font-black text-indigo-950">${esc(mission.title)} Quiz</h3>
+              <p class="text-[11px] font-bold text-indigo-700">Answer correctly for +1 Quest Progress!</p>
+            </div>
+          </div>
+          <button type="button" id="modal-close" class="rounded-xl p-1 text-slate-400 hover:text-black font-bold text-lg cursor-pointer">✕</button>
+        </div>
+
+        <!-- Question Prompt -->
+        <div class="rounded-2xl border-2 border-indigo-200 bg-white p-3.5 shadow-xs">
+          <p class="font-bold text-slate-800 text-sm leading-relaxed">${esc(q.question)}</p>
+        </div>
+
+        <!-- Feedback Alert -->
+        <div id="quiz-feedback" class="hidden rounded-xl p-2.5 text-xs font-bold text-center"></div>
+
+        <!-- Options -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="quiz-options">
+          ${q.options
+            .map(
+              (opt, idx) => `
+            <button
+              type="button"
+              data-opt-index="${idx}"
+              class="quiz-opt-btn flex items-center gap-2.5 rounded-2xl border-2 border-indigo-300 bg-white p-3 text-left font-bold text-xs text-indigo-950 shadow-[0_3px_0_#c7d2fe] hover:bg-indigo-50 hover:border-indigo-500 active:translate-y-0.5 active:shadow-none transition cursor-pointer"
+            >
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-100 font-mono font-black text-indigo-700">${letters[idx]}</span>
+              <span>${esc(opt)}</span>
+            </button>
+          `
+            )
+            .join('')}
+        </div>
+
+        <div class="text-center pt-1">
+          <span class="text-[11px] font-bold text-slate-400">Current Progress: ${mission.progress} / ${mission.target}</span>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  modalLayer.querySelector('#modal-close')?.addEventListener('click', () => {
+    modalLayer.innerHTML = '';
+  });
+
+  const feedbackEl = modalLayer.querySelector('#quiz-feedback');
+  const cardEl = modalLayer.querySelector('#quiz-card');
+
+  modalLayer.querySelectorAll('.quiz-opt-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const selectedIdx = parseInt(btn.getAttribute('data-opt-index') || '-1', 10);
+      if (selectedIdx === q.correctIndex) {
+        mission.progress = Math.min(mission.target, mission.progress + 1);
+        saveMissionsState();
+        playRewardChime();
+
+        const isNowReady = mission.progress >= mission.target;
+
+        cardEl.className =
+          'w-full max-w-md rounded-3xl border-4 border-emerald-600 bg-emerald-50 p-5 sm:p-6 shadow-[0_8px_0_#059669] space-y-4 text-center';
+        cardEl.innerHTML = `
+          <span class="text-5xl block animate-bounce">🎉</span>
+          <h3 class="font-serif text-2xl font-black text-emerald-950">Awesome Vocabulary Work!</h3>
+          <p class="text-xs font-bold text-emerald-900 leading-relaxed">${esc(q.explanation)}</p>
+          <div class="rounded-2xl border-2 border-emerald-300 bg-white/80 p-3 text-xs font-black text-emerald-800">
+            Progress: <strong>${mission.progress} / ${mission.target}</strong>
+            ${isNowReady ? ' — <span class="text-amber-600">Quest Ready to Claim! 🎁</span>' : ''}
+          </div>
+          <button
+            type="button"
+            id="quiz-continue-btn"
+            class="w-full rounded-2xl border-3 border-[#7b4632] bg-emerald-500 py-3 text-xs font-black uppercase text-white shadow-[0_3px_0_#7b4632] hover:bg-emerald-600 active:translate-y-1 cursor-pointer"
+          >
+            ${isNowReady ? 'Claim Reward in Hub ➜' : 'Back to Hub'}
+          </button>
+        `;
+
+        cardEl.querySelector('#quiz-continue-btn')?.addEventListener('click', () => {
+          modalLayer.innerHTML = '';
+          rerender();
+        });
+      } else {
+        playHubTone(240, 150, 'sawtooth');
+        btn.classList.add('bg-rose-100', 'border-rose-400', 'text-rose-900');
+        if (feedbackEl) {
+          feedbackEl.className =
+            'rounded-xl p-2.5 text-xs font-bold text-center bg-rose-100 text-rose-800 border border-rose-300 block';
+          feedbackEl.textContent = "Not quite! Think about the word's meaning and try another choice.";
+        }
+      }
+    });
+  });
+}
+
+// Global helper to advance daily missions from combat or forge
+if (typeof window !== 'undefined') {
+  window.advanceDailyMission = function (typeOrId, amount = 1) {
+    let hubState = window.ctx?.hubState || window.__hubCtx?.hubState;
+    if (!hubState || !hubState.dailyMissions) {
+      const loaded = loadSavedDailyMissions();
+      let changed = false;
+      loaded.missions.forEach((m) => {
+        if ((m.type === typeOrId || m.id === typeOrId) && !m.claimed) {
+          m.progress = Math.min(m.target, m.progress + amount);
+          changed = true;
+        }
+      });
+      if (changed) {
+        saveDailyMissionsToStorage(loaded.missions, loaded.grandBonusClaimed);
+      }
+      return;
+    }
+
+    let changed = false;
+    hubState.dailyMissions.forEach((m) => {
+      if ((m.type === typeOrId || m.id === typeOrId) && !m.claimed) {
+        m.progress = Math.min(m.target, m.progress + amount);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      saveDailyMissionsToStorage(hubState.dailyMissions, hubState.grandBonusClaimed);
+      const hubEl = document.querySelector('.hub-screen');
+      if (hubEl && typeof window.renderHub === 'function' && window.__hubContainer && window.__hubCtx) {
+        window.renderHub(window.__hubContainer, window.__hubCtx, window.__hubActions || {});
+      }
+    }
+  };
 }
 
 // Attach globally to window.renderHub

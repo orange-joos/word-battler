@@ -425,6 +425,9 @@ export function addForgedWord(catalog, entry) {
   if (existingList.some((w) => w.id === entry.id)) {
     return catalog;
   }
+  if (typeof window !== 'undefined' && typeof window.advanceDailyMission === 'function') {
+    window.advanceDailyMission('morphology', 1);
+  }
   return {
     ...catalog,
     [bucket]: [...existingList, entry],
@@ -439,6 +442,9 @@ export function addForgedWord(catalog, entry) {
 export function addForgedCreature(creatures, entry) {
   if (creatures.some((c) => c.id === entry.id)) {
     return creatures;
+  }
+  if (typeof window !== 'undefined' && typeof window.advanceDailyMission === 'function') {
+    window.advanceDailyMission('morphology', 1);
   }
   return [...creatures, entry];
 }
