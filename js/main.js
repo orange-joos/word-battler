@@ -20,11 +20,13 @@ import {
   PHASES,
 } from './combat.js';
 import { renderForge } from './forge-ui.js';
+import { renderHub } from './hub-ui.js';
 import { addForgedWord, addForgedCreature } from './forge.js';
 
-// Expose renderForge globally as specified in the architecture outline
+// Expose renderForge and renderHub globally as specified in the architecture outline
 if (typeof window !== 'undefined') {
   window.renderForge = renderForge;
+  window.renderHub = renderHub;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +333,7 @@ export function speak(text) {
  * @property {Object} battleUIState
  */
 export const ctx = {
-  currentTab: 'battle',
+  currentTab: 'hub',
   playerId: 'emberfox',
   enemyId: 'rimepup',
   creatures: loadSavedCreatures(),
@@ -419,13 +421,13 @@ export function restartBattle(newPlayerId) {
 // ---------------------------------------------------------------------------
 
 /**
- * Switch the application view between 'battle', 'loadout', and 'forge'.
- * @param {'battle' | 'loadout' | 'forge'} tabName
+ * Switch the application view between 'hub', 'battle', 'loadout', and 'forge'.
+ * @param {'hub' | 'battle' | 'loadout' | 'forge'} tabName
  */
 export function switchTab(tabName) {
-  if (tabName !== 'battle' && tabName !== 'loadout' && tabName !== 'forge') return;
+  if (tabName !== 'hub' && tabName !== 'battle' && tabName !== 'loadout' && tabName !== 'forge') return;
   ctx.currentTab = tabName;
-  playTone(tabName === 'battle' ? 620 : tabName === 'loadout' ? 700 : 780, 80);
+  playTone(tabName === 'hub' ? 520 : tabName === 'battle' ? 620 : tabName === 'loadout' ? 700 : 780, 80);
   renderApp();
 }
 
@@ -1294,6 +1296,17 @@ export function renderApp(targetEl) {
             <nav class="flex items-center gap-2">
               <button
                 type="button"
+                id="nav-tab-hub"
+                class="rounded-xl px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  ctx.currentTab === 'hub'
+                    ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg shadow-amber-950/40 ring-1 ring-amber-400'
+                    : 'bg-violet-900/60 text-violet-300 hover:bg-violet-900 hover:text-white'
+                }"
+              >
+                🏕️ Camp Hub
+              </button>
+              <button
+                type="button"
                 id="nav-tab-battle"
                 class="rounded-xl px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                   ctx.currentTab === 'battle'
@@ -1350,6 +1363,7 @@ export function renderApp(targetEl) {
     `;
 
     // Tab button handlers
+    root.querySelector('#nav-tab-hub')?.addEventListener('click', () => switchTab('hub'));
     root.querySelector('#nav-tab-battle')?.addEventListener('click', () => switchTab('battle'));
     root.querySelector('#nav-tab-loadout')?.addEventListener('click', () => switchTab('loadout'));
     root.querySelector('#nav-tab-forge')?.addEventListener('click', () => switchTab('forge'));
@@ -1360,10 +1374,18 @@ export function renderApp(targetEl) {
     });
   } else {
     // Update active tab buttons visual state
+    const hubTabBtn = root.querySelector('#nav-tab-hub');
     const battleTabBtn = root.querySelector('#nav-tab-battle');
     const loadoutTabBtn = root.querySelector('#nav-tab-loadout');
     const forgeTabBtn = root.querySelector('#nav-tab-forge');
     const muteBtn = root.querySelector('#nav-toggle-mute');
+
+    if (hubTabBtn) {
+      hubTabBtn.className =
+        ctx.currentTab === 'hub'
+          ? 'rounded-xl px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg shadow-amber-950/40 ring-1 ring-amber-400'
+          : 'rounded-xl px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer bg-violet-900/60 text-violet-300 hover:bg-violet-900 hover:text-white';
+    }
 
     if (battleTabBtn && forgeTabBtn) {
       battleTabBtn.className =
@@ -1391,7 +1413,27 @@ export function renderApp(targetEl) {
   const container = root.querySelector('#app-view-container');
   if (!container) return;
 
-  if (ctx.currentTab === 'battle') {
+  if (ctx.currentTab === 'hub') {
+    const hubActions = {
+      navigateTo: (screen) => {
+        if (screen === 'battle-arena' || screen === 'battle') {
+          switchTab('battle');
+        } else if (screen === 'word-forge' || screen === 'forge') {
+          switchTab('forge');
+        } else if (screen === 'pet-roster' || screen === 'loadout') {
+          switchTab('loadout');
+        }
+      },
+      goToBattle: () => switchTab('battle'),
+      goToForge: () => switchTab('forge'),
+      goToLoadout: () => switchTab('loadout'),
+      onSelectPet: (petId) => {
+        ctx.playerId = petId;
+        initBattle(petId);
+      },
+    };
+    renderHub(container, ctx, hubActions);
+  } else if (ctx.currentTab === 'battle') {
     renderBattleView(container);
   } else if (ctx.currentTab === 'loadout') {
     renderLoadoutView(container);
@@ -1451,4 +1493,6 @@ export default {
   renderApp,
   initApp,
   renderForge,
+  renderHub,
 };
+

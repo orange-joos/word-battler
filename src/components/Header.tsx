@@ -1,5 +1,5 @@
 import React from 'react';
-import { Swords, Flame, Volume2, VolumeX, HelpCircle, RotateCcw, BookOpen } from 'lucide-react';
+import { Swords, Flame, Volume2, VolumeX, HelpCircle, RotateCcw, BookOpen, Compass } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 
 interface HeaderProps {
@@ -43,6 +43,19 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
 
         {/* Navigation Tabs */}
         <nav className="order-3 flex basis-full flex-wrap items-center justify-center gap-1.5 lg:order-none lg:basis-auto lg:gap-2" aria-label="Game sections">
+          <button
+            type="button"
+            onClick={() => setTab('hub')}
+            className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm font-semibold tracking-wide transition-all ${
+              tab === 'hub'
+                ? 'bg-amber-300 text-amber-950 shadow-md shadow-[#783f36]'
+                : 'bg-[#893f3b] text-orange-50 hover:bg-[#783832]'
+            }`}
+          >
+            <Compass className="h-4 w-4 text-amber-400" />
+            <span>Camp Hub</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setTab('battle')}

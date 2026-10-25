@@ -132,7 +132,7 @@ function initializeCreatures(): Creature[] {
 }
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tab, setTab] = useState<TabType>('battle');
+  const [tab, setTab] = useState<TabType>('hub');
   const [creatures, setCreatures] = useState<Creature[]>(initializeCreatures);
   const [words, setWords] = useState<CatalogWords>(initializeWords);
   const [playerId, setPlayerId] = useState<string>('emberfox');

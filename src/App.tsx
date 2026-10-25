@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { BattleView } from './components/BattleView';
 import { WordForgeView } from './components/WordForgeView';
 import { LoadoutView } from './components/LoadoutView';
+import { HubView } from './components/HubView';
 import { GuideModal } from './components/GuideModal';
 
 const AppContent: React.FC = () => {
@@ -15,7 +16,9 @@ const AppContent: React.FC = () => {
       <Header onOpenGuide={() => setIsGuideOpen(true)} />
 
       <div className="flex-1">
-        {tab === 'battle' ? (
+        {tab === 'hub' ? (
+          <HubView />
+        ) : tab === 'battle' ? (
           <BattleView />
         ) : tab === 'loadout' ? (
           <LoadoutView />

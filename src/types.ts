@@ -12,7 +12,7 @@ export interface PetLoadout {
   adverb: string | null;
 }
 
-export type TabType = 'battle' | 'loadout' | 'forge';
+export type TabType = 'hub' | 'battle' | 'loadout' | 'forge';
 
 export interface StatusEffect {
   id: string;
