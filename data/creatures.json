@@ -1,0 +1,32 @@
+{
+  "creatures": [
+    {
+      "id": "emberfox",
+      "name": "Emberfox",
+      "element": "fire",
+      "description": "A fox whose fur holds live embers. It attacks with heat adjectives and flame nouns.",
+      "stats": {
+        "hp": 42,
+        "attack": 14,
+        "defense": 8,
+        "speed": 12
+      },
+      "allowedWordTypes": ["adjective", "noun"],
+      "allowedElements": ["fire"]
+    },
+    {
+      "id": "rimepup",
+      "name": "Rimepup",
+      "element": "ice",
+      "description": "A frost-coated pup that breathes pale mist. It attacks with cold adjectives and ice nouns.",
+      "stats": {
+        "hp": 46,
+        "attack": 10,
+        "defense": 13,
+        "speed": 9
+      },
+      "allowedWordTypes": ["adjective", "noun"],
+      "allowedElements": ["ice"]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# Word Battler — Project Rules
+
+We are building an educational vocabulary pet battler. Combat is turn-based and driven by word combinations, grammar, and morphology — not generic RPG stats alone. Prefer designs that teach vocabulary while remaining fun to play.
+
+## Stack
+
+- Web-first: Phaser.js for combat/scenes, React for UI/shell, Tailwind CSS for styling.
+- TypeScript throughout. Keep modules small and responsibilities clear.
+- Prefer JSON schemas for creatures, moves, vocabulary entries, and combat effects.
+
+## Combat & Pedagogy
+
+- Attacks, synergies, and outcomes should map to language knowledge: definitions, word relationships, and sentence construction.
+- Morphology (roots, affixes, compounds) and grammar (e.g. adjective + noun) should produce meaningful combat effects.
+- Do not reduce combat to unrelated numbers that ignore the linguistic system.
+
+## Architecture
+
+- Layer 1 — Word Knowledge: definitions and contextual recognition.
+- Layer 2 — Word Relationships: affixes, roots, compound words.
+- Layer 3 — Sentence Construction: grammar synergies (e.g. adjective + noun).
+
+Keep these layers explicit in data and code. New features should fit a layer rather than invent a parallel combat system.
+
+## Conventions
+
+- Write clean, modular TypeScript.
+- Maintain clear JSON schemas for creatures and vocabulary.
+- Keep educational intent visible in naming, data, and UI copy.
+- Prefer reusable language-system primitives over one-off move hardcoding.

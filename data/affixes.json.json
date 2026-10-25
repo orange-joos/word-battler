@@ -1,0 +1,57 @@
+[
+  {
+    "id": "un",
+    "text": "un",
+    "type": "prefix",
+    "from": ["adjective"],
+    "to": "adjective",
+    "gloss": "not; the opposite of",
+    "definition": "not {base}",
+    "elementEffect": "invert",
+    "respell": []
+  },
+  {
+    "id": "less",
+    "text": "less",
+    "type": "suffix",
+    "from": ["noun"],
+    "to": "adjective",
+    "gloss": "without",
+    "definition": "without {base}",
+    "elementEffect": "invert",
+    "respell": []
+  },
+  {
+    "id": "like",
+    "text": "like",
+    "type": "suffix",
+    "from": ["noun"],
+    "to": "adjective",
+    "gloss": "resembling",
+    "definition": "resembling a {base}",
+    "elementEffect": "keep",
+    "respell": []
+  },
+  {
+    "id": "ness",
+    "text": "ness",
+    "type": "suffix",
+    "from": ["adjective"],
+    "to": "noun",
+    "gloss": "the state or quality of being",
+    "definition": "the quality of being {base}",
+    "elementEffect": "keep",
+    "respell": ["yToI"]
+  },
+  {
+    "id": "ling",
+    "text": "ling",
+    "type": "suffix",
+    "from": ["noun"],
+    "to": "noun",
+    "gloss": "small or young",
+    "definition": "a small {base}",
+    "elementEffect": "keep",
+    "respell": ["dropSilentE"]
+  }
+]

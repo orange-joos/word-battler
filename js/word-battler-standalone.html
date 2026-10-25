@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Word Battler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-[#100c18]">
+    <nav
+      id="tab-bar"
+      class="sticky top-0 z-10 flex justify-center gap-2 border-b border-violet-900 bg-[#100c18]/95 px-4 py-3 backdrop-blur"
+      aria-label="Game sections"
+    >
+      <button type="button" data-tab="battle" class="rounded-lg bg-violet-950 px-5 py-2 text-sm font-semibold tracking-wide text-violet-300">Battle</button>
+      <button type="button" data-tab="forge" class="rounded-lg bg-violet-950 px-5 py-2 text-sm font-semibold tracking-wide text-violet-300">Word Forge</button>
+    </nav>
+    <div id="app"></div>
+    <noscript class="block p-6 text-center text-slate-200">
+      Word Battler needs JavaScript to run.
+    </noscript>
+    <script type="module">
+/**
+ * Turn-state machine for Word Battler combat.
+ * Phases: PLAYER_TURN -> WORD_CHOICE -> RESOLUTION -> ENEMY_TURN
+ *
+ * Damage comes from whether an adjective + noun combo is allowed
+ * for the attacking creature (part of speech + element), not from
+ * a separate move list.
+ */
+
+const PHASES = Object.freeze({
+  PLAYER_TURN: "PLAYER_TURN",
+  WORD_CHOICE: "WORD_CHOICE",
+  RESOLUTION: "RESOLUTION",
+  ENEMY_TURN: "ENEMY_TURN",
+  BATTLE_END: "BATTLE_END",
+});
+
+const BASE_COMBO_POWER = 6;
+const MATCHING_ELEMENT_BONUS = 4;
+const SHARED_WORD_ELEMENT_BONUS = 2;
+
+function cloneCreature(template) {
+  return {
+    ...template,
+    stats: { ...template.stats },
+    currentHp: template.stats.hp,
+  };
+}
+
+function findCreature(creatureId, catalog) {
+  const found = catalog.find((creature) => creature.id === creatureId);
+  if (!found) {
+    throw new Error(`Unknown creature: ${creatureId}`);
+  }
+  return found;
+}
+
+function allWords(catalog) {
+  return [...catalog.adjectives, ...catalog.nouns];
+}
+
+function findWord(wordIdOrText, catalog) {
+  const key = String(wordIdOrText).toLowerCase();
+  const found = allWords(catalog).find(
+    (entry) => entry.id === key || entry.word.toLowerCase() === key
+  );
+  if (!found) {
+    throw new Error(`Unknown word: ${wordIdOrText}`);
+  }
+  return found;
+}
+
+function wordsForCreature(creature, catalog) {
+  const allowedTypes = new Set(creature.allowedWordTypes);
+  const allowedElements = new Set(creature.allowedElements);
+
+  return allWords(catalog).filter(
+    (word) =>
+      allowedTypes.has(word.partOfSpeech) && allowedElements.has(word.element)
+  );
+}
+
+/**
+ * Layer 3 check: adjective + noun must both be allowed for this creature.
+ * Matching elements increase power so the language system drives damage.
+ */
+function evaluateCombo(attacker, adjective, noun) {
+  const reasons = [];
+  const allowedTypes = new Set(attacker.allowedWordTypes);
+  const allowedElements = new Set(attacker.allowedElements);
+
+  const grammarOk =
+    adjective.partOfSpeech === "adjective" && noun.partOfSpeech === "noun";
+  const typesAllowed =
+    allowedTypes.has(adjective.partOfSpeech) &&
+    allowedTypes.has(noun.partOfSpeech);
+  const adjectiveAllowed = allowedElements.has(adjective.element);
+  const nounAllowed = allowedElements.has(noun.element);
+  const bothMatchAttacker = adjectiveAllowed && nounAllowed;
+  const wordsShareElement = adjective.element === noun.element;
+
+  if (!grammarOk) {
+    reasons.push("Combos must be an adjective followed by a noun.");
+  }
+  if (!typesAllowed) {
+    reasons.push(
+      `${attacker.name} can only use: ${attacker.allowedWordTypes.join(", ")}.`
+    );
+  }
+  if (!adjectiveAllowed) {
+    reasons.push(
+      `"${adjective.word}" is ${adjective.element}; ${attacker.name} uses ${attacker.allowedElements.join(", ")}.`
+    );
+  }
+  if (!nounAllowed) {
+    reasons.push(
+      `"${noun.word}" is ${noun.element}; ${attacker.name} uses ${attacker.allowedElements.join(", ")}.`
+    );
+  }
+
+  const valid = grammarOk && typesAllowed && bothMatchAttacker;
+  let power = 0;
+
+  if (valid) {
+    power = BASE_COMBO_POWER;
+    if (adjective.element === attacker.element) {
+      power += MATCHING_ELEMENT_BONUS;
+    }
+    if (noun.element === attacker.element) {
+      power += MATCHING_ELEMENT_BONUS;
+    }
+    if (wordsShareElement) {
+      power += SHARED_WORD_ELEMENT_BONUS;
+    }
+    reasons.push(
+      `${attacker.name} forms "${adjective.word} ${noun.word}" — a valid adjective + noun combo.`
+    );
+  } else if (grammarOk && typesAllowed && wordsShareElement) {
+    reasons.push(
+      `"${adjective.word} ${noun.word}" is grammatical, but it does not match ${attacker.name}'s element.`
+    );
+  }
+
+  return {
+    valid,
+    phrase: `${adjective.word} ${noun.word}`,
+    adjective,
+    noun,
+    power,
+    reasons,
+  };
+}
+
+function calculateDamage(attacker, defender, combo) {
+  if (!combo.valid) {
+    return 0;
+  }
+
+  const raw = attacker.stats.attack + combo.power - defender.stats.defense;
+  return Math.max(1, raw);
+}
+
+function pickEnemyCombo(creature, catalog) {
+  const pool = wordsForCreature(creature, catalog);
+  const adjective = pool.find((word) => word.partOfSpeech === "adjective");
+  const noun = pool.find((word) => word.partOfSpeech === "noun");
+
+  if (!adjective || !noun) {
+    throw new Error(`${creature.name} has no valid adjective + noun combo.`);
+  }
+
+  return { adjective, noun };
+}
+
+function createBattle(options = {}) {
+  if (!options.creatures || !options.words) {
+    throw new Error("createBattle requires creatures and words data.");
+  }
+
+  const catalog = {
+    creatures: options.creatures,
+    words: options.words,
+  };
+
+  const player = cloneCreature(
+    findCreature(options.playerId || "emberfox", catalog.creatures)
+  );
+  const enemy = cloneCreature(
+    findCreature(options.enemyId || "rimepup", catalog.creatures)
+  );
+
+  const battle = {
+    phase: PHASES.PLAYER_TURN,
+    player,
+    enemy,
+    log: [],
+    lastResolution: null,
+    lastPlayerResolution: null,
+    lastEnemyResolution: null,
+    pendingChoice: { adjective: null, noun: null },
+    winner: null,
+  };
+
+  function log(message, extra = {}) {
+    const entry = { phase: battle.phase, message, ...extra };
+    battle.log.push(entry);
+    return entry;
+  }
+
+  function living(side) {
+    return side.currentHp > 0;
+  }
+
+  function checkBattleEnd() {
+    if (living(player) && living(enemy)) {
+      return false;
+    }
+
+    battle.phase = PHASES.BATTLE_END;
+    battle.winner = living(player) ? player : enemy;
+    log(`${battle.winner.name} wins the battle.`, { winner: battle.winner.id });
+    return true;
+  }
+
+  function applyAttack(attacker, defender, adjectiveId, nounId) {
+    const adjective = findWord(adjectiveId, catalog.words);
+    const noun = findWord(nounId, catalog.words);
+    const combo = evaluateCombo(attacker, adjective, noun);
+    const damage = calculateDamage(attacker, defender, combo);
+
+    defender.currentHp = Math.max(0, defender.currentHp - damage);
+
+    const resolution = {
+      attackerId: attacker.id,
+      defenderId: defender.id,
+      combo,
+      damage,
+      defenderHp: defender.currentHp,
+    };
+
+    battle.phase = PHASES.RESOLUTION;
+    battle.lastResolution = resolution;
+    log(
+      combo.valid
+        ? `${attacker.name} uses "${combo.phrase}" for ${damage} damage.`
+        : `${attacker.name}'s combo fizzles: "${combo.phrase}".`,
+      resolution
+    );
+
+    return resolution;
+  }
+
+  function start() {
+    battle.phase = PHASES.PLAYER_TURN;
+    log(`${player.name} vs ${enemy.name}. Player turn.`);
+    return getState();
+  }
+
+  function beginWordChoice() {
+    if (battle.phase !== PHASES.PLAYER_TURN) {
+      throw new Error(`Cannot choose words during ${battle.phase}.`);
+    }
+
+    battle.phase = PHASES.WORD_CHOICE;
+    battle.pendingChoice = { adjective: null, noun: null };
+    log("Choose an adjective and a noun.");
+    return getState();
+  }
+
+  function submitCombo(adjectiveId, nounId) {
+    if (battle.phase !== PHASES.WORD_CHOICE && battle.phase !== PHASES.PLAYER_TURN) {
+      throw new Error(`Cannot submit a combo during ${battle.phase}.`);
+    }
+
+    battle.phase = PHASES.WORD_CHOICE;
+    battle.pendingChoice = { adjective: adjectiveId, noun: nounId };
+
+    battle.lastPlayerResolution = applyAttack(player, enemy, adjectiveId, nounId);
+    battle.lastEnemyResolution = null;
+    if (checkBattleEnd()) {
+      return getState();
+    }
+
+    runEnemyTurn();
+    return getState();
+  }
+
+  function runEnemyTurn() {
+    battle.phase = PHASES.ENEMY_TURN;
+    const choice = pickEnemyCombo(enemy, catalog.words);
+    log(
+      `${enemy.name} chooses "${choice.adjective.word} ${choice.noun.word}".`,
+      { enemyChoice: choice }
+    );
+
+    battle.lastEnemyResolution = applyAttack(
+      enemy,
+      player,
+      choice.adjective.id,
+      choice.noun.id
+    );
+    if (checkBattleEnd()) {
+      return getState();
+    }
+
+    battle.phase = PHASES.PLAYER_TURN;
+    log(`${player.name}'s turn.`);
+    return getState();
+  }
+
+  function getState() {
+    return {
+      phase: battle.phase,
+      winner: battle.winner ? battle.winner.id : null,
+      lastResolution: battle.lastResolution,
+      lastPlayerResolution: battle.lastPlayerResolution,
+      lastEnemyResolution: battle.lastEnemyResolution,
+      pendingChoice: battle.pendingChoice,
+      player: {
+        id: player.id,
+        name: player.name,
+        element: player.element,
+        hp: player.currentHp,
+        maxHp: player.stats.hp,
+        allowedWordTypes: player.allowedWordTypes,
+        allowedElements: player.allowedElements,
+      },
+      enemy: {
+        id: enemy.id,
+        name: enemy.name,
+        element: enemy.element,
+        hp: enemy.currentHp,
+        maxHp: enemy.stats.hp,
+        allowedWordTypes: enemy.allowedWordTypes,
+        allowedElements: enemy.allowedElements,
+      },
+      log: battle.log.slice(),
+    };
+  }
+
+  return {
+    PHASES,
+    start,
+    beginWordChoice,
+    submitCombo,
+    getState,
+    evaluateCombo: (adjectiveId, nounId) =>
+      evaluateCombo(
+        player,
+        findWord(adjectiveId, catalog.words),
+        findWord(nounId, catalog.words)
+      ),
+  };
+}
+
+/**
+ * Word Forge — fusion system for Word Battler.
+ *
+ * Architecture: this is LAYER 2 (Word Relationships) — affixes, roots and
+ * compound words. It sits between Layer 1 (word knowledge in words.json) and
+ * Layer 3 (adjective + noun sentence construction in combat.js).
+ *
+ * The forge is PURE: fuse() never mutates its inputs, so it doubles as a
+ * "preview" (show the player what a fusion would make before they commit).
+ * Use addForgedWord() / addForgedCreature() to commit a result to a catalog.
+ *
+ * Three fusion processes, each mapped to a real English morphology rule:
+ *
+ *   1. AFFIXATION      affix + word   ->  derived word
+ *        un- + frozen   = unfrozen    (prefix: "not"; element inverts)
+ *        flame + -less  = flameless   (suffix: "without"; element inverts)
+ *
+ *   2. COMPOUNDING     word + word    ->  compound word
+ *        The RIGHT-hand word is the HEAD (sets part of speech + element);
+ *        the LEFT-hand word is the MODIFIER (narrows the meaning).
+ *        flame + shard = flame-shard  (a kind of shard)
+ *
+ *   3. CREATURE FUSION word + creature token -> hybrid creature
+ *        blizzard + fox = Blizzardfox (a kind of fox; takes on ice)
+ *
+ * Results are shaped like words.json / creatures.json entries, so they work
+ * with combat.js unchanged. Each carries a `forge` block describing how it was
+ * made; forgeComboBonus() exposes that for combat to use later.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Constants & default data                                            */
+/* ------------------------------------------------------------------ */
+
+const MAX_FORGE_DEPTH = 2;
+
+const OPPOSITE_ELEMENT = Object.freeze({ fire: "ice", ice: "fire" });
+
+const AFFIXATION_BONUS = 1;
+const COMPOUND_BONUS = 2;
+const RESONANCE_BONUS = 2; // compound whose modifier and head share an element
+
+/**
+ * Affix schema (JSON-friendly, so it can move to affixes.json later):
+ *  id, text, type ("prefix"|"suffix"), from (parts of speech accepted),
+ *  to (resulting part of speech), gloss (what the affix means),
+ *  definition (template; {base} = base word), elementEffect ("keep"|"invert"),
+ *  respell (spelling rules applied when attaching).
+ */
+const DEFAULT_AFFIXES = Object.freeze([
+  {
+    id: "un",
+    text: "un",
+    type: "prefix",
+    from: ["adjective"],
+    to: "adjective",
+    gloss: "not; the opposite of",
+    definition: "not {base}",
+    elementEffect: "invert",
+    respell: [],
+  },
+  {
+    id: "less",
+    text: "less",
+    type: "suffix",
+    from: ["noun"],
+    to: "adjective",
+    gloss: "without",
+    definition: "without {base}",
+    elementEffect: "invert",
+    respell: [],
+  },
+  {
+    id: "like",
+    text: "like",
+    type: "suffix",
+    from: ["noun"],
+    to: "adjective",
+    gloss: "resembling",
+    definition: "resembling a {base}",
+    elementEffect: "keep",
+    respell: [],
+  },
+  {
+    id: "ness",
+    text: "ness",
+    type: "suffix",
+    from: ["adjective"],
+    to: "noun",
+    gloss: "the state or quality of being",
+    definition: "the quality of being {base}",
+    elementEffect: "keep",
+    respell: ["yToI"],
+  },
+  {
+    id: "ling",
+    text: "ling",
+    type: "suffix",
+    from: ["noun"],
+    to: "noun",
+    gloss: "small or young",
+    definition: "a small {base}",
+    elementEffect: "keep",
+    respell: ["dropSilentE"],
+  },
+]);
+
+/**
+ * Creatures are compounds themselves: Emberfox = ember (modifier) + fox (head).
+ * Creature tokens expose the head so a new modifier can replace the old one.
+ */
+const DEFAULT_CREATURE_MORPHEMES = Object.freeze({
+  emberfox: { modifier: "ember", head: "fox" },
+  rimepup: { modifier: "rime", head: "pup" },
+});
+
+/** Compounds that English writes as one word. Anything else is hyphenated. */
+const DEFAULT_CLOSED_COMPOUNDS = Object.freeze(new Set());
+
+/* ------------------------------------------------------------------ */
+/* Ingredient tokens                                                   */
+/* ------------------------------------------------------------------ */
+
+const wordToken = (id) => ({ kind: "word", id });
+const affixToken = (id) => ({ kind: "affix", id });
+const creatureToken = (id) => ({ kind: "creature", id });
+
+/**
+ * Combat hook (not yet wired into combat.js): morphology bonus power a forged
+ * word should add to a combo. Plain vocabulary words return 0.
+ */
+function forgeComboBonus(word) {
+  return word?.forge?.powerBonus ?? 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Small helpers                                                       */
+/* ------------------------------------------------------------------ */
+
+const fail = (...reasons) => ({ ok: false, kind: null, result: null, lesson: null, reasons });
+
+const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const depthOf = (entry) => entry?.forge?.depth ?? 0;
+
+function invertElement(element) {
+  return OPPOSITE_ELEMENT[element] ?? element;
+}
+
+function attachAffix(base, affix) {
+  if (affix.type === "prefix") {
+    return affix.text + base;
+  }
+
+  let stem = base;
+  const startsWithVowel = /^[aeiou]/.test(affix.text);
+
+  if (affix.respell.includes("dropSilentE") && startsWithVowel && stem.endsWith("e")) {
+    stem = stem.slice(0, -1);
+  }
+  if (affix.respell.includes("yToI") && /[^aeiou]y$/.test(stem)) {
+    stem = `${stem.slice(0, -1)}i`;
+  }
+  return stem + affix.text;
+}
+
+function pluralize(partsOfSpeech) {
+  return partsOfSpeech.map((pos) => `${pos}s`).join(" or ");
+}
+
+/* ------------------------------------------------------------------ */
+/* Forge factory                                                       */
+/* ------------------------------------------------------------------ */
+
+function createForge(options = {}) {
+  if (!options.creatures || !options.words) {
+    throw new Error("createForge requires creatures and words data.");
+  }
+
+  const creatures = options.creatures;
+  const words = options.words;
+  const affixes = options.affixes || DEFAULT_AFFIXES;
+  const morphemes = options.creatureMorphemes || DEFAULT_CREATURE_MORPHEMES;
+  const closedCompounds = options.closedCompounds || DEFAULT_CLOSED_COMPOUNDS;
+
+  function resolve(token) {
+    if (!token || !token.kind || !token.id) {
+      return { error: "Each forge slot needs a token: word, affix, or creature." };
+    }
+    try {
+      if (token.kind === "word") {
+        return { kind: "word", entry: findWord(token.id, words) };
+      }
+      if (token.kind === "creature") {
+        return { kind: "creature", entry: findCreature(token.id, creatures) };
+      }
+      if (token.kind === "affix") {
+        const entry = affixes.find((affix) => affix.id === token.id);
+        if (!entry) {
+          throw new Error(`Unknown affix: ${token.id}`);
+        }
+        return { kind: "affix", entry };
+      }
+      return { error: `Unknown token kind: ${token.kind}` };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  /* ---- Process 1: affixation ------------------------------------- */
+
+  function forgeAffixation(affixSlot, wordSlot, affixFirst) {
+    const affix = affixSlot.entry;
+    const base = wordSlot.entry;
+    const label = affix.type === "prefix" ? `${affix.text}-` : `-${affix.text}`;
+
+    if (affix.type === "prefix" && !affixFirst) {
+      return fail(`"${label}" is a prefix, so it goes BEFORE the base word.`);
+    }
+    if (affix.type === "suffix" && affixFirst) {
+      return fail(`"${label}" is a suffix, so it goes AFTER the base word.`);
+    }
+    if (!affix.from.includes(base.partOfSpeech)) {
+      return fail(
+        `"${label}" attaches to ${pluralize(affix.from)}, but "${base.word}" is a ${base.partOfSpeech}.`
+      );
+    }
+    if (depthOf(base) >= MAX_FORGE_DEPTH) {
+      return fail(`"${base.word}" has been forged too many times to change again.`);
+    }
+
+    const word = attachAffix(base.word, affix);
+    const element =
+      affix.elementEffect === "invert" ? invertElement(base.element) : base.element;
+    const definition = affix.definition.replace("{base}", base.word);
+
+    const result = {
+      id: slug(word),
+      word,
+      partOfSpeech: affix.to,
+      element,
+      definition: definition.charAt(0).toUpperCase() + definition.slice(1) + ".",
+      example:
+        affix.to === "noun"
+          ? `The ${word} filled the room.`
+          : `It was a ${word} sort of day.`,
+      forge: {
+        layer: 2,
+        process: "affixation",
+        affixId: affix.id,
+        parts: [affix.type === "prefix" ? label : base.word, affix.type === "prefix" ? base.word : label],
+        baseId: base.id,
+        depth: depthOf(base) + 1,
+        powerBonus: AFFIXATION_BONUS,
+      },
+    };
+
+    const flipped =
+      element !== base.element
+        ? ` It also flips the element from ${base.element} to ${element}, because the meaning is reversed.`
+        : "";
+
+    return {
+      ok: true,
+      kind: "affixation",
+      result,
+      lesson:
+        `"${label}" means "${affix.gloss}". ${base.word} (${base.partOfSpeech}) + ${label} ` +
+        `makes "${word}", a ${affix.to}.${flipped}`,
+      reasons: [`${label} + ${base.word} → ${word}`],
+    };
+  }
+
+  /* ---- Process 2: compounding ------------------------------------ */
+
+  function forgeCompound(modifier, head) {
+    if (modifier.id === head.id) {
+      return fail("A compound needs two different words.");
+    }
+
+    const pair = `${modifier.partOfSpeech}+${head.partOfSpeech}`;
+    const resultPos = { "noun+noun": "noun", "adjective+noun": "noun", "noun+adjective": "adjective" }[pair];
+    if (!resultPos) {
+      return fail(
+        `${modifier.partOfSpeech} + ${head.partOfSpeech} is not a compound pattern here. ` +
+          `Try noun + noun, adjective + noun, or noun + adjective.`
+      );
+    }
+    if (Math.max(depthOf(modifier), depthOf(head)) >= MAX_FORGE_DEPTH) {
+      return fail("That word has been forged too many times to combine again.");
+    }
+
+    const closed = modifier.word + head.word;
+    const word = closedCompounds.has(closed) ? closed : `${modifier.word}-${head.word}`;
+    const resonance = modifier.element === head.element;
+    const definition =
+      modifier.partOfSpeech === "adjective"
+        ? `a ${head.word} that is ${modifier.word}`
+        : resultPos === "adjective"
+          ? `${head.word} in the way of ${modifier.word}`
+          : `a kind of ${head.word} connected to ${modifier.word}`;
+
+    const result = {
+      id: slug(word),
+      word,
+      partOfSpeech: resultPos,
+      element: head.element,
+      definition: capitalize(definition) + ".",
+      example:
+        resultPos === "noun"
+          ? `The ${word} gleamed in the dark.`
+          : `Her ${word} stare froze the room.`,
+      forge: {
+        layer: 2,
+        process: "compounding",
+        parts: [modifier.word, head.word],
+        modifierId: modifier.id,
+        headId: head.id,
+        modifierElement: modifier.element,
+        depth: Math.max(depthOf(modifier), depthOf(head)) + 1,
+        resonance,
+        powerBonus: COMPOUND_BONUS + (resonance ? RESONANCE_BONUS : 0),
+      },
+    };
+
+    const closure = closedCompounds.has(closed)
+      ? "Established compounds are written as one word."
+      : "A newly coined compound is written with a hyphen.";
+    const elementNote = resonance
+      ? `Both words are ${head.element}, so the compound resonates for bonus power.`
+      : `The head "${head.word}" decides the element (${head.element}); ` +
+        `the modifier's ${modifier.element} is only a flavor.`;
+
+    return {
+      ok: true,
+      kind: "compound",
+      result,
+      lesson:
+        `In a compound the right-hand word is the head: a ${word} is a kind of ${head.word}, ` +
+        `not a kind of ${modifier.word}. It is a ${resultPos}. ${closure} ${elementNote}`,
+      reasons: [`${modifier.word} + ${head.word} → ${word}`],
+    };
+  }
+
+  /* ---- Process 3: creature fusion -------------------------------- */
+
+  function forgeCreature(modifier, creature) {
+    const depth = creature.forged?.depth ?? 0;
+    if (depth >= MAX_FORGE_DEPTH) {
+      return fail(`${creature.name} has been fused too many times to change again.`);
+    }
+    if (depthOf(modifier) >= MAX_FORGE_DEPTH) {
+      return fail(`"${modifier.word}" has been forged too many times to use here.`);
+    }
+
+    const head = creature.forged?.head ?? morphemes[creature.id]?.head ?? creature.name.toLowerCase();
+    const modifierText = modifier.word.replace(/-/g, "");
+    const name = capitalize(modifierText) + head;
+    const resonance = modifier.element === creature.element;
+    const stats = { ...creature.stats };
+
+    // Nouns say what a thing is made of (offense); adjectives say how it is (defense).
+    if (modifier.partOfSpeech === "noun") {
+      stats.attack += 3;
+    } else {
+      stats.defense += 2;
+      stats.hp += 4;
+    }
+    if (resonance) {
+      stats.hp += 4;
+    }
+
+    const allowedElements = [...new Set([...creature.allowedElements, modifier.element])];
+
+    const result = {
+      ...creature,
+      id: slug(name),
+      name,
+      element: modifier.element,
+      description:
+        `${creature.name} fused with "${modifier.word}": a kind of ${head} ` +
+        `shaped by ${modifier.element}.`,
+      stats,
+      allowedWordTypes: [...creature.allowedWordTypes],
+      allowedElements,
+      forged: {
+        layer: 2,
+        process: "creature-compounding",
+        modifier: modifierText,
+        head,
+        sourceId: creature.forged?.sourceId ?? creature.id,
+        depth: depth + 1,
+        resonance,
+      },
+    };
+
+    const dual =
+      allowedElements.length > 1
+        ? ` ${name} can now speak ${allowedElements.join(" and ")} words.`
+        : "";
+
+    return {
+      ok: true,
+      kind: "creature-fusion",
+      result,
+      lesson:
+        `"${name}" is a compound: modifier "${modifierText}" + head "${head}". ` +
+        `The head says what it is (a ${head}); the modifier says what kind.${dual}`,
+      reasons: [`${modifier.word} + ${creature.name} → ${name}`],
+    };
+  }
+
+  /* ---- Public: fuse ----------------------------------------------- */
+
+  /**
+   * Combine two tokens in order (left, right). Order matters in morphology.
+   * Returns { ok, kind, result, lesson, reasons }.
+   */
+  function fuse(left, right) {
+    const a = resolve(left);
+    const b = resolve(right);
+    if (a.error || b.error) {
+      return fail(a.error || b.error);
+    }
+
+    const pair = `${a.kind}+${b.kind}`;
+    switch (pair) {
+      case "affix+word":
+        return forgeAffixation(a, b, true);
+      case "word+affix":
+        return forgeAffixation(b, a, false);
+      case "word+word":
+        return forgeCompound(a.entry, b.entry);
+      case "word+creature":
+        return forgeCreature(a.entry, b.entry);
+      case "creature+word":
+        return fail(
+          `The head goes last in English compounds. Try "${b.entry.word}" + ${a.entry.name} ` +
+            `to make a kind of ${morphemes[a.entry.id]?.head ?? a.entry.name.toLowerCase()}.`
+        );
+      case "affix+affix":
+        return fail("Affixes need a base word to attach to.");
+      case "creature+creature":
+        return fail("Two creature heads can't share one body. Fuse a word into a creature instead.");
+      default:
+        return fail("Affixes attach to words, and words can fuse with words or creatures.");
+    }
+  }
+
+  return {
+    fuse,
+    listAffixes: () => affixes.map((affix) => ({ ...affix })),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Committing results to catalogs (immutable)                          */
+/* ------------------------------------------------------------------ */
+
+/** Returns a new words catalog that includes the forged word (no duplicates). */
+function addForgedWord(words, entry) {
+  const bucket = entry.partOfSpeech === "adjective" ? "adjectives" : "nouns";
+  const exists = [...words.adjectives, ...words.nouns].some((word) => word.id === entry.id);
+  if (exists) {
+    return words;
+  }
+  return { ...words, [bucket]: [...words[bucket], entry] };
+}
+
+/** Returns a new creatures array that includes the forged creature (no duplicates). */
+function addForgedCreature(creatures, creature) {
+  return creatures.some((entry) => entry.id === creature.id)
+    ? creatures
+    : [...creatures, creature];
+}
+
+/**
+ * Word Forge tab UI.
+ *
+ * Renders the forge into a container and talks to forge.js (Layer 2: word
+ * relationships). Forged results are committed to the SAME words/creatures
+ * objects that combat.js already holds, so they show up in the Battle tab and
+ * work in combat immediately (no battle restart needed).
+ *
+ * ctx shape (shared with combat-ui.js): { creatures: [], words: {adjectives, nouns}, ... }
+ * actions: { goToBattle(), useCreature(id) }
+ */
+
+const ELEMENT_STYLES = {
+  fire: { border: "border-orange-400", text: "text-orange-300" },
+  ice: { border: "border-sky-400", text: "text-sky-300" },
+};
+const NEUTRAL_STYLE = { border: "border-violet-500", text: "text-violet-300" };
+
+const BINS = [
+  { id: "words", label: "Words" },
+  { id: "affixes", label: "Affixes" },
+  { id: "creatures", label: "Creatures" },
+];
+
+const STAT_LABELS = [
+  ["hp", "HP"],
+  ["attack", "Attack"],
+  ["defense", "Defense"],
+  ["speed", "Speed"],
+];
+
+const esc = (value) =>
+  String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[char]);
+
+const cx = (...parts) => parts.filter(Boolean).join(" ");
+const styleFor = (element) => ELEMENT_STYLES[element] || NEUTRAL_STYLE;
+const affixLabel = (affix) => (affix.type === "prefix" ? `${affix.text}-` : `-${affix.text}`);
+
+/* ------------------------------------------------------------------ */
+/* State & lookups                                                     */
+/* ------------------------------------------------------------------ */
+
+function forgeState(ctx) {
+  if (!ctx.forge) {
+    ctx.forge = { left: null, right: null, bin: "words", notice: null };
+  }
+  return ctx.forge;
+}
+
+const poolWords = (ctx) => [...ctx.words.adjectives, ...ctx.words.nouns];
+
+function describeToken(ctx, forge, token) {
+  if (!token) return null;
+
+  if (token.kind === "word") {
+    const word = poolWords(ctx).find((entry) => entry.id === token.id);
+    return word && {
+      title: word.word,
+      sub: word.partOfSpeech,
+      element: word.element,
+      forged: Boolean(word.forge),
+    };
+  }
+  if (token.kind === "affix") {
+    const affix = forge.listAffixes().find((entry) => entry.id === token.id);
+    return affix && { title: affixLabel(affix), sub: `${affix.type} · ${affix.gloss}`, element: null };
+  }
+  if (token.kind === "creature") {
+    const creature = ctx.creatures.find((entry) => entry.id === token.id);
+    return creature && {
+      title: creature.name,
+      sub: "creature",
+      element: creature.element,
+      forged: Boolean(creature.forged),
+    };
+  }
+  return null;
+}
+
+function usableBy(ctx, word) {
+  return ctx.creatures
+    .filter(
+      (creature) =>
+        creature.allowedWordTypes.includes(word.partOfSpeech) &&
+        creature.allowedElements.includes(word.element)
+    )
+    .map((creature) => creature.name);
+}
+
+function alreadyInPool(ctx, outcome) {
+  const id = outcome.result.id;
+  return outcome.kind === "creature-fusion"
+    ? ctx.creatures.some((creature) => creature.id === id)
+    : poolWords(ctx).some((word) => word.id === id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Commit a forged result to the live battle pool                      */
+/* ------------------------------------------------------------------ */
+
+function commitResult(ctx, outcome) {
+  const state = forgeState(ctx);
+  const result = outcome.result;
+
+  if (outcome.kind === "creature-fusion") {
+    // Mutate in place: combat.js holds a reference to this same array.
+    const next = addForgedCreature(ctx.creatures, result);
+    ctx.creatures.splice(0, ctx.creatures.length, ...next);
+    state.notice = {
+      kind: "creature",
+      id: result.id,
+      text: `${result.name} joined your creatures.`,
+    };
+  } else {
+    // Mutate in place: combat.js holds a reference to this same object.
+    Object.assign(ctx.words, addForgedWord(ctx.words, result));
+    state.notice = {
+      kind: "word",
+      id: result.id,
+      text: `"${result.word}" joined the ${result.partOfSpeech} list in the Battle tab.`,
+    };
+  }
+
+  state.left = null;
+  state.right = null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Template pieces                                                     */
+/* ------------------------------------------------------------------ */
+
+function tokenButton(desc, token) {
+  const style = styleFor(desc.element);
+  return `
+    <button type="button" data-token-kind="${token.kind}" data-token-id="${esc(token.id)}"
+      class="${cx("rounded-lg border-2 bg-violet-950 px-3 py-2 text-left text-slate-100 hover:bg-violet-900", style.border)}">
+      <span class="block font-semibold">${esc(desc.title)}${desc.forged ? ' <span class="text-xs text-amber-300">✦</span>' : ""}</span>
+      <span class="${cx("text-xs uppercase", style.text)}">${esc(desc.sub)}${desc.element ? ` · ${esc(desc.element)}` : ""}</span>
+    </button>
+  `;
+}
+
+function inventory(ctx, forge, bin) {
+  const section = (title, items) =>
+    items.length
+      ? `<h4 class="mb-2 mt-4 text-sm text-amber-200">${title}</h4>
+         <div class="flex flex-wrap gap-2">${items.join("")}</div>`
+      : "";
+
+  if (bin === "affixes") {
+    const affixes = forge.listAffixes();
+    const make = (affix) =>
+      tokenButton(describeToken(ctx, forge, affixToken(affix.id)), affixToken(affix.id));
+    return (
+      section("Prefixes (go before a word)", affixes.filter((a) => a.type === "prefix").map(make)) +
+      section("Suffixes (go after a word)", affixes.filter((a) => a.type === "suffix").map(make))
+    );
+  }
+
+  if (bin === "creatures") {
+    return section(
+      "Creature tokens (a creature is the head of the compound)",
+      ctx.creatures.map((creature) =>
+        tokenButton(describeToken(ctx, forge, creatureToken(creature.id)), creatureToken(creature.id))
+      )
+    );
+  }
+
+  const make = (word) => tokenButton(describeToken(ctx, forge, wordToken(word.id)), wordToken(word.id));
+  return (
+    section("Adjectives", ctx.words.adjectives.map(make)) +
+    section("Nouns", ctx.words.nouns.map(make))
+  );
+}
+
+function slotCard(label, hint, desc, slot) {
+  if (!desc) {
+    return `
+      <div class="flex min-h-[96px] flex-1 flex-col justify-center rounded-xl border-2 border-dashed border-violet-700 p-3 text-center">
+        <p class="text-xs uppercase tracking-wide text-violet-300">${label}</p>
+        <p class="mt-1 text-sm text-slate-400">${hint}</p>
+      </div>`;
+  }
+  const style = styleFor(desc.element);
+  return `
+    <div class="${cx("flex min-h-[96px] flex-1 flex-col rounded-xl border-2 bg-violet-950/80 p-3", style.border)}">
+      <p class="text-xs uppercase tracking-wide text-violet-300">${label}</p>
+      <p class="font-serif text-2xl text-orange-50">${esc(desc.title)}</p>
+      <p class="${cx("text-xs uppercase", style.text)}">${esc(desc.sub)}${desc.element ? ` · ${esc(desc.element)}` : ""}</p>
+      <button type="button" data-slot-clear="${slot}" class="mt-2 self-start text-xs text-violet-300 underline">Clear</button>
+    </div>`;
+}
+
+function wordResultCard(ctx, word) {
+  const style = styleFor(word.element);
+  const users = usableBy(ctx, word);
+  return `
+    <article class="${cx("rounded-xl border-2 bg-violet-950/80 p-4", style.border)}">
+      <p class="text-xs uppercase tracking-wide text-violet-300">New word · ${esc(word.partOfSpeech)}</p>
+      <h3 class="font-serif text-3xl text-orange-50">${esc(word.word)}</h3>
+      <p class="${cx("mt-1", style.text)}">Element: ${esc(word.element)}</p>
+      <p class="mt-3 text-slate-200">${esc(word.definition)}</p>
+      <p class="mt-1 italic text-slate-300">${esc(word.example)}</p>
+      <p class="mt-3 text-sm text-slate-300">Built from: ${word.forge.parts.map((p) => `<span class="rounded bg-violet-900 px-2 py-0.5">${esc(p)}</span>`).join(" + ")}</p>
+      <p class="mt-2 text-sm text-slate-300">${
+        users.length
+          ? `Usable in combat by: ${esc(users.join(", "))}`
+          : "No creature can use this element yet. Fuse a creature to learn it!"
+      }</p>
+    </article>`;
+}
+
+function creatureResultCard(source, creature) {
+  const style = styleFor(creature.element);
+  const rows = STAT_LABELS.map(([key, label]) => {
+    const delta = creature.stats[key] - (source?.stats[key] ?? creature.stats[key]);
+    const badge = delta ? `<span class="ml-1 text-emerald-400">+${delta}</span>` : "";
+    return `<p class="text-slate-200">${label} ${creature.stats[key]}${badge}</p>`;
+  }).join("");
+
+  return `
+    <article class="${cx("rounded-xl border-2 bg-violet-950/80 p-4", style.border)}">
+      <p class="text-xs uppercase tracking-wide text-violet-300">New creature</p>
+      <h3 class="font-serif text-3xl text-orange-50">${esc(creature.name)}</h3>
+      <p class="${cx("mt-1", style.text)}">Element: ${esc(creature.element)}</p>
+      <p class="mt-1 text-sm text-slate-300">Speaks: ${esc(creature.allowedElements.join(" + "))} words</p>
+      <p class="mt-3 text-slate-200">${esc(creature.description)}</p>
+      <div class="mt-3 grid grid-cols-2 gap-x-4 text-sm">${rows}</div>
+    </article>`;
+}
+
+function previewPanel(ctx, state, outcome) {
+  if (!outcome) {
+    return `<p class="text-slate-400">Pick two items to see what they make. Order matters: prefixes and modifiers go first.</p>`;
+  }
+
+  if (!outcome.ok) {
+    return `
+      <div class="rounded-xl border-2 border-red-400 bg-red-950/40 p-4">
+        <h3 class="font-semibold text-red-200">This fusion doesn't work. Here's why:</h3>
+        ${outcome.reasons.map((reason) => `<p class="mt-2 text-slate-100">${esc(reason)}</p>`).join("")}
+      </div>`;
+  }
+
+  const source = outcome.kind === "creature-fusion"
+    ? ctx.creatures.find((creature) => creature.id === state.right.id)
+    : null;
+  const card = outcome.kind === "creature-fusion"
+    ? creatureResultCard(source, outcome.result)
+    : wordResultCard(ctx, outcome.result);
+  const exists = alreadyInPool(ctx, outcome);
+
+  return `
+    ${card}
+    <div class="mt-3 rounded-xl border border-amber-300/60 bg-amber-950/30 p-4">
+      <h4 class="text-sm uppercase tracking-wide text-amber-200">What you just learned</h4>
+      <p class="mt-1 text-slate-100">${esc(outcome.lesson)}</p>
+    </div>
+    <button id="commit-forge" type="button" ${exists ? "disabled" : ""}
+      class="mt-4 rounded-lg bg-amber-500 px-6 py-3 text-lg font-semibold text-violet-950 disabled:bg-slate-600 disabled:text-slate-300">
+      ${exists ? "Already in your pool" : "Forge it!"}
+    </button>`;
+}
+
+function noticeBanner(notice) {
+  if (!notice) return "";
+  const extra =
+    notice.kind === "creature"
+      ? `<button type="button" data-use-creature="${esc(notice.id)}" class="rounded-lg bg-violet-600 px-4 py-2 text-violet-50">Fight with it</button>`
+      : "";
+  return `
+    <div class="mb-6 flex flex-wrap items-center gap-3 rounded-xl border-2 border-emerald-400 bg-emerald-950/40 p-4">
+      <p class="flex-1 text-emerald-100">✦ Forged! ${esc(notice.text)}</p>
+      ${extra}
+      <button type="button" id="go-battle" class="rounded-lg bg-violet-800 px-4 py-2 text-violet-50">Go to Battle</button>
+    </div>`;
+}
+
+function creationsList(ctx) {
+  const words = poolWords(ctx).filter((word) => word.forge);
+  const creatures = ctx.creatures.filter((creature) => creature.forged);
+  if (!words.length && !creatures.length) return "";
+
+  const chips = [
+    ...words.map((w) => `<span class="${cx("rounded border px-2 py-1 text-sm", styleFor(w.element).border, styleFor(w.element).text)}">${esc(w.word)}</span>`),
+    ...creatures.map((c) => `<span class="${cx("rounded border px-2 py-1 text-sm", styleFor(c.element).border, styleFor(c.element).text)}">${esc(c.name)}</span>`),
+  ];
+  return `
+    <section class="mt-8">
+      <h3 class="text-sm uppercase tracking-wide text-violet-300">Your forged creations</h3>
+      <div class="mt-2 flex flex-wrap gap-2">${chips.join("")}</div>
+    </section>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Public render                                                       */
+/* ------------------------------------------------------------------ */
+
+function renderForge(container, ctx, actions) {
+  const state = forgeState(ctx);
+  const forge = createForge({ creatures: ctx.creatures, words: ctx.words });
+  const rerender = () => renderForge(container, ctx, actions);
+
+  const leftDesc = describeToken(ctx, forge, state.left);
+  const rightDesc = describeToken(ctx, forge, state.right);
+  if (state.left && !leftDesc) state.left = null;
+  if (state.right && !rightDesc) state.right = null;
+
+  const outcome = state.left && state.right ? forge.fuse(state.left, state.right) : null;
+
+  container.innerHTML = `
+    <main class="min-h-screen bg-[#100c18] px-6 py-8 text-slate-100">
+      <header class="mb-6 text-center">
+        <h1 class="font-serif text-3xl tracking-[0.3em] text-orange-50">WORD FORGE</h1>
+        <p class="mt-2 text-violet-300">Combine affixes, words, and creatures using real English word-building rules.</p>
+      </header>
+
+      <div class="mx-auto max-w-3xl">
+        ${noticeBanner(state.notice)}
+
+        <section class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+          ${slotCard("First", "prefix or modifier", leftDesc, "left")}
+          <button type="button" id="swap-slots" title="Swap order" class="self-center rounded-full bg-violet-900 px-3 py-2 text-violet-100">⇄</button>
+          ${slotCard("Second", "base, head, or suffix", rightDesc, "right")}
+        </section>
+
+        <section class="mt-6">${previewPanel(ctx, state, outcome)}</section>
+
+        <section class="mt-8">
+          <div class="flex gap-2">
+            ${BINS.map(
+              (bin) => `<button type="button" data-bin="${bin.id}" class="${cx(
+                "rounded-lg px-4 py-2 text-sm",
+                state.bin === bin.id ? "bg-violet-600 text-violet-50" : "bg-violet-950 text-violet-300"
+              )}">${bin.label}</button>`
+            ).join("")}
+          </div>
+          ${inventory(ctx, forge, state.bin)}
+        </section>
+
+        ${creationsList(ctx)}
+      </div>
+    </main>
+  `;
+
+  container.querySelectorAll("[data-token-kind]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const token = {
+        kind: button.getAttribute("data-token-kind"),
+        id: button.getAttribute("data-token-id"),
+      };
+      state.notice = null;
+      if (!state.left) state.left = token;
+      else if (!state.right) state.right = token;
+      else state.right = token;
+      rerender();
+    });
+  });
+
+  container.querySelectorAll("[data-slot-clear]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state[button.getAttribute("data-slot-clear")] = null;
+      rerender();
+    });
+  });
+
+  container.querySelectorAll("[data-bin]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.bin = button.getAttribute("data-bin");
+      rerender();
+    });
+  });
+
+  container.querySelector("#swap-slots").addEventListener("click", () => {
+    [state.left, state.right] = [state.right, state.left];
+    rerender();
+  });
+
+  container.querySelector("#commit-forge")?.addEventListener("click", () => {
+    commitResult(ctx, outcome);
+    rerender();
+  });
+
+  container.querySelector("#go-battle")?.addEventListener("click", () => actions.goToBattle());
+
+  container.querySelector("[data-use-creature]")?.addEventListener("click", (event) => {
+    actions.useCreature(event.currentTarget.getAttribute("data-use-creature"));
+  });
+}
+
+const app = document.getElementById("app");
+const tabButtons = document.querySelectorAll("[data-tab]");
+
+const TAB_ACTIVE = "bg-violet-600 text-violet-50";
+const TAB_IDLE = "bg-violet-950 text-violet-300 hover:bg-violet-900";
+const ENEMY_ID = "rimepup";
+
+function classNames(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function startBattle(ctx) {
+  const battle = createBattle({
+    playerId: ctx.playerId,
+    enemyId: ENEMY_ID,
+    // These are the SAME objects the Word Forge mutates, so forged
+    // words and creatures are visible to the battle without a restart.
+    creatures: ctx.creatures,
+    words: ctx.words,
+  });
+  battle.start();
+  battle.beginWordChoice();
+  return battle;
+}
+
+function creatureCard(title, creature) {
+  const ratio = creature.maxHp === 0 ? 0 : creature.hp / creature.maxHp;
+  const accent =
+    creature.element === "fire" ? "border-orange-400" : "border-sky-400";
+  const elementColor =
+    creature.element === "fire" ? "text-orange-400" : "text-sky-400";
+  const barColor = ratio > 0.35 ? "bg-emerald-500" : "bg-red-500";
+  const speaks = creature.allowedElements.join(" + ");
+
+  return `
+    <article class="${classNames("rounded-xl border-2 bg-violet-950/80 p-4", accent)}">
+      <p class="text-xs uppercase tracking-wide text-violet-300">${title}</p>
+      <h2 class="font-serif text-3xl text-orange-50">${creature.name}</h2>
+      <p class="mt-1 ${elementColor}">Element: ${creature.element}</p>
+      <p class="text-sm text-slate-300">Speaks: ${speaks}</p>
+      <p class="mt-3 text-slate-200">HP ${creature.hp} / ${creature.maxHp}</p>
+      <div class="mt-2 h-3 w-full rounded bg-slate-700">
+        <div class="h-3 rounded ${barColor}" style="width:${Math.max(0, ratio * 100)}%"></div>
+      </div>
+    </article>
+  `;
+}
+
+function canUse(creature, word) {
+  return (
+    creature.allowedWordTypes.includes(word.partOfSpeech) &&
+    creature.allowedElements.includes(word.element)
+  );
+}
+
+function wordButton(word, selected, usable) {
+  const accent =
+    word.element === "fire"
+      ? "border-orange-400 text-orange-300"
+      : "border-sky-400 text-sky-300";
+  const selectedClass = selected ? "ring-2 ring-violet-300 bg-violet-800" : "";
+  const dimClass = usable ? "" : "opacity-50";
+  const forgedNote = word.forge
+    ? `<span class="block text-xs text-amber-300">✦ ${word.forge.parts.join(" + ")}</span>`
+    : "";
+
+  return `
+    <button
+      type="button"
+      data-word-id="${word.id}"
+      data-pos="${word.partOfSpeech}"
+      title="${usable ? "" : "Your creature can't use this word's element."}"
+      class="${classNames(
+        "rounded-lg border-2 bg-violet-950 px-3 py-2 text-left text-slate-100",
+        accent,
+        selectedClass,
+        dimClass
+      )}"
+    >
+      <span class="block font-semibold">${word.word}</span>
+      <span class="text-xs uppercase">${word.element}</span>
+      ${forgedNote}
+    </button>
+  `;
+}
+
+function feedbackLines(state) {
+  const lines = [];
+  if (state.lastPlayerResolution) {
+    const result = state.lastPlayerResolution;
+    lines.push(
+      result.combo.valid
+        ? `You: "${result.combo.phrase}" hits for ${result.damage}.`
+        : `You: "${result.combo.phrase}" fizzles. ${result.combo.reasons[0] || ""}`
+    );
+  }
+  if (state.lastEnemyResolution) {
+    const result = state.lastEnemyResolution;
+    lines.push(
+      result.combo.valid
+        ? `Enemy: "${result.combo.phrase}" hits for ${result.damage}.`
+        : `Enemy: "${result.combo.phrase}" fizzles.`
+    );
+  }
+  if (state.phase === PHASES.BATTLE_END) {
+    const winner =
+      state.winner === state.player.id ? state.player.name : state.enemy.name;
+    lines.push(`${winner} wins.`);
+  }
+  if (!lines.length) {
+    lines.push("Pick an adjective and a noun, then submit your combo.");
+  }
+  return lines;
+}
+
+function renderBattle(ctx) {
+  const { battle, words, adjective, noun } = ctx;
+  const state = battle.getState();
+  const ended = state.phase === PHASES.BATTLE_END;
+  const phrase =
+    adjective || noun
+      ? `${adjective?.word || "…"} ${noun?.word || "…"}`
+      : "—";
+  const canSubmit = ended || (adjective && noun);
+  const player = state.player;
+  const playerOptions = ctx.creatures
+    .filter((creature) => creature.id !== ENEMY_ID)
+    .map(
+      (creature) =>
+        `<option value="${creature.id}" ${creature.id === ctx.playerId ? "selected" : ""}>${creature.name}${creature.forged ? " ✦" : ""}</option>`
+    )
+    .join("");
+
+  app.innerHTML = `
+    <main class="min-h-screen bg-[#100c18] px-6 py-8 text-slate-100">
+      <header class="mb-6 text-center">
+        <h1 class="font-serif text-3xl tracking-[0.3em] text-orange-50">WORD BATTLER</h1>
+        <p class="mt-2 text-violet-300">${state.phase.replaceAll("_", " ")}</p>
+      </header>
+      <section class="mx-auto mb-4 flex max-w-3xl items-center gap-3">
+        <label for="player-select" class="text-sm text-violet-300">Your creature</label>
+        <select id="player-select" class="rounded-lg border border-violet-700 bg-violet-950 px-3 py-2 text-slate-100">
+          ${playerOptions}
+        </select>
+        <span class="text-xs text-slate-400">Switching restarts the battle.</span>
+      </section>
+      <section class="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
+        ${creatureCard("You", player)}
+        ${creatureCard("Rival", state.enemy)}
+      </section>
+      <section class="mx-auto mt-8 max-w-3xl">
+        <h3 class="mb-2 text-amber-200">Adjectives</h3>
+        <div class="flex flex-wrap gap-3" data-row="adjectives">
+          ${words.adjectives
+            .map((word) => wordButton(word, adjective?.id === word.id, canUse(player, word)))
+            .join("")}
+        </div>
+        <h3 class="mb-2 mt-6 text-sky-200">Nouns</h3>
+        <div class="flex flex-wrap gap-3" data-row="nouns">
+          ${words.nouns
+            .map((word) => wordButton(word, noun?.id === word.id, canUse(player, word)))
+            .join("")}
+        </div>
+      </section>
+      <section class="mx-auto mt-8 flex max-w-3xl flex-col items-start gap-4">
+        <p class="font-serif text-2xl">Combo: ${phrase}</p>
+        <button
+          id="submit-combo"
+          type="button"
+          ${canSubmit ? "" : "disabled"}
+          class="rounded-lg bg-violet-600 px-6 py-3 text-lg text-violet-50 disabled:bg-slate-600"
+        >
+          ${ended ? "New Battle" : "Submit Combo"}
+        </button>
+      </section>
+      <section class="mx-auto mt-6 max-w-3xl">
+        <h3 class="text-sm uppercase tracking-wide text-violet-300">Turn feedback</h3>
+        ${feedbackLines(state)
+          .map((line) => `<p class="mt-1 text-slate-200">${line}</p>`)
+          .join("")}
+      </section>
+    </main>
+  `;
+
+  app.querySelector("#player-select").addEventListener("change", (event) => {
+    ctx.playerId = event.target.value;
+    ctx.battle = startBattle(ctx);
+    ctx.adjective = null;
+    ctx.noun = null;
+    render(ctx);
+  });
+
+  app.querySelectorAll("[data-word-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.getAttribute("data-word-id");
+      const pos = button.getAttribute("data-pos");
+      const pool = pos === "adjective" ? words.adjectives : words.nouns;
+      const word = pool.find((entry) => entry.id === id);
+      if (pos === "adjective") {
+        ctx.adjective = word;
+      } else {
+        ctx.noun = word;
+      }
+      render(ctx);
+    });
+  });
+
+  app.querySelector("#submit-combo").addEventListener("click", () => {
+    if (ended) {
+      ctx.battle = startBattle(ctx);
+      ctx.adjective = null;
+      ctx.noun = null;
+      render(ctx);
+      return;
+    }
+    if (!ctx.adjective || !ctx.noun) {
+      return;
+    }
+    const next = ctx.battle.submitCombo(ctx.adjective.id, ctx.noun.id);
+    if (next.phase !== PHASES.BATTLE_END) {
+      ctx.battle.beginWordChoice();
+    }
+    ctx.adjective = null;
+    ctx.noun = null;
+    render(ctx);
+  });
+}
+
+function render(ctx) {
+  tabButtons.forEach((button) => {
+    const active = button.getAttribute("data-tab") === ctx.tab;
+    button.className = classNames(
+      "rounded-lg px-5 py-2 text-sm font-semibold tracking-wide",
+      active ? TAB_ACTIVE : TAB_IDLE
+    );
+  });
+
+  if (ctx.tab === "forge") {
+    renderForge(app, ctx, ctx.actions);
+  } else {
+    renderBattle(ctx);
+  }
+}
+
+const creaturesFile = {"creatures": [{"id": "emberfox", "name": "Emberfox", "element": "fire", "description": "A fox whose fur holds live embers. It attacks with heat adjectives and flame nouns.", "stats": {"hp": 42, "attack": 14, "defense": 8, "speed": 12}, "allowedWordTypes": ["adjective", "noun"], "allowedElements": ["fire"]}, {"id": "rimepup", "name": "Rimepup", "element": "ice", "description": "A frost-coated pup that breathes pale mist. It attacks with cold adjectives and ice nouns.", "stats": {"hp": 46, "attack": 10, "defense": 13, "speed": 9}, "allowedWordTypes": ["adjective", "noun"], "allowedElements": ["ice"]}]};
+const words = {"adjectives": [{"id": "blazing", "word": "blazing", "partOfSpeech": "adjective", "element": "fire", "definition": "Burning brightly and with great energy.", "example": "A blazing lantern lit the path."}, {"id": "fierce", "word": "fierce", "partOfSpeech": "adjective", "element": "fire", "definition": "Intense, powerful, and aggressive.", "example": "A fierce spark jumped from the logs."}, {"id": "frozen", "word": "frozen", "partOfSpeech": "adjective", "element": "ice", "definition": "Turned into ice or made very cold.", "example": "The frozen pond held our footprints."}, {"id": "sharp", "word": "sharp", "partOfSpeech": "adjective", "element": "ice", "definition": "Having a thin edge or a sudden, biting quality.", "example": "A sharp wind cut across the lake."}], "nouns": [{"id": "flame", "word": "flame", "partOfSpeech": "noun", "element": "fire", "definition": "A hot, glowing tongue of fire.", "example": "The flame danced on the candle."}, {"id": "ember", "word": "ember", "partOfSpeech": "noun", "element": "fire", "definition": "A small piece of glowing coal or wood in a fire.", "example": "One ember still glowed in the ashes."}, {"id": "shard", "word": "shard", "partOfSpeech": "noun", "element": "ice", "definition": "A sharp, broken piece of something hard.", "example": "An ice shard glittered on the step."}, {"id": "blizzard", "word": "blizzard", "partOfSpeech": "noun", "element": "ice", "definition": "A severe snowstorm with strong wind.", "example": "The blizzard covered the trail overnight."}]};
+
+const ctx = {
+  creatures: creaturesFile.creatures,
+  words,
+  playerId: "emberfox",
+  battle: null,
+  adjective: null,
+  noun: null,
+  tab: "battle",
+  actions: null,
+};
+
+ctx.battle = startBattle(ctx);
+ctx.actions = {
+  goToBattle() {
+    ctx.tab = "battle";
+    render(ctx);
+  },
+  useCreature(id) {
+    ctx.playerId = id;
+    ctx.battle = startBattle(ctx);
+    ctx.adjective = null;
+    ctx.noun = null;
+    ctx.tab = "battle";
+    render(ctx);
+  },
+};
+
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    ctx.tab = button.getAttribute("data-tab");
+    render(ctx);
+  });
+});
+
+render(ctx);
+
+</script>
+  </body>
+</html>

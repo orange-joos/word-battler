@@ -1,0 +1,18 @@
+{
+  "fire": {
+    "id": "fire",
+    "name": "Fire",
+    "color": "orange",
+    "icon": "🔥",
+    "opposite": "ice",
+    "strongAgainst": ["ice"]
+  },
+  "ice": {
+    "id": "ice",
+    "name": "Ice",
+    "color": "sky",
+    "icon": "❄️",
+    "opposite": "fire",
+    "strongAgainst": ["fire"]
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "adjectives": [
+    {
+      "id": "blazing",
+      "word": "blazing",
+      "partOfSpeech": "adjective",
+      "element": "fire",
+      "definition": "Burning brightly and with great energy.",
+      "example": "A blazing lantern lit the path."
+    },
+    {
+      "id": "fierce",
+      "word": "fierce",
+      "partOfSpeech": "adjective",
+      "element": "fire",
+      "definition": "Intense, powerful, and aggressive.",
+      "example": "A fierce spark jumped from the logs."
+    },
+    {
+      "id": "frozen",
+      "word": "frozen",
+      "partOfSpeech": "adjective",
+      "element": "ice",
+      "definition": "Turned into ice or made very cold.",
+      "example": "The frozen pond held our footprints."
+    },
+    {
+      "id": "sharp",
+      "word": "sharp",
+      "partOfSpeech": "adjective",
+      "element": "ice",
+      "definition": "Having a thin edge or a sudden, biting quality.",
+      "example": "A sharp wind cut across the lake."
+    }
+  ],
+  "nouns": [
+    {
+      "id": "flame",
+      "word": "flame",
+      "partOfSpeech": "noun",
+      "element": "fire",
+      "definition": "A hot, glowing tongue of fire.",
+      "example": "The flame danced on the candle."
+    },
+    {
+      "id": "ember",
+      "word": "ember",
+      "partOfSpeech": "noun",
+      "element": "fire",
+      "definition": "A small piece of glowing coal or wood in a fire.",
+      "example": "One ember still glowed in the ashes."
+    },
+    {
+      "id": "shard",
+      "word": "shard",
+      "partOfSpeech": "noun",
+      "element": "ice",
+      "definition": "A sharp, broken piece of something hard.",
+      "example": "An ice shard glittered on the step."
+    },
+    {
+      "id": "blizzard",
+      "word": "blizzard",
+      "partOfSpeech": "noun",
+      "element": "ice",
+      "definition": "A severe snowstorm with strong wind.",
+      "example": "The blizzard covered the trail overnight."
+    }
+  ]
+}
