@@ -243,6 +243,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [battleState, setBattleState] = useState<BattleState>(() => battleEngine.getState());
 
+  useEffect(() => {
+    setBattleState(battleEngine.getState());
+  }, [battleEngine]);
+
   const restartBattle = (newPlayerId?: string) => {
     const nextPlayerId = newPlayerId || playerId;
     if (newPlayerId) {
