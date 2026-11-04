@@ -3,6 +3,7 @@ import { useGame } from '../context/GameContext';
 import { ForgeToken, Word, Creature, Affix } from '../types';
 import { createForge, getAllWordsList } from '../engine/forge';
 import { juice } from '../engine/juice';
+import { ELEMENTS } from '../data/elements';
 import {
   Sparkles,
   ArrowRightLeft,
@@ -273,7 +274,7 @@ export const WordForgeView: React.FC = () => {
                     Linguistic Synthesis: {outcome.kind?.toUpperCase()}
                   </span>
                   <span className="rounded-full bg-amber-400/20 px-2.5 py-0.5 text-xs font-semibold text-amber-700 uppercase">
-                    {(outcome.result as any).element} {(outcome.result as any).element === 'fire' ? '🔥' : '❄️'}
+                    {ELEMENTS[(outcome.result as any).element as keyof typeof ELEMENTS].icon} {(outcome.result as any).element}
                   </span>
                 </div>
 
@@ -346,7 +347,6 @@ export const WordForgeView: React.FC = () => {
           <div className="flex flex-wrap gap-2.5">
             {activeBin === 'words' &&
               filteredWords.map((w) => {
-                const isFire = w.element === 'fire';
                 return (
                   <button
                     key={w.id}
@@ -354,13 +354,12 @@ export const WordForgeView: React.FC = () => {
                     data-token-kind="word"
                     data-token-id={w.id}
                     onClick={() => handleSelectToken({ kind: 'word', id: w.id })}
-                    className={`rounded-xl border-2 bg-violet-50 px-3.5 py-2 text-left transition hover:bg-violet-100 ${
-                      isFire ? 'border-orange-600/70 text-orange-800' : 'border-sky-600/70 text-sky-800'
-                    }`}
+                    className="rounded-xl border-2 bg-violet-50 px-3.5 py-2 text-left text-slate-900 transition hover:bg-violet-100"
+                    style={{ borderColor: `${ELEMENTS[w.element].color}B3` }}
                   >
                     <span className="block text-sm font-semibold text-slate-900">{w.word}</span>
                     <span className="text-[11px] uppercase tracking-wider text-violet-700">
-                      {w.partOfSpeech} · {w.element}
+                      {w.partOfSpeech} · {ELEMENTS[w.element].icon} {w.element}
                     </span>
                     {w.forge && (
                       <span className="block text-[10px] text-amber-700">✦ Forged</span>
@@ -390,7 +389,6 @@ export const WordForgeView: React.FC = () => {
 
             {activeBin === 'creatures' &&
               filteredCreatures.map((c) => {
-                const isFire = c.element === 'fire';
                 return (
                   <button
                     key={c.id}
@@ -398,13 +396,12 @@ export const WordForgeView: React.FC = () => {
                     data-token-kind="creature"
                     data-token-id={c.id}
                     onClick={() => handleSelectToken({ kind: 'creature', id: c.id })}
-                    className={`rounded-xl border-2 bg-violet-50 px-3.5 py-2 text-left transition hover:bg-violet-100 ${
-                      isFire ? 'border-orange-600/70 text-orange-800' : 'border-sky-600/70 text-sky-800'
-                    }`}
+                    className="rounded-xl border-2 bg-violet-50 px-3.5 py-2 text-left text-slate-900 transition hover:bg-violet-100"
+                    style={{ borderColor: `${ELEMENTS[c.element].color}B3` }}
                   >
                     <span className="block text-sm font-semibold text-slate-900">{c.name}</span>
                     <span className="text-[11px] uppercase tracking-wider text-violet-700">
-                      {c.element} · HP {c.stats.hp}
+                      {ELEMENTS[c.element].icon} {c.element} · HP {c.stats.hp}
                     </span>
                     {c.forged && (
                       <span className="block text-[10px] text-amber-700">✦ Hybrid Pet</span>

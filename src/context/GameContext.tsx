@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { Creature, Word, CatalogWords, BattleState, MoveCategory, TabType, PartOfSpeech, PetLoadout } from '../types';
+import { Creature, Word, CatalogWords, BattleState, TabType, PartOfSpeech, PetLoadout, ElementType } from '../types';
 import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData';
+import { ELEMENTS } from '../data/elements';
 import { createBattle } from '../engine/combat';
 import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/forge';
 import { juice } from '../engine/juice';
@@ -16,7 +17,7 @@ interface GameContextType {
   isMuted: boolean;
   toggleMute: () => void;
   battleState: BattleState;
-  submitCombo: (word1Id: string, word2Id: string | null, category: MoveCategory) => void;
+  submitCombo: (word1Id: string, word2Id: string | null) => void;
   restartBattle: (newPlayerId?: string) => void;
   commitWord: (word: Word) => void;
   commitCreature: (creature: Creature) => void;
@@ -45,10 +46,18 @@ function initializeWords(): CatalogWords {
     const saved = localStorage.getItem('wb_words');
     if (!saved) return INITIAL_WORDS;
     const parsed = JSON.parse(saved);
+    const normalizeWord = (word: Word): Word => ({
+      ...word,
+      element: normalizeElement(word.element),
+      combatCategory:
+        word.partOfSpeech === 'adjective'
+          ? word.combatCategory === 'DEBUFF' ? 'DEBUFF' : 'BUFF'
+          : undefined,
+    });
 
     // Merge verbs
     const baseVerbs = INITIAL_WORDS.verbs || [];
-    const savedVerbs = Array.isArray(parsed.verbs) ? parsed.verbs : [];
+    const savedVerbs = Array.isArray(parsed.verbs) ? parsed.verbs.map(normalizeWord) : [];
     const mergedVerbs = [...baseVerbs];
     for (const v of savedVerbs) {
       if (!mergedVerbs.some((existing) => existing.id === v.id)) {
@@ -58,7 +67,7 @@ function initializeWords(): CatalogWords {
 
     // Merge adverbs
     const baseAdverbs = INITIAL_WORDS.adverbs || [];
-    const savedAdverbs = Array.isArray(parsed.adverbs) ? parsed.adverbs : [];
+    const savedAdverbs = Array.isArray(parsed.adverbs) ? parsed.adverbs.map(normalizeWord) : [];
     const mergedAdverbs = [...baseAdverbs];
     for (const a of savedAdverbs) {
       if (!mergedAdverbs.some((existing) => existing.id === a.id)) {
@@ -68,7 +77,7 @@ function initializeWords(): CatalogWords {
 
     // Merge adjectives
     const baseAdj = INITIAL_WORDS.adjectives || [];
-    const savedAdj = Array.isArray(parsed.adjectives) ? parsed.adjectives : [];
+    const savedAdj = Array.isArray(parsed.adjectives) ? parsed.adjectives.map(normalizeWord) : [];
     const mergedAdj = [...baseAdj];
     for (const adj of savedAdj) {
       if (!mergedAdj.some((existing) => existing.id === adj.id)) {
@@ -78,7 +87,7 @@ function initializeWords(): CatalogWords {
 
     // Merge nouns
     const baseNouns = INITIAL_WORDS.nouns || [];
-    const savedNouns = Array.isArray(parsed.nouns) ? parsed.nouns : [];
+    const savedNouns = Array.isArray(parsed.nouns) ? parsed.nouns.map(normalizeWord) : [];
     const mergedNouns = [...baseNouns];
     for (const n of savedNouns) {
       if (!mergedNouns.some((existing) => existing.id === n.id)) {
@@ -97,6 +106,12 @@ function initializeWords(): CatalogWords {
   }
 }
 
+function normalizeElement(element: string): ElementType {
+  if (element === 'nature') return 'grass';
+  if (element === 'cosmic') return 'light';
+  return element in ELEMENTS ? element as ElementType : 'fire';
+}
+
 function initializeCreatures(): Creature[] {
   try {
     const saved = localStorage.getItem('wb_creatures');
@@ -112,6 +127,10 @@ function initializeCreatures(): Creature[] {
       existingTypes.add('adverb');
 
       const initialMatch = INITIAL_CREATURES.find((init) => init.id === c.id);
+      const element = normalizeElement(c.element);
+      const elementAffinity = c.id === 'boss_sovereign' && element === 'light'
+        ? 'light'
+        : normalizeElement(c.elementAffinity || initialMatch?.elementAffinity || element);
       const loadout: PetLoadout = c.loadout && typeof c.loadout === 'object'
         ? {
             verb: c.loadout.verb ?? (initialMatch?.loadout?.verb || null),
@@ -123,14 +142,18 @@ function initializeCreatures(): Creature[] {
 
       return {
         ...c,
+        element,
+        elementAffinity,
+        allowedElements: c.id === 'boss_sovereign'
+          ? [...(initialMatch?.allowedElements || [])]
+          : (c.allowedElements?.length ? c.allowedElements : initialMatch?.allowedElements || [element]).map(normalizeElement),
         level: c.level || initialMatch?.level || 8,
         exp: c.exp ?? (initialMatch?.exp ?? 100),
         maxExp: c.maxExp || initialMatch?.maxExp || 160,
         stage: c.stage || initialMatch?.stage || 1,
         evolvesAtLevel: c.evolvesAtLevel || initialMatch?.evolvesAtLevel || 10,
-        spriteEmoji: c.spriteEmoji || initialMatch?.spriteEmoji || (c.element === 'fire' ? '🦊' : c.element === 'ice' ? '🐺' : '🐱🍃'),
+        spriteEmoji: c.spriteEmoji || initialMatch?.spriteEmoji || ELEMENTS[element].icon,
         title: c.title || initialMatch?.title || 'Companion Beast',
-        elementAffinity: c.elementAffinity || initialMatch?.elementAffinity || c.element,
         loadout,
         allowedWordTypes: Array.from(existingTypes),
       };
@@ -256,19 +279,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setBattleState(nextState);
   };
 
-  const submitCombo = (word1Id: string, word2Id: string | null, category: MoveCategory) => {
-    const nextState = battleEngine.submitCombo(word1Id, word2Id, category);
+  const submitCombo = (word1Id: string, word2Id: string | null) => {
+    const nextState = battleEngine.submitCombo(word1Id, word2Id);
     setBattleState({ ...nextState });
 
-    // Audio effects based on category
-    if (category === 'ATTACK') {
+    if (nextState.events.some((event) => event.type === 'DAMAGE' && event.amount)) {
       juice.hit();
-    } else if (category === 'DEFEND') {
+    } else if (nextState.events.some((event) => event.type === 'SHIELD')) {
       juice.ding(750, 180);
-    } else if (category === 'BUFF') {
+    } else if (nextState.events.some((event) => event.type === 'BUFF' || event.type === 'HEAL')) {
       juice.ding(880, 150);
       setTimeout(() => juice.ding(1100, 150), 100);
-    } else if (category === 'DEBUFF') {
+    } else if (nextState.events.some((event) => event.type === 'DEBUFF' || event.type === 'FIZZLE')) {
       juice.boing();
     }
 

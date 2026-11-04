@@ -36,6 +36,7 @@ import { juice } from '../engine/juice';
 import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { canPetEvolve, getNextEvolutionStage, getCurrentStage } from '../data/evolutionData';
 import { Creature } from '../types';
+import { ELEMENTS } from '../data/elements';
 
 interface OverworldMapProps {
   onOpenGuide?: () => void;
@@ -1322,7 +1323,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-[#5a2e12] bg-gradient-to-b from-amber-100 to-amber-200 text-3xl shadow-xs">
-                          <span>{c.spriteEmoji || (c.element === 'fire' ? '🦊' : c.element === 'ice' ? '🐺' : '🐱🍃')}</span>
+                          <span>{c.spriteEmoji || ELEMENTS[c.element].icon}</span>
                           <span className="absolute -bottom-2 -left-1 rounded-full border border-[#5a2e12] bg-amber-400 px-1 text-[9px] font-black text-[#5a2e12]">
                             Lv.{petLevel}
                           </span>

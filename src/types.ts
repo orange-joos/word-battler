@@ -1,4 +1,12 @@
-export type ElementType = 'fire' | 'ice' | string;
+export type ElementType =
+  | 'fire'
+  | 'water'
+  | 'ice'
+  | 'grass'
+  | 'electric'
+  | 'shadow'
+  | 'light'
+  | 'earth';
 
 export type PartOfSpeech = 'adjective' | 'noun' | 'verb' | 'adverb';
 
@@ -21,6 +29,7 @@ export interface StatusEffect {
   duration: number;
   amount?: number;
   stat?: string;
+  element?: ElementType;
   description?: string;
 }
 
@@ -43,6 +52,7 @@ export interface Word {
   word: string;
   partOfSpeech: PartOfSpeech;
   element: ElementType;
+  combatCategory?: MoveCategory;
   definition: string;
   example: string;
   powerBonus?: number;
@@ -55,6 +65,7 @@ export interface CreatureStats {
   attack: number;
   defense: number;
   speed: number;
+  accuracy?: number;
 }
 
 export interface CreatureForgeMetadata {
@@ -100,6 +111,8 @@ export interface Creature {
   empowered?: boolean;
   reflectStance?: boolean;
   evasionStance?: boolean;
+  evadeChance?: number;
+  infusionElement?: ElementType;
   spriteEmoji?: string;
   // Evolution fields
   level?: number;
@@ -135,7 +148,7 @@ export interface ComboEvaluation {
   valid: boolean;
   category: MoveCategory;
   phrase: string;
-  word1: Word;
+  word1: Word | null;
   word2?: Word | null;
   power: number;
   shieldGain: number;
@@ -156,7 +169,9 @@ export interface CombatEvent {
     | 'FIZZLE'
     | 'VICTORY'
     | 'DEFEAT'
-    | 'STATUS_TICK';
+    | 'STATUS_TICK'
+    | 'HEAL'
+    | 'MISS';
   attackerId?: string;
   targetId?: string;
   amount?: number;
@@ -169,6 +184,8 @@ export interface CombatEvent {
   effect?: string;
   duration?: number;
   stat?: string;
+  category?: MoveCategory;
+  phase?: BattlePhase;
 }
 
 export interface BattleResolution {
@@ -193,6 +210,8 @@ export interface BattleLogEntry {
   damage?: number;
   shield?: number;
   valid?: boolean;
+  eventType?: CombatEvent['type'];
+  targetId?: string;
   timestamp: number;
 }
 
@@ -202,6 +221,7 @@ export interface BattleState {
   player: Creature;
   enemy: Creature;
   log: BattleLogEntry[];
+  events: CombatEvent[];
   lastPlayerResolution: BattleResolution | null;
   lastEnemyResolution: BattleResolution | null;
 }

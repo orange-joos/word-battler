@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Volume2, Sparkles } from 'lucide-react';
 import { Word } from '../types';
 import { juice } from '../engine/juice';
+import { ELEMENTS } from '../data/elements';
 
 interface WordModalProps {
   word: Word | null;
@@ -10,9 +11,6 @@ interface WordModalProps {
 
 export const WordModal: React.FC<WordModalProps> = ({ word, onClose }) => {
   if (!word) return null;
-
-  const isFire = word.element === 'fire';
-  const elementColor = isFire ? 'text-orange-600 border-orange-600/50' : 'text-sky-600 border-sky-600/50';
 
   const speakWord = () => {
     juice.speak(word.word);
@@ -48,8 +46,8 @@ export const WordModal: React.FC<WordModalProps> = ({ word, onClose }) => {
               <span className="rounded bg-violet-100 px-2 py-0.5 uppercase tracking-wider text-violet-700">
                 {word.partOfSpeech}
               </span>
-              <span className={`rounded border px-2 py-0.5 uppercase tracking-wider ${elementColor}`}>
-                {word.element} {isFire ? '🔥' : '❄️'}
+              <span className="rounded border px-2 py-0.5 uppercase tracking-wider" style={{ color: ELEMENTS[word.element].color, borderColor: `${ELEMENTS[word.element].color}80` }}>
+                {ELEMENTS[word.element].icon} {ELEMENTS[word.element].name}
               </span>
             </div>
           </div>

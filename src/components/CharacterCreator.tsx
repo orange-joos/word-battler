@@ -23,6 +23,7 @@ import {
   DEFAULT_AVATAR_CONFIG,
 } from '../types/auth';
 import { juice } from '../engine/juice';
+import { ELEMENTS } from '../data/elements';
 
 interface CharacterCreatorProps {
   onClose?: () => void;
@@ -102,7 +103,7 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onClose, isI
       aura: rAura.id,
       title: rTitle,
       favoriteElement: (rArchetype.element as any) || 'fire',
-      colorTheme: rAura.id === 'ice' ? '#0ea5e9' : rAura.id === 'nature' ? '#10b981' : '#f97316',
+      colorTheme: ELEMENTS[rAura.id as keyof typeof ELEMENTS]?.color || '#f97316',
     });
 
     juice.ding(940, 150);
