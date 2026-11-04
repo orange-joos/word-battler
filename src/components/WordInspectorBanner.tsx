@@ -3,17 +3,16 @@ import { Volume2, Sparkles, X, PlusCircle, Zap } from 'lucide-react';
 import { Word, MoveCategory } from '../types';
 import { juice } from '../engine/juice';
 import { getMatrixEffectInfo } from '../engine/combat';
+import { ELEMENTS } from '../data/elements';
 
 interface WordInspectorBannerProps {
   word: Word | null;
-  activeCategory?: MoveCategory;
   onClose: () => void;
   onSlotWord?: (word: Word) => void;
 }
 
 export const WordInspectorBanner: React.FC<WordInspectorBannerProps> = ({
   word,
-  activeCategory = 'ATTACK',
   onClose,
   onSlotWord,
 }) => {
@@ -28,9 +27,14 @@ export const WordInspectorBanner: React.FC<WordInspectorBannerProps> = ({
     );
   }
 
-  const isFire = word.element === 'fire';
-  const elementColor = isFire ? 'text-orange-600 border-orange-600/40' : 'text-sky-600 border-sky-600/40';
-  const matrixEffect = getMatrixEffectInfo(activeCategory, word.partOfSpeech);
+  const category: MoveCategory = word.partOfSpeech === 'verb'
+    ? 'ATTACK'
+    : word.partOfSpeech === 'noun'
+      ? 'DEFEND'
+      : word.partOfSpeech === 'adjective'
+        ? word.combatCategory === 'DEBUFF' ? 'DEBUFF' : 'BUFF'
+        : 'ATTACK';
+  const matrixEffect = getMatrixEffectInfo(category, word.partOfSpeech);
 
   const speakWord = () => {
     juice.speak(word.word);
@@ -61,8 +65,8 @@ export const WordInspectorBanner: React.FC<WordInspectorBannerProps> = ({
               {word.partOfSpeech}
             </span>
 
-            <span className={`rounded border px-2 py-0.5 text-xs font-semibold uppercase ${elementColor}`}>
-              {word.element} {isFire ? '🔥' : '❄️'}
+            <span className="rounded border px-2 py-0.5 text-xs font-semibold uppercase" style={{ color: ELEMENTS[word.element].color, borderColor: `${ELEMENTS[word.element].color}66` }}>
+              {ELEMENTS[word.element].icon} {ELEMENTS[word.element].name}
             </span>
 
             {word.forge && (
@@ -85,7 +89,7 @@ export const WordInspectorBanner: React.FC<WordInspectorBannerProps> = ({
           <div className="flex items-center gap-1.5 pt-1 text-xs text-amber-700">
             <Zap className="h-3.5 w-3.5 text-amber-600 shrink-0" />
             <span>
-              <strong>In {activeCategory}:</strong> <span className="text-amber-800">{matrixEffect.name}</span> — {matrixEffect.description}
+              <strong>{word.partOfSpeech === 'adverb' ? 'Combo modifier' : category}:</strong> <span className="text-amber-800">{matrixEffect.name}</span> — {matrixEffect.description}
             </span>
           </div>
         </div>

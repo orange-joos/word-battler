@@ -1,4 +1,5 @@
 import { Creature, EvolutionStage, CreatureStats } from '../types';
+import { ELEMENTS } from './elements';
 
 /**
  * Pre-defined evolution branches for the primary companion lines.
@@ -98,14 +99,14 @@ export const PRESET_EVOLUTIONS: Record<string, EvolutionStage[]> = {
  */
 export function getProceduralEvolutionBranch(creature: Creature): EvolutionStage[] {
   const elem = creature.element || 'fire';
-  const elemEmoji = elem === 'ice' ? '❄️' : elem === 'nature' ? '🌿' : '🔥';
+  const elemEmoji = ELEMENTS[elem].icon;
   const baseName = creature.name.replace(/^(Alpha|Apex|Mega|Primal)\s+/, '');
 
   return [
     {
       stage: 1,
       name: baseName,
-      spriteEmoji: creature.spriteEmoji || (elem === 'ice' ? '🐺' : elem === 'nature' ? '🐱' : '🦊'),
+      spriteEmoji: creature.spriteEmoji || elemEmoji,
       minLevel: 1,
       title: 'Novice Beast',
       description: creature.description,

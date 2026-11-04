@@ -1,7 +1,9 @@
+import type { ElementType } from '../types';
+
 export interface VocabSample {
   word: string;
   partOfSpeech: 'verb' | 'noun' | 'adjective' | 'adverb';
-  element: 'fire' | 'ice' | 'nature';
+  element: ElementType;
   definition: string;
   morphologyNote: string;
 }
@@ -13,7 +15,7 @@ export interface WorldTier {
   subtitle: string;
   gradeBand: string;
   theme: string;
-  element: 'nature' | 'ice' | 'fire' | 'lightning' | 'cosmic';
+  element: ElementType;
   color: string;
   borderColor: string;
   bgGradient: string;
@@ -48,7 +50,7 @@ export const WORLD_TIERS: WorldTier[] = [
     subtitle: 'Foundation of Ancient Roots',
     gradeBand: 'Grade 3 Core',
     theme: 'Latin & Greek Root Words',
-    element: 'nature',
+    element: 'grass',
     color: 'emerald',
     borderColor: 'border-emerald-500',
     bgGradient: 'from-emerald-400 via-teal-300 to-lime-400',
@@ -68,7 +70,7 @@ export const WORLD_TIERS: WorldTier[] = [
       {
         word: 'tractor',
         partOfSpeech: 'noun',
-        element: 'nature',
+        element: 'grass',
         definition: 'A powerful machine built to pull heavy loads.',
         morphologyNote: 'From root "tract" (pull/drag) — pulls plows through fields.',
       },
@@ -84,7 +86,7 @@ export const WORLD_TIERS: WorldTier[] = [
       id: 'boss_ruptor',
       name: 'Ruptor the Break-Beast',
       title: 'Guardian of the First Roots',
-      element: 'nature',
+      element: 'grass',
       hp: 38,
       attack: 9,
       defense: 8,
@@ -158,7 +160,7 @@ export const WORLD_TIERS: WorldTier[] = [
     subtitle: 'Mesas of Part-of-Speech Shifting',
     gradeBand: 'Grade 4 Progression',
     theme: 'Transformative Suffixes',
-    element: 'nature',
+    element: 'grass',
     color: 'amber',
     borderColor: 'border-amber-500',
     bgGradient: 'from-amber-400 via-yellow-300 to-orange-400',
@@ -194,7 +196,7 @@ export const WORLD_TIERS: WorldTier[] = [
       id: 'boss_galecrest',
       name: 'Galecrest the Shift-Wyvern',
       title: 'High-Altitude Suffix Sovereign',
-      element: 'nature',
+      element: 'grass',
       hp: 50,
       attack: 13,
       defense: 12,
@@ -268,7 +270,7 @@ export const WORLD_TIERS: WorldTier[] = [
     subtitle: 'Pinnacle of Sentence Masterwork',
     gradeBand: 'Grade 5 Mastery',
     theme: '4x4 Matrix Rhetoric & Sentence Architecture',
-    element: 'cosmic',
+    element: 'light',
     color: 'purple',
     borderColor: 'border-purple-500',
     bgGradient: 'from-purple-500 via-violet-400 to-indigo-600',
@@ -304,7 +306,7 @@ export const WORLD_TIERS: WorldTier[] = [
       id: 'boss_sovereign',
       name: 'The Syntax Sovereign',
       title: 'Grand Arbiter of Grammar',
-      element: 'cosmic',
+      element: 'light',
       hp: 68,
       attack: 17,
       defense: 15,

@@ -1,12 +1,14 @@
+import type { ElementType } from '../types';
+
 export interface AvatarConfig {
   archetype: 'fox' | 'wolf' | 'lion' | 'owl' | 'panda' | 'drake' | 'steed' | 'dino';
   emoji: string;
   headgear: 'none' | 'crown' | 'wizard' | 'helm' | 'cap' | 'goggles' | 'garland' | 'headband' | 'horns' | 'halo';
   headgearEmoji: string;
   outfit: 'tunic' | 'armor' | 'robe' | 'cape' | 'coat' | 'vest';
-  aura: 'fire' | 'ice' | 'nature' | 'lightning' | 'cosmic' | 'gold';
+  aura: ElementType;
   title: string;
-  favoriteElement: 'fire' | 'ice' | 'nature' | 'lightning';
+  favoriteElement: ElementType;
   colorTheme: string;
 }
 
@@ -28,12 +30,12 @@ export interface UserProfile {
 export const ARCHETYPE_OPTIONS = [
   { id: 'fox', name: 'Emberfox', emoji: '🦊', element: 'fire', desc: 'Swift & cunning flame spirit' },
   { id: 'wolf', name: 'Rimepup', emoji: '🐺', element: 'ice', desc: 'Loyal & sharp frost hunter' },
-  { id: 'lion', name: 'Sunlion', emoji: '🦁', element: 'fire', desc: 'Brave & noble solar champion' },
-  { id: 'owl', name: 'Wisdom Owl', emoji: '🦉', element: 'nature', desc: 'Ancient keeper of runes & grammar' },
-  { id: 'panda', name: 'Bamboo Brawler', emoji: '🐼', element: 'nature', desc: 'Calm & mighty earth guardian' },
-  { id: 'drake', name: 'Spark Drake', emoji: '🐲', element: 'lightning', desc: 'Electrifying dragon of momentum' },
-  { id: 'steed', name: 'Astral Steed', emoji: '🦄', element: 'cosmic', desc: 'Starlight runner across dimensions' },
-  { id: 'dino', name: 'Rex Scholar', emoji: '🦖', element: 'nature', desc: 'Prehistoric titan of vocabulary' },
+  { id: 'lion', name: 'River Lion', emoji: '🦁', element: 'water', desc: 'Brave & noble guardian of rushing rivers' },
+  { id: 'owl', name: 'Wisdom Owl', emoji: '🦉', element: 'grass', desc: 'Ancient keeper of runes & grammar' },
+  { id: 'panda', name: 'Bamboo Brawler', emoji: '🐼', element: 'earth', desc: 'Calm & mighty earth guardian' },
+  { id: 'drake', name: 'Spark Drake', emoji: '🐲', element: 'electric', desc: 'Electrifying dragon of momentum' },
+  { id: 'steed', name: 'Astral Steed', emoji: '🦄', element: 'light', desc: 'Radiant runner across the night sky' },
+  { id: 'dino', name: 'Rex Scholar', emoji: '🦖', element: 'shadow', desc: 'Prehistoric titan of vocabulary' },
 ] as const;
 
 export const HEADGEAR_OPTIONS = [
@@ -60,11 +62,13 @@ export const OUTFIT_OPTIONS = [
 
 export const AURA_OPTIONS = [
   { id: 'fire', name: 'Blazing Embers', icon: '🔥', glow: 'from-orange-500/40 via-amber-400/30 to-red-500/40', border: 'border-orange-400' },
+  { id: 'water', name: 'River Gleam', icon: '💧', glow: 'from-sky-500/40 via-cyan-400/30 to-blue-500/40', border: 'border-sky-400' },
   { id: 'ice', name: 'Glacial Shards', icon: '❄️', glow: 'from-sky-400/40 via-cyan-300/30 to-blue-500/40', border: 'border-sky-400' },
-  { id: 'nature', name: 'Forest Spores', icon: '🍃', glow: 'from-emerald-400/40 via-lime-300/30 to-green-500/40', border: 'border-emerald-400' },
-  { id: 'lightning', name: 'Storm Voltage', icon: '⚡', glow: 'from-yellow-400/40 via-amber-300/30 to-violet-500/40', border: 'border-yellow-400' },
-  { id: 'cosmic', name: 'Cosmic Nebula', icon: '🌌', glow: 'from-purple-500/40 via-fuchsia-400/30 to-indigo-500/40', border: 'border-purple-400' },
-  { id: 'gold', name: 'Golden Radiance', icon: '🌟', glow: 'from-yellow-300/50 via-amber-400/40 to-yellow-500/50', border: 'border-amber-400' },
+  { id: 'grass', name: 'Forest Bloom', icon: '🌿', glow: 'from-emerald-400/40 via-lime-300/30 to-green-500/40', border: 'border-emerald-400' },
+  { id: 'electric', name: 'Storm Voltage', icon: '⚡', glow: 'from-yellow-400/40 via-amber-300/30 to-violet-500/40', border: 'border-yellow-400' },
+  { id: 'shadow', name: 'Quiet Gloom', icon: '🌑', glow: 'from-purple-500/40 via-fuchsia-400/30 to-indigo-500/40', border: 'border-purple-400' },
+  { id: 'light', name: 'Golden Radiance', icon: '✨', glow: 'from-yellow-300/50 via-amber-400/40 to-yellow-500/50', border: 'border-amber-400' },
+  { id: 'earth', name: 'Stoneheart', icon: '🪨', glow: 'from-amber-700/40 via-orange-400/30 to-yellow-700/40', border: 'border-amber-700' },
 ] as const;
 
 export const TITLE_OPTIONS = [

@@ -3,6 +3,7 @@ import { useGame } from '../context/GameContext';
 import { Word, PartOfSpeech, ElementType, Creature } from '../types';
 import { getAllWordsList } from '../engine/forge';
 import { INITIAL_WORDS } from '../data/initialData';
+import { ELEMENTS, ELEMENT_TYPES } from '../data/elements';
 import { juice } from '../engine/juice';
 import {
   Swords,
@@ -174,15 +175,9 @@ export const LoadoutView: React.FC = () => {
         {/* Top Header & Pet Selector */}
         <section className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border-2 border-amber-300/90 bg-gradient-to-r from-amber-50 via-[#fffdf3] to-orange-50 p-5 shadow-lg shadow-amber-900/10">
           <div className="flex items-center gap-4">
-            <div className={`relative flex h-16 w-16 items-center justify-center rounded-2xl border-2 shadow-lg ${
-              petAffinity === 'fire'
-                ? 'border-orange-600 bg-gradient-to-br from-amber-400 to-red-300 shadow-orange-200/60'
-                : petAffinity === 'ice'
-                ? 'border-cyan-400 bg-gradient-to-br from-cyan-400 to-blue-200 shadow-cyan-200/60'
-                : 'border-emerald-600 bg-gradient-to-br from-emerald-400 to-green-200 shadow-emerald-200/60'
-            }`}>
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border-2 shadow-lg" style={{ borderColor: ELEMENTS[petAffinity].color, backgroundColor: `${ELEMENTS[petAffinity].color}30`, boxShadow: `0 8px 15px ${ELEMENTS[petAffinity].color}35` }}>
               <span className="text-4xl drop-shadow select-none">
-                {activePet.spriteEmoji || (petAffinity === 'fire' ? '🦊' : petAffinity === 'ice' ? '🐺' : '🐱🍃')}
+                {activePet.spriteEmoji || ELEMENTS[petAffinity].icon}
               </span>
               <span className="absolute -bottom-2 -left-1 rounded-full border border-slate-700 bg-amber-400 px-1.5 text-[9px] font-black text-slate-900 shadow">
                 Lv.{activePet.level || 8}
@@ -197,14 +192,8 @@ export const LoadoutView: React.FC = () => {
                 <span className="rounded-full bg-pink-100 border border-pink-300 px-2 py-0.2 text-[10px] font-black uppercase text-pink-900">
                   Stage {activePet.stage || 1}
                 </span>
-                <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${
-                  petAffinity === 'fire'
-                    ? 'bg-orange-50/80 border border-orange-500/70 text-orange-700'
-                    : petAffinity === 'ice'
-                    ? 'bg-cyan-50/80 border border-cyan-500/70 text-cyan-700'
-                    : 'bg-emerald-50/80 border border-emerald-500/70 text-emerald-700'
-                }`}>
-                  {petAffinity} Affinity
+                <span className="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider" style={{ color: ELEMENTS[petAffinity].color, borderColor: `${ELEMENTS[petAffinity].color}80`, backgroundColor: `${ELEMENTS[petAffinity].color}18` }}>
+                  {ELEMENTS[petAffinity].icon} {ELEMENTS[petAffinity].name} Affinity
                 </span>
 
                 {/* Evolution Trigger Button if ready */}
@@ -365,12 +354,8 @@ export const LoadoutView: React.FC = () => {
 
                         {/* Badges row */}
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-                            equippedWord.element === 'fire'
-                              ? 'bg-orange-50/80 border border-orange-400 text-orange-700'
-                              : 'bg-cyan-50/80 border border-cyan-400 text-cyan-700'
-                          }`}>
-                            {equippedWord.element === 'fire' ? '🔥' : '❄️'} {equippedWord.element}
+                          <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase" style={{ color: ELEMENTS[equippedWord.element].color, borderColor: `${ELEMENTS[equippedWord.element].color}80`, backgroundColor: `${ELEMENTS[equippedWord.element].color}15` }}>
+                            {ELEMENTS[equippedWord.element].icon} {ELEMENTS[equippedWord.element].name}
                           </span>
 
                           {powerBonus > 0 && (
@@ -496,7 +481,7 @@ export const LoadoutView: React.FC = () => {
               <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-600 mr-1">
                 Element:
               </span>
-              {(['all', 'fire', 'ice'] as const).map((elem) => (
+              {(['all', ...ELEMENT_TYPES] as const).map((elem) => (
                 <button
                   key={elem}
                   type="button"
@@ -510,7 +495,7 @@ export const LoadoutView: React.FC = () => {
                       : 'bg-violet-50 border border-violet-300 text-violet-700 hover:bg-violet-100'
                   }`}
                 >
-                  {elem === 'all' ? 'All' : elem === 'fire' ? '🔥 Fire' : '❄️ Ice'}
+                  {elem === 'all' ? 'All' : `${ELEMENTS[elem].icon} ${ELEMENTS[elem].name}`}
                 </button>
               ))}
             </div>
@@ -552,12 +537,8 @@ export const LoadoutView: React.FC = () => {
                       </span>
 
                       <div className="flex items-center gap-1">
-                        <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          card.element === 'fire'
-                            ? 'bg-orange-50 border border-orange-300 text-orange-700'
-                            : 'bg-cyan-50 border border-cyan-300 text-cyan-700'
-                        }`}>
-                          {card.element === 'fire' ? '🔥' : '❄️'}
+                        <span className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase" style={{ color: ELEMENTS[card.element].color, borderColor: `${ELEMENTS[card.element].color}66`, backgroundColor: `${ELEMENTS[card.element].color}12` }}>
+                          {ELEMENTS[card.element].icon}
                         </span>
 
                         {powerBonus > 0 && (

@@ -1,0 +1,17 @@
+import { ElementType } from '../types';
+
+export const ELEMENTS: Record<
+  ElementType,
+  { name: string; icon: string; color: string; stat: 'hp' | 'attack' | 'defense' | 'speed' }
+> = {
+  fire: { name: 'Fire', icon: '🔥', color: '#f97316', stat: 'attack' },
+  water: { name: 'Water', icon: '💧', color: '#0ea5e9', stat: 'defense' },
+  ice: { name: 'Ice', icon: '❄️', color: '#38bdf8', stat: 'speed' },
+  grass: { name: 'Grass', icon: '🌿', color: '#22c55e', stat: 'hp' },
+  electric: { name: 'Electric', icon: '⚡', color: '#eab308', stat: 'speed' },
+  shadow: { name: 'Shadow', icon: '🌑', color: '#7c3aed', stat: 'attack' },
+  light: { name: 'Light', icon: '✨', color: '#facc15', stat: 'hp' },
+  earth: { name: 'Earth', icon: '🪨', color: '#a16207', stat: 'defense' },
+};
+
+export const ELEMENT_TYPES = Object.freeze(Object.keys(ELEMENTS) as ElementType[]);

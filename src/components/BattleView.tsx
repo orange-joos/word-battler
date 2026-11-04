@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Activity, BookOpen, Heart, RotateCcw, Shield, Sparkles, Swords, Volume2, Zap } from 'lucide-react';
+import { BookOpen, Heart, RotateCcw, Zap } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { INITIAL_WORDS } from '../data/initialData';
-import { evaluateCombo, getMatrixEffectInfo } from '../engine/combat';
+import { evaluateCombo } from '../engine/combat';
 import { juice } from '../engine/juice';
-import { BattleLogEntry, Creature, MoveCategory, PartOfSpeech, Word } from '../types';
+import { BattleLogEntry, Creature, PartOfSpeech, Word } from '../types';
 import { FloatingCombatOverlay, CombatPopup } from './FloatingCombatOverlay';
 import { WordInspectorBanner } from './WordInspectorBanner';
 import { WordModal } from './WordModal';
 import { WORLD_TIERS } from '../data/worldTiers';
+import { ELEMENTS } from '../data/elements';
 
 const POS_STYLES: Record<PartOfSpeech, { label: string; card: string; badge: string; icon: string }> = {
   verb: { label: 'VERB', card: 'border-rose-300 bg-gradient-to-br from-rose-400 to-red-500 text-white shadow-rose-300/50', badge: 'bg-rose-700/70', icon: '⚡' },
@@ -30,14 +31,21 @@ const creatureEmoji = (creature: Creature) => {
   if (name.includes('galecrest') || name.includes('wyvern')) return '🦅';
   if (name.includes('chimera') || name.includes('pyro')) return '🦁';
   if (name.includes('sovereign')) return '👑';
-  return creature.element === 'ice' ? '🐻‍❄️' : creature.element === 'nature' ? '🦌' : '🐲';
+  return ({
+    fire: '🐲', water: '🐬', ice: '🐻‍❄️', grass: '🦌',
+    electric: '🐝', shadow: '🐈‍⬛', light: '🦄', earth: '🐢',
+  } as const)[creature.element];
 };
 
-const healthColor = (element: string) => element === 'ice' ? 'from-sky-400 to-blue-500' : element === 'nature' ? 'from-lime-400 to-emerald-500' : 'from-orange-400 to-rose-500';
+const actionLabel = (word: Word) => {
+  if (word.partOfSpeech === 'verb') return 'ATTACK';
+  if (word.partOfSpeech === 'noun') return 'DEFEND';
+  if (word.partOfSpeech === 'adjective') return word.combatCategory === 'DEBUFF' ? 'DEBUFF' : 'BUFF';
+  return 'MODIFIER';
+};
 
 export const BattleView: React.FC = () => {
   const { battleState, words, playerId, submitCombo, restartBattle, goToLoadout, activeZoneId, setTab } = useGame();
-  const [activeCategory, setActiveCategory] = useState<MoveCategory>('ATTACK');
   const [slot1Word, setSlot1Word] = useState<Word | null>(null);
   const [slot2Word, setSlot2Word] = useState<Word | null>(null);
   const [inspectedWord, setInspectedWord] = useState<Word | null>(null);
@@ -87,7 +95,11 @@ export const BattleView: React.FC = () => {
     const additions = battleState.log.slice(prevLogCount.current);
     prevLogCount.current = count;
     additions.forEach((entry: BattleLogEntry) => {
-      const target = entry.isPlayer ? 'enemy' : 'player';
+      const target = entry.targetId === player.id
+        ? 'player'
+        : entry.targetId === enemy.id
+          ? 'enemy'
+          : entry.isPlayer ? 'enemy' : 'player';
       if (entry.damage && entry.damage > 0) {
         pushPopup(target, `−${entry.damage}`, 'damage');
         if (target === 'player') {
@@ -100,16 +112,16 @@ export const BattleView: React.FC = () => {
           window.setTimeout(() => setEnemyShake(false), 520);
         }
       }
-      if (entry.shield && entry.shield > 0) pushPopup(entry.isPlayer ? 'player' : 'enemy', `+${entry.shield} SHIELD`, 'shield');
-      if (entry.message.includes('dodged')) pushPopup(entry.message.startsWith('You') ? 'player' : 'enemy', '💨 DODGED!', 'evade');
-      if (entry.message.includes('Mighty Surge') || entry.message.includes('Empowered')) pushPopup(entry.isPlayer ? 'player' : 'enemy', '✨ POWER UP!', 'buff');
-      if (entry.message.includes('Inflicted') || entry.message.includes('Afflicted')) pushPopup('enemy', '🌟 AFFECTED!', 'debuff');
+      if (entry.shield && entry.shield > 0) pushPopup(target, `+${entry.shield} SHIELD`, 'shield');
+      if (entry.eventType === 'EVADE') pushPopup(entry.isPlayer ? 'player' : 'enemy', '💨 EVADED!', 'evade');
+      if (entry.eventType === 'BUFF' || entry.eventType === 'HEAL') pushPopup(target, '✨ POWER UP!', 'buff');
+      if (entry.eventType === 'DEBUFF') pushPopup(target, '🌟 AFFECTED!', 'debuff');
     });
   }, [battleState.log]);
 
   const handleWordClick = (word: Word) => {
     setInspectedWord(word);
-    juice.ding(word.element === 'fire' ? 620 : word.element === 'ice' ? 520 : 700, 80);
+    juice.ding(word.element === 'ice' || word.element === 'water' ? 520 : 700, 80);
     juice.speak(word.word);
     if (slot1Word?.id === word.id) setSlot1Word(null);
     else if (slot2Word?.id === word.id) setSlot2Word(null);
@@ -123,10 +135,10 @@ export const BattleView: React.FC = () => {
     if (!slot1Word) return;
     setPlayerLunge(true);
     window.setTimeout(() => setPlayerLunge(false), 420);
-    submitCombo(slot1Word.id, slot2Word?.id || null, activeCategory);
+    submitCombo(slot1Word.id, slot2Word?.id || null);
     clearSlots();
   };
-  const liveEvaluation = useMemo(() => !slot1Word && !slot2Word ? null : evaluateCombo(player, slot1Word, slot2Word, activeCategory), [player, slot1Word, slot2Word, activeCategory]);
+  const liveEvaluation = useMemo(() => !slot1Word && !slot2Word ? null : evaluateCombo(player, slot1Word, slot2Word), [player, slot1Word, slot2Word]);
   const playerHpRatio = player.maxHp ? Math.max(0, (player.currentHp ?? 0) / player.maxHp) : 0;
   const enemyHpRatio = enemy.maxHp ? Math.max(0, (enemy.currentHp ?? 0) / enemy.maxHp) : 0;
 
@@ -179,27 +191,31 @@ export const BattleView: React.FC = () => {
                 : battleState.phase === 'ENEMY_TURN'
                   ? `${enemy.name} is making a move. Get ready!`
                   : slot1Word && slot2Word
-                    ? `${slot1Word.word} + ${slot2Word.word} are ready! Cast your word combo!`
-                    : slot1Word
-                      ? `${slot1Word.word} is ready! Pick a second word or cast it on its own.`
+                      ? liveEvaluation?.valid
+                        ? `${liveEvaluation.phrase} is ready as a ${liveEvaluation.category.toLowerCase()} combo!`
+                        : liveEvaluation?.reasons[0] || 'Try a valid two-word combo.'
+                      : slot1Word
+                        ? slot1Word.partOfSpeech === 'adverb'
+                          ? `${slot1Word.word} modifies a verb. Choose the verb to finish your strike!`
+                          : `${slot1Word.word} is ready! Choose it alone or add a matching combo word.`
                       : 'Pick a spell to cast! Tap one of your word cards to get started.'}
             </p>
           </div>
           <div className="fighter-row">
             <article className={`fighter fighter-player ${playerShake ? 'is-hurt' : ''} ${playerLunge ? 'is-lunging' : ''}`}>
-              <div className="fighter-nameplate player-nameplate"><span>YOUR PET</span><strong>{player.name}</strong><small>{player.element} {player.element === 'fire' ? '🔥' : player.element === 'ice' ? '❄️' : '🌿'}</small></div>
-              <div className={`fighter-art player-art element-${player.element}`} aria-label={`${player.name} battle sprite`}><div className="art-aura" /><span className="pet-emoji">{creatureEmoji(player)}</span><span className="art-spark">✦</span></div>
+              <div className="fighter-nameplate player-nameplate"><span>YOUR PET</span><strong>{player.name}</strong><small>{ELEMENTS[player.element].icon} {ELEMENTS[player.element].name}</small></div>
+              <div className={`fighter-art player-art element-${player.element}`} aria-label={`${player.name} battle sprite`}><div className="art-aura" style={{ backgroundColor: `${ELEMENTS[player.element].color}70` }} /><span className="pet-emoji" style={{ filter: `drop-shadow(0 0 11px ${ELEMENTS[player.element].color}b0) drop-shadow(0 5px 2px #573b5890)` }}>{creatureEmoji(player)}</span><span className="art-spark">✦</span></div>
               <div className="platform platform-player" />
-              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{player.currentHp} / {player.maxHp}</strong></div><div className="hp-track" role="progressbar" aria-label={`${player.name} health`} aria-valuemin={0} aria-valuemax={player.maxHp} aria-valuenow={player.currentHp}><i className={healthColor(player.element)} style={{ width: `${playerHpRatio * 100}%` }} /></div></div>
+              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{player.currentHp} / {player.maxHp}</strong></div><div className="hp-track" role="progressbar" aria-label={`${player.name} health`} aria-valuemin={0} aria-valuemax={player.maxHp} aria-valuenow={player.currentHp}><i style={{ width: `${playerHpRatio * 100}%`, background: ELEMENTS[player.element].color }} /></div></div>
               {(player.shield ?? 0) > 0 && <span className="battle-status">🛡️ {player.shield}</span>}
               <FloatingCombatOverlay popups={playerPopups} />
             </article>
             <div className="versus-badge">VS</div>
             <article className={`fighter fighter-enemy ${enemyShake ? 'is-hurt' : ''} ${enemyLunge ? 'is-lunging' : ''}`}>
-              <div className="fighter-nameplate enemy-nameplate"><span>WORD BOSS</span><strong>{enemy.name}</strong><small>{enemy.element} {enemy.element === 'fire' ? '🔥' : enemy.element === 'ice' ? '❄️' : '🌿'}</small></div>
-              <div className={`fighter-art enemy-art element-${enemy.element}`} aria-label={`${enemy.name} battle sprite`}><div className="art-aura" /><span className="pet-emoji">{creatureEmoji(enemy)}</span><span className="art-spark">✦</span></div>
+              <div className="fighter-nameplate enemy-nameplate"><span>WORD BOSS</span><strong>{enemy.name}</strong><small>{ELEMENTS[enemy.element].icon} {ELEMENTS[enemy.element].name}</small></div>
+              <div className={`fighter-art enemy-art element-${enemy.element}`} aria-label={`${enemy.name} battle sprite`}><div className="art-aura" style={{ backgroundColor: `${ELEMENTS[enemy.element].color}70` }} /><span className="pet-emoji" style={{ filter: `drop-shadow(0 0 11px ${ELEMENTS[enemy.element].color}b0) drop-shadow(0 5px 2px #573b5890)` }}>{creatureEmoji(enemy)}</span><span className="art-spark">✦</span></div>
               <div className="platform platform-enemy" />
-              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{enemy.currentHp} / {enemy.maxHp}</strong></div><div className="hp-track" role="progressbar" aria-label={`${enemy.name} health`} aria-valuemin={0} aria-valuemax={enemy.maxHp} aria-valuenow={enemy.currentHp}><i className={healthColor(enemy.element)} style={{ width: `${enemyHpRatio * 100}%` }} /></div></div>
+              <div className="fighter-hp"><div className="hp-top"><span><Heart size={14} fill="currentColor" /> HP</span><strong>{enemy.currentHp} / {enemy.maxHp}</strong></div><div className="hp-track" role="progressbar" aria-label={`${enemy.name} health`} aria-valuemin={0} aria-valuemax={enemy.maxHp} aria-valuenow={enemy.currentHp}><i style={{ width: `${enemyHpRatio * 100}%`, background: ELEMENTS[enemy.element].color }} /></div></div>
               {(enemy.shield ?? 0) > 0 && <span className="battle-status">🛡️ {enemy.shield}</span>}
               <FloatingCombatOverlay popups={enemyPopups} />
             </article>
@@ -216,18 +232,17 @@ export const BattleView: React.FC = () => {
               if (!word) return <button key={slot} onClick={goToLoadout} className="move-card move-empty"><span className="move-number">{index + 1}</span><span className="move-symbol">＋</span><span className="move-empty-copy">Equip a {slot}</span></button>;
               const selected = slot1Word?.id === word.id || slot2Word?.id === word.id;
               return <button key={slot} onClick={() => handleWordClick(word)} onContextMenu={(event) => { event.preventDefault(); setModalWord(word); }} className={`move-card ${style.card} ${selected ? 'move-selected' : ''}`} aria-pressed={selected} title={`${word.definition} Right click for word details`}>
-                <span className="move-number">{index + 1}</span><span className="move-symbol">{style.icon}</span><span className={`move-type ${style.badge}`}>{style.label}</span><strong className="move-word">{word.word}</strong><span className="move-element">{word.element === 'fire' ? '🔥' : word.element === 'ice' ? '❄️' : '🌿'} {word.element}</span>{selected && <span className="move-check">✓</span>}
+                <span className="move-number">{index + 1}</span><span className="move-symbol">{style.icon}</span><span className={`move-type ${style.badge}`}>{style.label} · {actionLabel(word)}</span><strong className="move-word">{word.word}</strong><span className="move-element">{ELEMENTS[word.element].icon} {ELEMENTS[word.element].name}</span>{selected && <span className="move-check">✓</span>}
               </button>;
             })}
           </div>
-          <div className="deck-controls">
-            <div className="category-pills" aria-label="Move style">{([
-              ['ATTACK', Swords, 'Strike'], ['DEFEND', Shield, 'Guard'], ['BUFF', Sparkles, 'Boost'], ['DEBUFF', Activity, 'Trick'],
-            ] as const).map(([category, Icon, label]) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => { setActiveCategory(category); juice.ding(category === 'ATTACK' ? 520 : category === 'DEFEND' ? 660 : category === 'BUFF' ? 880 : 380, 80); }} className={`category-pill category-${category.toLowerCase()} ${activeCategory === category ? 'category-active' : ''}`}><Icon size={15} /> {label}</button>)}</div>
-            <p className="pick-hint">{slot1Word ? slot2Word ? <><strong>{slot1Word.word} {slot2Word.word}</strong> — ready to go!</> : <>Tap a second word to make a combo, or use <strong>{slot1Word.word}</strong> alone.</> : 'Choose one of your four words to make a move!'}</p>
+          <div className="deck-controls" style={{ gridTemplateColumns: 'minmax(0, 1fr) auto' }}>
+            <p className="pick-hint" style={{ gridColumn: 1, gridRow: 'auto' }}>{liveEvaluation?.valid
+              ? <><strong>{liveEvaluation.phrase}</strong> — {liveEvaluation.category} is ready!</>
+              : liveEvaluation?.reasons[0] || 'Verbs attack · nouns defend · adjectives buff or debuff · adverbs modify verbs.'}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={handleSubmit} disabled={!slot1Word && !isBattleEnd} className="battle-button">
-                {isBattleEnd ? <><RotateCcw size={20} /> Battle again!</> : <><Zap size={20} fill="currentColor" /> {activeCategory === 'ATTACK' ? 'LET’S GO!' : `${activeCategory} MOVE!`}</>}
+                {isBattleEnd ? <><RotateCcw size={20} /> Battle again!</> : <><Zap size={20} fill="currentColor" /> {liveEvaluation?.valid ? `USE ${liveEvaluation.category}` : 'USE WORD MOVE'}</>}
               </button>
               {isBattleEnd && (
                 <button
@@ -242,8 +257,8 @@ export const BattleView: React.FC = () => {
             </div>
             {slot1Word && <button onClick={clearSlots} className="clear-move">Clear move</button>}
           </div>
-          {liveEvaluation && <div className={`move-preview ${liveEvaluation.valid ? 'preview-valid' : 'preview-invalid'}`}><span className="preview-label">{liveEvaluation.valid ? `✨ ${getMatrixEffectInfo(activeCategory, (slot2Word || slot1Word)!.partOfSpeech).name}` : '🔒 Check your word'}</span><span>{liveEvaluation.valid ? liveEvaluation.tacticalOutcome : liveEvaluation.reasons[0]}</span></div>}
-          <WordInspectorBanner word={inspectedWord} activeCategory={activeCategory} onClose={() => setInspectedWord(null)} onSlotWord={handleWordClick} />
+          {liveEvaluation && <div className={`move-preview ${liveEvaluation.valid ? 'preview-valid' : 'preview-invalid'}`}><span className="preview-label">{liveEvaluation.valid ? `✨ ${liveEvaluation.effectName}` : '💡 Try another word pairing'}</span><span>{liveEvaluation.valid ? liveEvaluation.tacticalOutcome : liveEvaluation.reasons[0]}</span></div>}
+          <WordInspectorBanner word={inspectedWord} onClose={() => setInspectedWord(null)} onSlotWord={handleWordClick} />
           <div className="deck-footnote"><span>📚</span> Words in your arsenal are your battle moves. Build combos to power them up!</div>
         </section>
       </div>

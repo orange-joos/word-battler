@@ -2,11 +2,20 @@
  * Word Forge — morphology fusion engine for Word Battler (Layer 2 - Word Relationships)
  */
 
-import { Word, Creature, Affix, ForgeToken, ForgeResult, CatalogWords } from '../types';
+import { Word, Creature, Affix, ForgeToken, ForgeResult, CatalogWords, ElementType } from '../types';
 import { INITIAL_AFFIXES, INITIAL_CREATURE_MORPHEMES } from '../data/initialData';
 
 export const MAX_FORGE_DEPTH = 2;
-const OPPOSITE_ELEMENT: Record<string, string> = { fire: 'ice', ice: 'fire' };
+const OPPOSITE_ELEMENT: Record<ElementType, ElementType> = {
+  fire: 'ice',
+  water: 'water',
+  ice: 'fire',
+  grass: 'grass',
+  electric: 'electric',
+  shadow: 'shadow',
+  light: 'light',
+  earth: 'earth',
+};
 
 const AFFIXATION_BONUS = 1;
 const COMPOUND_BONUS = 2;
@@ -29,7 +38,7 @@ const depthOf = (entry: Word | Creature | null | undefined) => {
   return 0;
 };
 
-export function invertElement(element: string): string {
+export function invertElement(element: ElementType): ElementType {
   return OPPOSITE_ELEMENT[element] ?? element;
 }
 
