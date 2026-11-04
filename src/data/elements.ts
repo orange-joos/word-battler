@@ -12,6 +12,7 @@ export const ELEMENTS: Record<
   shadow: { name: 'Shadow', icon: '🌑', color: '#7c3aed', stat: 'attack' },
   light: { name: 'Light', icon: '✨', color: '#facc15', stat: 'hp' },
   earth: { name: 'Earth', icon: '🪨', color: '#a16207', stat: 'defense' },
+  air: { name: 'Air', icon: '🌬️', color: '#38bdf8', stat: 'speed' },
 };
 
 export const ELEMENT_TYPES = Object.freeze(Object.keys(ELEMENTS) as ElementType[]);

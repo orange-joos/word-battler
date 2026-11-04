@@ -24,7 +24,7 @@ const AppContent: React.FC = () => {
   if (tab === 'hub') {
     return (
       <div className="w-screen h-screen overflow-hidden bg-[#59b8fa] text-slate-800 flex flex-col font-sans select-none">
-        <HubView />
+        <HubView onOpenGuide={() => setIsGuideOpen(true)} />
 
         {/* Guide & Rules Modal */}
         <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />

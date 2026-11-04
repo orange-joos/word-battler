@@ -33,7 +33,7 @@ const creatureEmoji = (creature: Creature) => {
   if (name.includes('sovereign')) return '👑';
   return ({
     fire: '🐲', water: '🐬', ice: '🐻‍❄️', grass: '🦌',
-    electric: '🐝', shadow: '🐈‍⬛', light: '🦄', earth: '🐢',
+    electric: '🐝', shadow: '🐈‍⬛', light: '🦄', earth: '🐢', air: '🪶',
   } as const)[creature.element];
 };
 

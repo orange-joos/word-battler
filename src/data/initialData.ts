@@ -188,7 +188,7 @@ export const INITIAL_CREATURES: Creature[] = [
       speed: 15
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["fire", "water", "ice", "grass", "electric", "shadow", "light", "earth"]
+    allowedElements: ["fire", "water", "ice", "grass", "electric", "shadow", "light", "earth", "air"]
   },
   {
     id: "aquafin",
@@ -225,6 +225,18 @@ export const INITIAL_CREATURES: Creature[] = [
     stats: { hp: 44, attack: 14, defense: 10, speed: 13 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
     allowedElements: ["shadow"]
+  },
+  {
+    id: "zephyrfinch",
+    name: "Zephyrfinch",
+    element: "air",
+    elementAffinity: "air",
+    spriteEmoji: "🪶",
+    loadout: { verb: "soar", noun: "breeze", adjective: "buoyant", adverb: "lightly" },
+    description: "A bright-feathered companion that rides gentle updrafts and darts between the clouds.",
+    stats: { hp: 43, attack: 11, defense: 10, speed: 15 },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["air"]
   }
 ];
 
@@ -310,6 +322,15 @@ export const INITIAL_WORDS: CatalogWords = {
       combatCategory: "BUFF",
       definition: "Strongly built and able to withstand pressure.",
       example: "The sturdy bridge held firm above the gorge."
+    },
+    {
+      id: "buoyant",
+      word: "buoyant",
+      partOfSpeech: "adjective",
+      element: "air",
+      combatCategory: "BUFF",
+      definition: "Able to float or rise easily through the air.",
+      example: "The buoyant kite lifted above the breezy hill."
     },
     {
       id: "ancient",
@@ -410,6 +431,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "grass",
       definition: "The part of a plant that grows underground.",
       example: "A root held the young tree in place."
+    },
+    {
+      id: "breeze",
+      word: "breeze",
+      partOfSpeech: "noun",
+      element: "air",
+      definition: "A gentle movement of air.",
+      example: "A cool breeze fluttered the explorer's map."
     }
   ],
   verbs: [
@@ -508,6 +537,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "earth",
       definition: "To break into small pieces.",
       example: "Dry soil can crumble between your fingers."
+    },
+    {
+      id: "soar",
+      word: "soar",
+      partOfSpeech: "verb",
+      element: "air",
+      definition: "To fly high through the air.",
+      example: "The young finch soared above the forest canopy."
     }
   ],
   adverbs: [
@@ -590,6 +627,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "earth",
       definition: "With great weight or force.",
       example: "Rain fell heavily on the rocky ground."
+    },
+    {
+      id: "lightly",
+      word: "lightly",
+      partOfSpeech: "adverb",
+      element: "air",
+      definition: "In a gentle way or with little weight.",
+      example: "The feather drifted lightly on the breeze."
     }
   ]
 };

@@ -6,7 +6,8 @@ export type ElementType =
   | 'electric'
   | 'shadow'
   | 'light'
-  | 'earth';
+  | 'earth'
+  | 'air';
 
 export type PartOfSpeech = 'adjective' | 'noun' | 'verb' | 'adverb';
 
