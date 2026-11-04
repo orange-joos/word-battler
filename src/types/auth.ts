@@ -1,7 +1,7 @@
 import type { ElementType } from '../types';
 
 export interface AvatarConfig {
-  archetype: 'fox' | 'wolf' | 'lion' | 'owl' | 'panda' | 'drake' | 'steed' | 'dino' | 'kite';
+  archetype: 'fox' | 'wolf' | 'lion' | 'owl' | 'panda' | 'drake' | 'steed' | 'dino' | 'kite' | 'sylph';
   emoji: string;
   headgear: 'none' | 'crown' | 'wizard' | 'helm' | 'cap' | 'goggles' | 'garland' | 'headband' | 'horns' | 'halo';
   headgearEmoji: string;
@@ -38,6 +38,7 @@ export const ARCHETYPE_OPTIONS = [
   { id: 'steed', name: 'Astral Steed', emoji: '🦄', element: 'light', desc: 'Radiant runner across the night sky' },
   { id: 'dino', name: 'Rex Scholar', emoji: '🦖', element: 'shadow', desc: 'Prehistoric titan of vocabulary' },
   { id: 'kite', name: 'Zephyr Kite', emoji: '🪁', element: 'air', desc: 'A breezy companion that soars on every new word' },
+  { id: 'sylph', name: 'Zephyr Sprite', emoji: '🧚', element: 'air', desc: 'Nimble spirit riding every breeze' },
 ] as const;
 
 export const HEADGEAR_OPTIONS = [

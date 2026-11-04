@@ -1,4 +1,4 @@
-import { Creature, CatalogWords, Affix } from '../types';
+import type { Creature, CatalogWords, Affix } from '../types';
 
 export const INITIAL_CREATURES: Creature[] = [
   {
@@ -225,6 +225,18 @@ export const INITIAL_CREATURES: Creature[] = [
     stats: { hp: 44, attack: 14, defense: 10, speed: 13 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
     allowedElements: ["shadow"]
+  },
+  {
+    id: "zephyrfinch",
+    name: "Zephyrfinch",
+    element: "air",
+    elementAffinity: "air",
+    spriteEmoji: "🪶",
+    loadout: { verb: "soar", noun: "breeze", adjective: "buoyant", adverb: "lightly" },
+    description: "A bright-feathered companion that rides gentle updrafts and darts between the clouds.",
+    stats: { hp: 43, attack: 11, defense: 10, speed: 15 },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["air"]
   }
 ];
 
@@ -310,6 +322,15 @@ export const INITIAL_WORDS: CatalogWords = {
       combatCategory: "BUFF",
       definition: "Strongly built and able to withstand pressure.",
       example: "The sturdy bridge held firm above the gorge."
+    },
+    {
+      id: "buoyant",
+      word: "buoyant",
+      partOfSpeech: "adjective",
+      element: "air",
+      combatCategory: "BUFF",
+      definition: "Able to float or rise easily through the air.",
+      example: "The buoyant kite lifted above the breezy hill."
     },
     {
       id: "ancient",
@@ -425,7 +446,7 @@ export const INITIAL_WORDS: CatalogWords = {
       word: "breeze",
       partOfSpeech: "noun",
       element: "air",
-      definition: "A gentle wind.",
+      definition: "A gentle movement of air.",
       example: "A cool breeze fluttered the pages of the book."
     }
   ],
@@ -533,6 +554,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "air",
       definition: "To move smoothly and easily through the air.",
       example: "The paper plane glided across the classroom."
+    },
+    {
+      id: "soar",
+      word: "soar",
+      partOfSpeech: "verb",
+      element: "air",
+      definition: "To fly high through the air.",
+      example: "The young finch soared above the forest canopy."
     }
   ],
   adverbs: [

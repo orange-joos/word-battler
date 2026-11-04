@@ -5,6 +5,8 @@ import { createStarterCreature, STARTER_PETS } from '../src/data/starterPets.ts'
 import { getAuthDestination } from '../src/data/gameFlow.ts';
 import { WORLD_TIERS } from '../src/data/worldTiers.ts';
 import { HUB_DESTINATIONS } from '../src/data/hubDestinations.ts';
+import { INITIAL_CREATURES, INITIAL_WORDS } from '../src/data/initialData.ts';
+import { ARCHETYPE_OPTIONS } from '../src/types/auth.ts';
 
 const wordSlots = ['verb', 'noun', 'adjective', 'adverb'];
 const sampleWords = wordSlots.map((partOfSpeech) => ({
@@ -88,5 +90,17 @@ test('illustrated hub exposes all five primary destinations as map locations', (
     assert.ok(destination.tone);
     assert.ok(destination.x > 0 && destination.x < 100);
     assert.ok(destination.y > 0 && destination.y < 100);
+  }
+});
+
+test('Air content includes an avatar, companion, and usable vocabulary loadout', () => {
+  const airAvatar = ARCHETYPE_OPTIONS.find((option) => option.element === 'air');
+  const airPet = INITIAL_CREATURES.find((creature) => creature.id === 'zephyrfinch');
+  const catalogWords = Object.values(INITIAL_WORDS).flat();
+
+  assert.ok(airAvatar);
+  assert.ok(airPet);
+  for (const wordId of Object.values(airPet.loadout)) {
+    assert.ok(catalogWords.some((word) => word.id === wordId), `Missing Air companion word: ${wordId}`);
   }
 });
