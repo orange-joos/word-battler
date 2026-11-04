@@ -33,6 +33,9 @@ import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import { WORLD_TIERS, WorldTier } from '../data/worldTiers';
 import { juice } from '../engine/juice';
+import { EvolutionSequenceModal } from './EvolutionSequenceModal';
+import { canPetEvolve, getNextEvolutionStage, getCurrentStage } from '../data/evolutionData';
+import { Creature } from '../types';
 
 interface OverworldMapProps {
   onOpenGuide?: () => void;
@@ -52,6 +55,9 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
     isMuted,
     toggleMute,
     words,
+    levelUpPet,
+    trainPetWithCoins,
+    evolvePet,
   } = useGame();
 
   const { currentUser, setIsCustomizingAvatar, logout, updateProfile } = useAuth();
@@ -63,6 +69,9 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
   const [activeModal, setActiveModal] = useState<
     'story' | 'hatchery' | 'shop' | 'roster' | 'quests' | 'events' | 'mail' | 'settings' | null
   >(null);
+
+  // Active pet undergoing evolution
+  const [evolvingCreature, setEvolvingCreature] = useState<Creature | null>(null);
 
   const [selectedTier, setSelectedTier] = useState<WorldTier>(() => {
     return WORLD_TIERS.find((t) => t.id === activeZoneId) || WORLD_TIERS[0];
@@ -1266,75 +1275,156 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
         </div>
       )}
 
-      {/* D. PET ROSTER MODAL (PINKWOOD & FROSTPEAK) */}
+      {/* D. PET ROSTER MODAL (PINKWOOD & FROSTPEAK - WITH EVOLUTION MECHANIC) */}
       {activeModal === 'roster' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-3xl border-4 border-pink-500 bg-[#fff5f8] p-6 shadow-[0_8px_0_#db2777] space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-xl rounded-3xl border-4 border-pink-500 bg-[#fff5f8] p-5 sm:p-6 shadow-[0_8px_0_#db2777] space-y-4 max-h-[92vh] overflow-y-auto">
             
-            <div className="flex justify-between items-center border-b-2 border-pink-200 pb-2">
+            <div className="flex justify-between items-start border-b-2 border-pink-200 pb-3">
               <div>
-                <h3 className="font-serif text-xl font-black text-pink-950">
-                  🐾 Pinkwood &amp; Frostpeak · Pet Roster
-                </h3>
-                <p className="text-xs font-bold text-pink-700">
-                  Select your active lead companion for combat &amp; exploration!
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🐾</span>
+                  <h3 className="font-serif text-xl sm:text-2xl font-black text-pink-950">
+                    Pinkwood &amp; Frostpeak · Pet Roster
+                  </h3>
+                </div>
+                <p className="text-xs font-bold text-pink-800 mt-0.5">
+                  Train companions to reach <strong>Level 10</strong> &amp; <strong>Level 20</strong> to trigger powerful Metamorphic Evolutions!
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-black font-bold text-lg cursor-pointer"
+                className="rounded-xl border-2 border-pink-400 p-1 text-slate-500 hover:text-black font-bold text-lg cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {creatures.map((c) => {
                 const isActive = c.id === playerId;
+                const petLevel = c.level || 8;
+                const petStage = c.stage || 1;
+                const nextEvolution = getNextEvolutionStage(c);
+                const isReadyToEvolve = canPetEvolve(c);
 
                 return (
                   <div
                     key={c.id}
-                    className={`flex items-center justify-between rounded-2xl border-3 p-3 transition ${
+                    className={`flex flex-col gap-3 rounded-2xl border-3 p-3.5 transition ${
                       isActive
                         ? 'border-pink-500 bg-white ring-3 ring-pink-300 shadow-sm'
-                        : 'border-[#5a2e12] bg-white/90 hover:bg-white'
+                        : 'border-[#5a2e12] bg-white/95 hover:bg-white'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl">
-                        {c.spriteEmoji || (c.element === 'fire' ? '🦊' : c.element === 'ice' ? '❄️' : '🍃')}
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-serif text-base font-black text-[#542d1d]">
-                            {c.name}
-                          </h4>
-                          <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.2 text-[9px] font-black uppercase text-amber-900">
-                            {c.element.toUpperCase()}
+                    {/* Top Row: Sprite, Name, Level, Element & Stage */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-[#5a2e12] bg-gradient-to-b from-amber-100 to-amber-200 text-3xl shadow-xs">
+                          <span>{c.spriteEmoji || (c.element === 'fire' ? '🦊' : c.element === 'ice' ? '🐺' : '🐱🍃')}</span>
+                          <span className="absolute -bottom-2 -left-1 rounded-full border border-[#5a2e12] bg-amber-400 px-1 text-[9px] font-black text-[#5a2e12]">
+                            Lv.{petLevel}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 font-bold">
-                          HP: {c.stats.hp} · ATK: {c.stats.attack} · DEF: {c.stats.defense}
-                        </p>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <h4 className="font-serif text-base sm:text-lg font-black text-[#542d1d]">
+                              {c.name}
+                            </h4>
+                            <span className="rounded-full bg-pink-100 border border-pink-300 px-2 py-0.2 text-[9px] font-black uppercase text-pink-900">
+                              Stage {petStage}
+                            </span>
+                            <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.2 text-[9px] font-black uppercase text-amber-900">
+                              {c.element.toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-500 block">
+                            {c.title || 'Companion Beast'}
+                          </span>
+                        </div>
                       </div>
+
+                      {/* Select / Active Lead button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlayerId(c.id);
+                          playSfx(750);
+                        }}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-black uppercase transition cursor-pointer shadow-xs ${
+                          isActive
+                            ? 'bg-emerald-500 text-white border-2 border-emerald-600'
+                            : 'bg-amber-200 text-[#542d1d] hover:bg-amber-300 border-2 border-amber-300'
+                        }`}
+                      >
+                        {isActive ? '✓ Active Lead' : 'Set Lead'}
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPlayerId(c.id);
-                        playSfx(750);
-                      }}
-                      className={`rounded-xl px-3 py-1.5 text-xs font-black uppercase transition cursor-pointer ${
-                        isActive
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-amber-200 text-[#542d1d] hover:bg-amber-300'
-                      }`}
-                    >
-                      {isActive ? '✓ Active Lead' : 'Select'}
-                    </button>
+                    {/* Middle: Stats Matrix */}
+                    <div className="grid grid-cols-4 gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2 text-center text-[10px] font-black text-slate-700">
+                      <div>❤️ HP: <span className="font-mono text-slate-900">{c.stats.hp}</span></div>
+                      <div>⚔️ ATK: <span className="font-mono text-slate-900">{c.stats.attack}</span></div>
+                      <div>🛡️ DEF: <span className="font-mono text-slate-900">{c.stats.defense}</span></div>
+                      <div>⚡ SPD: <span className="font-mono text-slate-900">{c.stats.speed}</span></div>
+                    </div>
+
+                    {/* Bottom: Evolution Readiness & Training Controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                      
+                      {/* Evolution Status Info */}
+                      <div className="text-xs font-bold">
+                        {isReadyToEvolve && nextEvolution ? (
+                          <div className="flex items-center gap-1.5 text-amber-600 font-black animate-pulse">
+                            <span>✨</span>
+                            <span>Ready to evolve into <strong>{nextEvolution.name}</strong> ({nextEvolution.spriteEmoji})!</span>
+                          </div>
+                        ) : nextEvolution ? (
+                          <div className="text-slate-500 text-[11px]">
+                            <span>Evolves into <strong>{nextEvolution.name}</strong> ({nextEvolution.spriteEmoji}) at <strong>Lv.{nextEvolution.minLevel}</strong></span>
+                            <span className="ml-1 text-amber-700 font-extrabold">({Math.max(0, nextEvolution.minLevel - petLevel)} lvls left)</span>
+                          </div>
+                        ) : (
+                          <div className="text-emerald-700 text-[11px] font-black">
+                            👑 Fully Ascended Apex Form!
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Interactive Buttons: Evolve or Train */}
+                      <div className="flex items-center gap-2">
+                        {/* Quick Level Up Training Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            levelUpPet(c.id, 1);
+                            juice.ding(700, 100);
+                          }}
+                          title="Feed Vocabulary Treat (+1 Level)"
+                          className="rounded-xl border border-amber-300 bg-amber-100 hover:bg-amber-200 px-2.5 py-1.5 text-[11px] font-black text-amber-900 transition active:translate-y-0.5 cursor-pointer shadow-xs"
+                        >
+                          ⚡ Train (+1 Lv)
+                        </button>
+
+                        {/* Evolution Trigger Button */}
+                        {isReadyToEvolve && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playSfx(950);
+                              setEvolvingCreature(c);
+                            }}
+                            className="group flex items-center gap-1.5 rounded-xl border-2 border-amber-500 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 px-3.5 py-1.5 text-xs font-black uppercase tracking-wider text-slate-950 shadow-[0_3px_0_#b45309] hover:scale-105 active:translate-y-0.5 transition cursor-pointer animate-bounce"
+                          >
+                            <Sparkles className="h-4 w-4 group-hover:rotate-45 transition-transform" />
+                            <span>✨ EVOLVE!</span>
+                          </button>
+                        )}
+                      </div>
+
+                    </div>
+
                   </div>
                 );
               })}
@@ -1534,6 +1624,18 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
             </button>
           </div>
         </div>
+      )}
+
+      {/* I. EVOLUTION SEQUENCE THEATER MODAL */}
+      {evolvingCreature && (
+        <EvolutionSequenceModal
+          creature={evolvingCreature}
+          onComplete={(evolved) => {
+            evolvePet(evolved.id);
+            setEvolvingCreature(null);
+          }}
+          onClose={() => setEvolvingCreature(null)}
+        />
       )}
 
     </div>

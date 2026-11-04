@@ -4,6 +4,7 @@ import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData';
 import { createBattle } from '../engine/combat';
 import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/forge';
 import { juice } from '../engine/juice';
+import { applyEvolution } from '../data/evolutionData';
 
 interface GameContextType {
   tab: TabType;
@@ -24,6 +25,9 @@ interface GameContextType {
   useCreatureInBattle: (id: string) => void;
   updatePetLoadout: (petId: string, slot: PartOfSpeech, wordId: string | null) => void;
   autoEquipBestLoadout: (petId: string) => void;
+  levelUpPet: (petId: string, levels?: number) => void;
+  trainPetWithCoins: (petId: string, coinCost?: number) => { success: boolean; error?: string };
+  evolvePet: (petId: string) => { success: boolean; evolvedCreature: Creature };
   activeZoneId: string;
   setActiveZoneId: (zoneId: string) => void;
   enemyId: string;
@@ -119,6 +123,13 @@ function initializeCreatures(): Creature[] {
 
       return {
         ...c,
+        level: c.level || initialMatch?.level || 8,
+        exp: c.exp ?? (initialMatch?.exp ?? 100),
+        maxExp: c.maxExp || initialMatch?.maxExp || 160,
+        stage: c.stage || initialMatch?.stage || 1,
+        evolvesAtLevel: c.evolvesAtLevel || initialMatch?.evolvesAtLevel || 10,
+        spriteEmoji: c.spriteEmoji || initialMatch?.spriteEmoji || (c.element === 'fire' ? '🦊' : c.element === 'ice' ? '🐺' : '🐱🍃'),
+        title: c.title || initialMatch?.title || 'Companion Beast',
         elementAffinity: c.elementAffinity || initialMatch?.elementAffinity || c.element,
         loadout,
         allowedWordTypes: Array.from(existingTypes),
@@ -327,6 +338,57 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     juice.ding(880, 100);
   };
 
+  const levelUpPet = (petId: string, levels = 1) => {
+    setCreatures((prev) =>
+      prev.map((c) => {
+        if (c.id !== petId) return c;
+        const newLevel = (c.level || 8) + levels;
+        return {
+          ...c,
+          level: newLevel,
+          stats: {
+            hp: c.stats.hp + 2 * levels,
+            attack: c.stats.attack + 1 * levels,
+            defense: c.stats.defense + 1 * levels,
+            speed: c.stats.speed + 1 * levels,
+          },
+          maxHp: (c.maxHp || c.stats.hp) + 2 * levels,
+        };
+      })
+    );
+    juice.ding(880, 150);
+  };
+
+  const trainPetWithCoins = (petId: string, coinCost = 50): { success: boolean; error?: string } => {
+    try {
+      const rawUser = localStorage.getItem('wb_player_profile');
+      let coins = 450;
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        if (parsed.lexiCoins !== undefined) coins = parsed.lexiCoins;
+      }
+      if (coins < coinCost) {
+        return { success: false, error: `Need ${coinCost} Lexi-Coins to train!` };
+      }
+      levelUpPet(petId, 1);
+      return { success: true };
+    } catch {
+      levelUpPet(petId, 1);
+      return { success: true };
+    }
+  };
+
+  const evolvePet = (petId: string): { success: boolean; evolvedCreature: Creature } => {
+    const pet = creatures.find((c) => c.id === petId);
+    if (!pet) return { success: false, evolvedCreature: {} as Creature };
+    const { evolvedCreature } = applyEvolution(pet);
+    setCreatures((prev) => prev.map((c) => (c.id === petId ? evolvedCreature : c)));
+    if (playerId === petId) {
+      restartBattle(evolvedCreature.id);
+    }
+    return { success: true, evolvedCreature };
+  };
+
   const useCreatureInBattle = (id: string) => {
     setPlayerId(id);
     restartBattle(id);
@@ -363,6 +425,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         useCreatureInBattle,
         updatePetLoadout,
         autoEquipBestLoadout,
+        levelUpPet,
+        trainPetWithCoins,
+        evolvePet,
         activeZoneId,
         setActiveZoneId,
         enemyId,

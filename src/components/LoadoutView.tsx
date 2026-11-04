@@ -22,6 +22,8 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { PageHeading } from './PageHeading';
+import { EvolutionSequenceModal } from './EvolutionSequenceModal';
+import { canPetEvolve, getNextEvolutionStage } from '../data/evolutionData';
 
 interface SlotConfig {
   pos: PartOfSpeech;
@@ -86,8 +88,11 @@ export const LoadoutView: React.FC = () => {
     updatePetLoadout,
     autoEquipBestLoadout,
     goToBattle,
+    levelUpPet,
+    evolvePet,
   } = useGame();
 
+  const [evolvingCreature, setEvolvingCreature] = useState<Creature | null>(null);
   const [selectedPetId, setSelectedPetId] = useState<string>(playerId);
   const [posFilter, setPosFilter] = useState<PartOfSpeech | 'all'>('all');
   const [elementFilter, setElementFilter] = useState<ElementType | 'all'>('all');
@@ -169,39 +174,66 @@ export const LoadoutView: React.FC = () => {
         {/* Top Header & Pet Selector */}
         <section className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border-2 border-amber-300/90 bg-gradient-to-r from-amber-50 via-[#fffdf3] to-orange-50 p-5 shadow-lg shadow-amber-900/10">
           <div className="flex items-center gap-4">
-            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border-2 shadow-lg ${
+            <div className={`relative flex h-16 w-16 items-center justify-center rounded-2xl border-2 shadow-lg ${
               petAffinity === 'fire'
                 ? 'border-orange-600 bg-gradient-to-br from-amber-400 to-red-300 shadow-orange-200/60'
-                : 'border-cyan-400 bg-gradient-to-br from-cyan-400 to-blue-200 shadow-cyan-200/60'
+                : petAffinity === 'ice'
+                ? 'border-cyan-400 bg-gradient-to-br from-cyan-400 to-blue-200 shadow-cyan-200/60'
+                : 'border-emerald-600 bg-gradient-to-br from-emerald-400 to-green-200 shadow-emerald-200/60'
             }`}>
-              {petAffinity === 'fire' ? (
-                <Flame className="h-8 w-8 text-amber-800 animate-pulse" />
-              ) : (
-                <Snowflake className="h-8 w-8 text-cyan-800 animate-pulse" />
-              )}
+              <span className="text-4xl drop-shadow select-none">
+                {activePet.spriteEmoji || (petAffinity === 'fire' ? '🦊' : petAffinity === 'ice' ? '🐺' : '🐱🍃')}
+              </span>
+              <span className="absolute -bottom-2 -left-1 rounded-full border border-slate-700 bg-amber-400 px-1.5 text-[9px] font-black text-slate-900 shadow">
+                Lv.{activePet.level || 8}
+              </span>
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-serif text-xl sm:text-2xl font-bold tracking-wide text-orange-900">
                   {activePet.name}
                 </h2>
-                {activePet.forged && (
-                  <span className="rounded-full bg-amber-500/20 border border-amber-600/50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                    ✦ HYBRID PET
-                  </span>
-                )}
+                <span className="rounded-full bg-pink-100 border border-pink-300 px-2 py-0.2 text-[10px] font-black uppercase text-pink-900">
+                  Stage {activePet.stage || 1}
+                </span>
                 <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${
                   petAffinity === 'fire'
                     ? 'bg-orange-50/80 border border-orange-500/70 text-orange-700'
-                    : 'bg-cyan-50/80 border border-cyan-500/70 text-cyan-700'
+                    : petAffinity === 'ice'
+                    ? 'bg-cyan-50/80 border border-cyan-500/70 text-cyan-700'
+                    : 'bg-emerald-50/80 border border-emerald-500/70 text-emerald-700'
                 }`}>
-                  {petAffinity === 'fire' ? <Flame className="h-3 w-3" /> : <Snowflake className="h-3 w-3" />}
                   {petAffinity} Affinity
                 </span>
+
+                {/* Evolution Trigger Button if ready */}
+                {canPetEvolve(activePet) && (
+                  <button
+                    type="button"
+                    onClick={() => setEvolvingCreature(activePet)}
+                    className="flex items-center gap-1.5 rounded-xl border-2 border-amber-500 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 px-3 py-1 text-xs font-black uppercase tracking-wider text-slate-950 shadow-md animate-bounce cursor-pointer hover:brightness-110"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>✨ EVOLVE!</span>
+                  </button>
+                )}
+
+                {/* Quick Train Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    levelUpPet(activePet.id, 1);
+                    juice.ding(700, 100);
+                  }}
+                  title="Feed Vocabulary Treat (+1 Level)"
+                  className="rounded-xl border border-amber-300 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 text-[11px] font-black text-amber-900 transition active:translate-y-0.5 cursor-pointer shadow-xs"
+                >
+                  ⚡ Train (+1 Lv)
+                </button>
               </div>
               <p className="text-xs text-violet-700 mt-1 max-w-xl">
-                {activePet.description}
+                {activePet.title ? `${activePet.title} · ` : ''}{activePet.description}
               </p>
             </div>
           </div>
@@ -615,6 +647,18 @@ export const LoadoutView: React.FC = () => {
           )}
         </section>
       </div>
+
+      {/* Evolution Sequence Modal */}
+      {evolvingCreature && (
+        <EvolutionSequenceModal
+          creature={evolvingCreature}
+          onComplete={(evolved) => {
+            evolvePet(evolved.id);
+            setEvolvingCreature(null);
+          }}
+          onClose={() => setEvolvingCreature(null)}
+        />
+      )}
     </main>
   );
 };

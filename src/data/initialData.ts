@@ -6,13 +6,20 @@ export const INITIAL_CREATURES: Creature[] = [
     name: "Emberfox",
     element: "fire",
     elementAffinity: "fire",
+    level: 8,
+    exp: 110,
+    maxExp: 160,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🦊",
+    title: "Emberspark Pup",
     loadout: {
       verb: "ignite",
       noun: "flame",
       adjective: "blazing",
       adverb: "fiercely"
     },
-    description: "A fox whose fur holds live embers. It attacks with heat adjectives, flame nouns, and fiery strikes.",
+    description: "A nimble fox whose fur holds live embers. It attacks with heat adjectives, flame nouns, and fiery strikes.",
     stats: {
       hp: 42,
       attack: 14,
@@ -27,13 +34,20 @@ export const INITIAL_CREATURES: Creature[] = [
     name: "Rimepup",
     element: "ice",
     elementAffinity: "ice",
+    level: 10,
+    exp: 180,
+    maxExp: 180,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🐺",
+    title: "Frostmist Pup",
     loadout: {
       verb: "freeze",
       noun: "shard",
       adjective: "frozen",
       adverb: "coldly"
     },
-    description: "A frost-coated pup that breathes pale mist. It attacks with cold adjectives, ice nouns, and frozen strikes.",
+    description: "A frost-coated pup that breathes pale mist. Chills opponents with cold adjectives and ice nouns. (Ready to Evolve!)",
     stats: {
       hp: 46,
       attack: 10,
@@ -42,6 +56,34 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
     allowedElements: ["ice"]
+  },
+  {
+    id: "verdantsprout",
+    name: "Verdantsprout",
+    element: "nature",
+    elementAffinity: "nature",
+    level: 9,
+    exp: 130,
+    maxExp: 170,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🐱🍃",
+    title: "Sproutling Lynx",
+    loadout: {
+      verb: "strike",
+      noun: "gust",
+      adjective: "ancient",
+      adverb: "fiercely"
+    },
+    description: "A playful kitten woven with flourishing vine roots. Channels botanical adjectives and growth.",
+    stats: {
+      hp: 44,
+      attack: 12,
+      defense: 10,
+      speed: 11
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["nature"]
   },
   {
     id: "boss_ruptor",

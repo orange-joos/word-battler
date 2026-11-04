@@ -67,6 +67,21 @@ export interface CreatureForgeMetadata {
   resonance: boolean;
 }
 
+export interface EvolutionStage {
+  stage: number;
+  name: string;
+  spriteEmoji: string;
+  minLevel: number;
+  description: string;
+  title: string;
+  statBoosts: {
+    hp: number;
+    attack: number;
+    defense: number;
+    speed: number;
+  };
+}
+
 export interface Creature {
   id: string;
   name: string;
@@ -86,6 +101,15 @@ export interface Creature {
   reflectStance?: boolean;
   evasionStance?: boolean;
   spriteEmoji?: string;
+  // Evolution fields
+  level?: number;
+  exp?: number;
+  maxExp?: number;
+  stage?: number;
+  evolvesAtLevel?: number;
+  evolutionBranch?: EvolutionStage[];
+  title?: string;
+  isEvolving?: boolean;
 }
 
 export interface Affix {
