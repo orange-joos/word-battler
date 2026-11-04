@@ -42,7 +42,7 @@ export interface WorldTier {
   rewardTokens: number;
 }
 
-export const WORLD_TIERS: WorldTier[] = [
+const VOCABULARY_TIERS: WorldTier[] = [
   {
     id: 'root-village',
     tierNumber: 1,
@@ -319,3 +319,149 @@ export const WORLD_TIERS: WorldTier[] = [
     rewardTokens: 10,
   },
 ];
+
+const ELEMENTAL_AREAS: Array<{
+  sourceTierIndex: number;
+  name: string;
+  subtitle: string;
+  element: ElementType;
+  icon: string;
+  bannerEmoji: string;
+  color: string;
+  borderColor: string;
+  bgGradient: string;
+  lore: string;
+  existingProgressId?: string;
+}> = [
+  {
+    sourceTierIndex: 0,
+    existingProgressId: 'root-village',
+    name: 'Root Village',
+    subtitle: 'The Greenway of Growing Words',
+    element: 'grass',
+    icon: '🌱',
+    bannerEmoji: '🏡',
+    color: 'emerald',
+    borderColor: 'border-emerald-500',
+    bgGradient: 'from-emerald-400 via-teal-300 to-lime-400',
+    lore: 'A sunlit garden where new word roots grow beside ancient trees.',
+  },
+  {
+    sourceTierIndex: 1,
+    existingProgressId: 'prefix-path',
+    name: 'Ripple Bay',
+    subtitle: 'The Flowing Wordway',
+    element: 'water',
+    icon: '💧',
+    bannerEmoji: '🌊',
+    color: 'sky',
+    borderColor: 'border-sky-500',
+    bgGradient: 'from-sky-400 via-cyan-300 to-blue-400',
+    lore: 'A sparkling shore where words and ideas travel with the current.',
+  },
+  {
+    sourceTierIndex: 2,
+    existingProgressId: 'suffix-steppes',
+    name: 'Stoneward Canyon',
+    subtitle: 'The Steady Path of Word Builders',
+    element: 'earth',
+    icon: '🪨',
+    bannerEmoji: '🏜️',
+    color: 'amber',
+    borderColor: 'border-amber-600',
+    bgGradient: 'from-amber-400 via-yellow-300 to-orange-400',
+    lore: 'A sturdy canyon of sandstone bridges and word-building stones.',
+  },
+  {
+    sourceTierIndex: 3,
+    existingProgressId: 'compound-colosseum',
+    name: 'Emberpeak',
+    subtitle: 'The Bright Forge Frontier',
+    element: 'fire',
+    icon: '🔥',
+    bannerEmoji: '🌋',
+    color: 'rose',
+    borderColor: 'border-rose-500',
+    bgGradient: 'from-rose-500 via-red-400 to-orange-500',
+    lore: 'A glowing volcanic ridge where brave explorers forge stronger words.',
+  },
+  {
+    sourceTierIndex: 4,
+    existingProgressId: 'syntax-spire',
+    name: 'Frostveil Peaks',
+    subtitle: 'The Clear and Quiet Heights',
+    element: 'ice',
+    icon: '❄️',
+    bannerEmoji: '🏔️',
+    color: 'cyan',
+    borderColor: 'border-cyan-500',
+    bgGradient: 'from-cyan-300 via-sky-300 to-blue-400',
+    lore: 'A bright alpine trail where careful word choices shine through the snow.',
+  },
+  {
+    sourceTierIndex: 0,
+    name: 'Zephyr Heights',
+    subtitle: 'The Open Skyway',
+    element: 'air',
+    icon: '🌬️',
+    bannerEmoji: '🪁',
+    color: 'sky',
+    borderColor: 'border-sky-400',
+    bgGradient: 'from-sky-300 via-cyan-200 to-indigo-300',
+    lore: 'A breezy skyway where new vocabulary sails on every gust.',
+  },
+  {
+    sourceTierIndex: 1,
+    name: 'Sparkstep Plains',
+    subtitle: 'The Lively Lightning Trail',
+    element: 'electric',
+    icon: '⚡',
+    bannerEmoji: '🌩️',
+    color: 'yellow',
+    borderColor: 'border-yellow-500',
+    bgGradient: 'from-yellow-300 via-amber-300 to-violet-400',
+    lore: 'A lively plain full of bright ideas and energetic word discoveries.',
+  },
+  {
+    sourceTierIndex: 2,
+    name: 'Duskwood Glade',
+    subtitle: 'The Hidden Wordway',
+    element: 'shadow',
+    icon: '🌑',
+    bannerEmoji: '🌙',
+    color: 'violet',
+    borderColor: 'border-violet-500',
+    bgGradient: 'from-violet-500 via-purple-400 to-indigo-600',
+    lore: 'A gentle twilight forest where quiet clues reveal the meaning of words.',
+  },
+  {
+    sourceTierIndex: 4,
+    name: 'Sunspire Gardens',
+    subtitle: 'The Radiant Wordway',
+    element: 'light',
+    icon: '✨',
+    bannerEmoji: '🏰',
+    color: 'amber',
+    borderColor: 'border-amber-400',
+    bgGradient: 'from-yellow-300 via-amber-300 to-orange-400',
+    lore: 'A welcoming garden of light where every learned word adds a new spark.',
+  },
+];
+
+export const WORLD_TIERS: WorldTier[] = ELEMENTAL_AREAS.map((area, index) => {
+  const lesson = VOCABULARY_TIERS[area.sourceTierIndex];
+  return {
+    ...lesson,
+    id: area.existingProgressId || `${area.element}-area`,
+    tierNumber: index + 1,
+    name: area.name,
+    subtitle: area.subtitle,
+    element: area.element,
+    color: area.color,
+    borderColor: area.borderColor,
+    bgGradient: area.bgGradient,
+    icon: area.icon,
+    bannerEmoji: area.bannerEmoji,
+    lore: area.lore,
+  };
+});

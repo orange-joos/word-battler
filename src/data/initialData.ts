@@ -188,7 +188,7 @@ export const INITIAL_CREATURES: Creature[] = [
       speed: 15
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["fire", "water", "ice", "grass", "electric", "shadow", "light", "earth"]
+    allowedElements: ["fire", "water", "ice", "grass", "electric", "shadow", "light", "earth", "air"]
   },
   {
     id: "aquafin",
@@ -328,6 +328,15 @@ export const INITIAL_WORDS: CatalogWords = {
       combatCategory: "BUFF",
       definition: "Moving quickly and lightly.",
       example: "A swift hare darted between the ferns."
+    },
+    {
+      id: "breezy",
+      word: "breezy",
+      partOfSpeech: "adjective",
+      element: "air",
+      combatCategory: "BUFF",
+      definition: "Pleasantly fresh and windy.",
+      example: "A breezy morning carried the kites above the park."
     }
   ],
   nouns: [
@@ -410,6 +419,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "grass",
       definition: "The part of a plant that grows underground.",
       example: "A root held the young tree in place."
+    },
+    {
+      id: "breeze",
+      word: "breeze",
+      partOfSpeech: "noun",
+      element: "air",
+      definition: "A gentle wind.",
+      example: "A cool breeze fluttered the pages of the book."
     }
   ],
   verbs: [
@@ -508,6 +525,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "earth",
       definition: "To break into small pieces.",
       example: "Dry soil can crumble between your fingers."
+    },
+    {
+      id: "glide",
+      word: "glide",
+      partOfSpeech: "verb",
+      element: "air",
+      definition: "To move smoothly and easily through the air.",
+      example: "The paper plane glided across the classroom."
     }
   ],
   adverbs: [
@@ -590,6 +615,14 @@ export const INITIAL_WORDS: CatalogWords = {
       element: "earth",
       definition: "With great weight or force.",
       example: "Rain fell heavily on the rocky ground."
+    },
+    {
+      id: "lightly",
+      word: "lightly",
+      partOfSpeech: "adverb",
+      element: "air",
+      definition: "With little weight or force.",
+      example: "A feather floated lightly on the breeze."
     }
   ]
 };

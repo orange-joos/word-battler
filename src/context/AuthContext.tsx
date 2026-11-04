@@ -46,6 +46,7 @@ function loadStoredUsers(): UserProfile[] {
     level: 8,
     createdAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
+    onboardingComplete: true,
   };
 
   return [defaultUser];
@@ -164,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       level: 1,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
+      onboardingComplete: false,
     };
 
     setAllUsers((prev) => [...prev, newUser]);
@@ -189,6 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       level: 1,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
+      onboardingComplete: false,
     };
 
     setAllUsers((prev) => [...prev, guestUser]);

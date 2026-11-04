@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TitleScreen } from './components/TitleScreen';
@@ -9,27 +9,66 @@ import { WordForgeView } from './components/WordForgeView';
 import { LoadoutView } from './components/LoadoutView';
 import { HubView } from './components/HubView';
 import { GuideModal } from './components/GuideModal';
+import { LoadingScreen } from './components/LoadingScreen';
+import { StarterPetSelection } from './components/StarterPetSelection';
+import { TutorialScreen } from './components/TutorialScreen';
 
 const AppContent: React.FC = () => {
-  const { tab } = useGame();
+  const { tab, gameState, setActiveScreen } = useGame();
   const { currentUser, isCustomizingAvatar, setIsCustomizingAvatar } = useAuth();
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
-  // If user is not logged in, show the Title Page with Login/Signup
-  if (!currentUser) {
+  useEffect(() => {
+    if (!currentUser) {
+      if (gameState.activeScreen !== 'auth') setActiveScreen('auth');
+      return;
+    }
+
+    if (gameState.activeScreen === 'loading') return;
+    if (currentUser.onboardingComplete === false) {
+      if (!['avatar', 'starter-pet', 'tutorial'].includes(gameState.activeScreen)) {
+        setActiveScreen('avatar');
+      }
+    } else if (gameState.activeScreen === 'auth') {
+      setActiveScreen('game');
+    }
+  }, [currentUser?.id, currentUser?.onboardingComplete, gameState.activeScreen, setActiveScreen]);
+
+  if (gameState.activeScreen === 'loading') {
+    return <LoadingScreen />;
+  }
+
+  if (gameState.activeScreen === 'auth' || !currentUser) {
     return <TitleScreen />;
   }
 
-  // If user is on the World Map Hub, render it full-screen matching the reference photograph
-  if (tab === 'hub') {
+  if (gameState.activeScreen === 'avatar') {
+    return (
+      <CharacterCreator
+        isInitialSetup
+        onClose={() => setActiveScreen('starter-pet')}
+      />
+    );
+  }
+
+  if (gameState.activeScreen === 'starter-pet') {
+    return <StarterPetSelection />;
+  }
+
+  if (gameState.activeScreen === 'tutorial') {
+    return <TutorialScreen />;
+  }
+
+  if (tab === 'hub' || tab === 'shop') {
     return (
       <div className="w-screen h-screen overflow-hidden bg-[#59b8fa] text-slate-800 flex flex-col font-sans select-none">
-        <HubView />
+        <HubView
+          onOpenGuide={() => setIsGuideOpen(true)}
+          initialPanel={tab === 'shop' ? 'shop' : null}
+        />
 
-        {/* Guide & Rules Modal */}
         <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
-        {/* Character Customization (Avatar Creator & Profile Name) */}
         {isCustomizingAvatar && (
           <CharacterCreator onClose={() => setIsCustomizingAvatar(false)} />
         )}
@@ -55,10 +94,8 @@ const AppContent: React.FC = () => {
         Word Battler · Educational Vocabulary &amp; English Morphology Combat System
       </footer>
 
-      {/* Guide & Rules Modal */}
       <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
-      {/* Character Customization (Avatar Creator & Profile Name) */}
       {isCustomizingAvatar && (
         <CharacterCreator onClose={() => setIsCustomizingAvatar(false)} />
       )}

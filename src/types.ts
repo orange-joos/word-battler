@@ -6,7 +6,8 @@ export type ElementType =
   | 'electric'
   | 'shadow'
   | 'light'
-  | 'earth';
+  | 'earth'
+  | 'air';
 
 export type PartOfSpeech = 'adjective' | 'noun' | 'verb' | 'adverb';
 
@@ -20,7 +21,17 @@ export interface PetLoadout {
   adverb: string | null;
 }
 
-export type TabType = 'hub' | 'battle' | 'loadout' | 'forge';
+export type TabType = 'hub' | 'battle' | 'loadout' | 'forge' | 'shop';
+
+export type GameScreen = 'auth' | 'loading' | 'avatar' | 'starter-pet' | 'tutorial' | 'game';
+
+export interface GameState {
+  activeScreen: GameScreen;
+  coins: number;
+  fusionTokens: number;
+  unlockedPetIds: string[];
+  wordInventory: string[];
+}
 
 export interface StatusEffect {
   id: string;

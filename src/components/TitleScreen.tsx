@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Swords, Sparkles, User, KeyRound, Dices, ArrowRight, ShieldCheck, Flame, Compass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { juice } from '../engine/juice';
+import { useGame } from '../context/GameContext';
+import { getAuthDestination } from '../data/gameFlow';
 
 const FUN_NAMES = [
   'EmberKnight',
@@ -20,6 +22,7 @@ const FUN_NAMES = [
 
 export const TitleScreen: React.FC = () => {
   const { login, signup, guestLogin, allUsers } = useAuth();
+  const { setActiveScreen } = useGame();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -45,12 +48,21 @@ export const TitleScreen: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setActiveScreen('loading');
     const res = login(username, password);
     if (!res.success) {
+      setActiveScreen('auth');
       setErrorMessage(res.error || 'Login failed. Try again.');
       juice.boing();
     } else {
       juice.fanfare();
+      const cleanUsername = username.trim().toLowerCase();
+      const savedUser = allUsers.find(
+        (user) => user.username.toLowerCase() === cleanUsername || user.displayName.toLowerCase() === cleanUsername
+      );
+      window.setTimeout(() => {
+        setActiveScreen(getAuthDestination(savedUser?.onboardingComplete));
+      }, 550);
     }
   };
 
@@ -64,24 +76,32 @@ export const TitleScreen: React.FC = () => {
       return;
     }
 
+    setActiveScreen('loading');
     const res = signup(username, password, displayName || username);
     if (!res.success) {
+      setActiveScreen('auth');
       setErrorMessage(res.error || 'Could not create account.');
       juice.boing();
     } else {
       juice.fanfare();
+      window.setTimeout(() => setActiveScreen(getAuthDestination(false)), 550);
     }
   };
 
   const handleQuickSelectUser = (savedUser: (typeof allUsers)[0]) => {
     setUsername(savedUser.username);
     setPassword(savedUser.passwordHash || '');
+    setActiveScreen('loading');
     const res = login(savedUser.username, savedUser.passwordHash || '');
     if (!res.success) {
+      setActiveScreen('auth');
       setErrorMessage(res.error || 'Could not log in.');
       juice.boing();
     } else {
       juice.fanfare();
+      window.setTimeout(() => {
+        setActiveScreen(getAuthDestination(savedUser.onboardingComplete));
+      }, 550);
     }
   };
 
@@ -323,7 +343,9 @@ export const TitleScreen: React.FC = () => {
               type="button"
               onClick={() => {
                 juice.ding(700, 100);
+                setActiveScreen('loading');
                 guestLogin();
+                window.setTimeout(() => setActiveScreen(getAuthDestination(false)), 550);
               }}
               className="text-xs font-black text-[#8c502b] hover:text-[#50240b] underline cursor-pointer"
             >

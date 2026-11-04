@@ -1,29 +1,16 @@
 import React from 'react';
-import { Swords, Flame, Volume2, VolumeX, HelpCircle, RotateCcw, BookOpen, Compass, Palette, LogOut } from 'lucide-react';
+import { Swords, Volume2, VolumeX, HelpCircle, RotateCcw, Palette, LogOut } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
+import { PrimaryNavigation } from './PrimaryNavigation';
 
 interface HeaderProps {
   onOpenGuide: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
-  const { tab, setTab, isMuted, toggleMute, words, creatures, playerId, resetAll } = useGame();
+  const { isMuted, toggleMute, resetAll } = useGame();
   const { currentUser, setIsCustomizingAvatar, logout } = useAuth();
-
-  const activePet = creatures.find((c) => c.id === playerId) || creatures[0];
-  const activeLoadoutCount = activePet?.loadout
-    ? Object.values(activePet.loadout).filter(Boolean).length
-    : 0;
-
-  const forgedWordsCount = [
-    ...(words.adjectives || []),
-    ...(words.nouns || []),
-    ...(words.verbs || []),
-    ...(words.adverbs || []),
-  ].filter((w) => Boolean(w.forge || (w.powerBonus && w.powerBonus > 0))).length;
-
-  const forgedCreaturesCount = creatures.filter((c) => Boolean(c.forged)).length;
 
   return (
     <header className="sticky top-0 z-30 border-b-4 border-[#793d35] bg-[#aa5544] px-4 py-3 text-white shadow-md">
@@ -43,68 +30,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGuide }) => {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="order-3 flex basis-full flex-wrap items-center justify-center gap-1.5 lg:order-none lg:basis-auto lg:gap-2" aria-label="Game sections">
-          <button
-            type="button"
-            onClick={() => setTab('hub')}
-            className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm font-bold tracking-wide transition-all ${
-              tab === 'hub'
-                ? 'bg-amber-300 text-amber-950 shadow-md shadow-[#783f36]'
-                : 'bg-[#893f3b] text-orange-50 hover:bg-[#783832]'
-            }`}
-          >
-            <Compass className="h-4 w-4 text-amber-400" />
-            <span>🗺️ World Map</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab('battle')}
-            className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm font-semibold tracking-wide transition-all ${
-              tab === 'battle'
-                ? 'bg-amber-300 text-amber-950 shadow-md shadow-[#783f36]'
-                : 'bg-[#893f3b] text-orange-50 hover:bg-[#783832]'
-            }`}
-          >
-            <Swords className="h-4 w-4" />
-            <span>Battle</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab('loadout')}
-            className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm font-semibold tracking-wide transition-all relative ${
-              tab === 'loadout'
-                ? 'bg-amber-300 text-amber-950 shadow-md shadow-[#783f36]'
-                : 'bg-[#893f3b] text-orange-50 hover:bg-[#783832]'
-            }`}
-          >
-            <BookOpen className="h-4 w-4 text-emerald-400" />
-            <span>Arsenal</span>
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full border border-emerald-300 bg-emerald-100 px-1 text-[10px] font-bold text-emerald-800">
-              {activeLoadoutCount}/4
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab('forge')}
-            className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm font-semibold tracking-wide transition-all relative ${
-              tab === 'forge'
-                ? 'bg-amber-300 text-amber-950 shadow-md shadow-[#783f36]'
-                : 'bg-[#893f3b] text-orange-50 hover:bg-[#783832]'
-            }`}
-          >
-            <Flame className="h-4 w-4 text-amber-400" />
-            <span>Word Forge</span>
-            {(forgedWordsCount > 0 || forgedCreaturesCount > 0) && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-violet-950">
-                {forgedWordsCount + forgedCreaturesCount}
-              </span>
-            )}
-          </button>
-        </nav>
+        <PrimaryNavigation variant="header" />
 
         {/* Control Actions & Explorer Profile */}
         <div className="order-2 ml-auto flex items-center gap-2 lg:order-none lg:ml-0">

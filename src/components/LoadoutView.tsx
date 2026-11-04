@@ -82,6 +82,7 @@ const SLOT_CONFIGS: SlotConfig[] = [
 
 export const LoadoutView: React.FC = () => {
   const {
+    gameState,
     creatures,
     words,
     playerId,
@@ -99,11 +100,12 @@ export const LoadoutView: React.FC = () => {
   const [elementFilter, setElementFilter] = useState<ElementType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredCard, setHoveredCard] = useState<Word | null>(null);
+  const unlockedCreatures = creatures.filter((creature) => gameState.unlockedPetIds.includes(creature.id));
 
   // Active pet being configured
   const activePet = useMemo(() => {
-    return creatures.find((c) => c.id === selectedPetId) || creatures[0];
-  }, [creatures, selectedPetId]);
+    return unlockedCreatures.find((c) => c.id === selectedPetId) || unlockedCreatures[0] || creatures[0];
+  }, [creatures, unlockedCreatures, selectedPetId]);
 
   // Guaranteed words catalog list
   const allWords = useMemo(() => {
@@ -242,7 +244,7 @@ export const LoadoutView: React.FC = () => {
                 }}
                 className="rounded-xl border border-violet-400 bg-violet-100/90 px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600 cursor-pointer"
               >
-                {creatures.map((c) => (
+                {unlockedCreatures.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.element.toUpperCase()})
                   </option>

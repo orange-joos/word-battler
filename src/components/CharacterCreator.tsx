@@ -461,7 +461,7 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onClose, isI
             className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl border-3 border-[#7b4632] bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-6 py-3 text-sm font-black uppercase tracking-wider text-white shadow-[0_4px_0_#7b4632] transition hover:scale-103 hover:brightness-110 active:translate-y-1 active:shadow-none cursor-pointer"
           >
             <Check className="h-5 w-5" />
-            <span>Save Character &amp; Enter World!</span>
+            <span>{isInitialSetup ? 'Save & Choose Starter Pet' : 'Save Character & Enter World!'}</span>
           </button>
         </div>
 

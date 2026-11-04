@@ -1,7 +1,7 @@
 import type { ElementType } from '../types';
 
 export interface AvatarConfig {
-  archetype: 'fox' | 'wolf' | 'lion' | 'owl' | 'panda' | 'drake' | 'steed' | 'dino';
+  archetype: 'fox' | 'wolf' | 'lion' | 'owl' | 'panda' | 'drake' | 'steed' | 'dino' | 'kite';
   emoji: string;
   headgear: 'none' | 'crown' | 'wizard' | 'helm' | 'cap' | 'goggles' | 'garland' | 'headband' | 'horns' | 'halo';
   headgearEmoji: string;
@@ -25,6 +25,7 @@ export interface UserProfile {
   level: number;
   createdAt: string;
   lastLoginAt: string;
+  onboardingComplete?: boolean;
 }
 
 export const ARCHETYPE_OPTIONS = [
@@ -36,6 +37,7 @@ export const ARCHETYPE_OPTIONS = [
   { id: 'drake', name: 'Spark Drake', emoji: '🐲', element: 'electric', desc: 'Electrifying dragon of momentum' },
   { id: 'steed', name: 'Astral Steed', emoji: '🦄', element: 'light', desc: 'Radiant runner across the night sky' },
   { id: 'dino', name: 'Rex Scholar', emoji: '🦖', element: 'shadow', desc: 'Prehistoric titan of vocabulary' },
+  { id: 'kite', name: 'Zephyr Kite', emoji: '🪁', element: 'air', desc: 'A breezy companion that soars on every new word' },
 ] as const;
 
 export const HEADGEAR_OPTIONS = [
@@ -69,6 +71,7 @@ export const AURA_OPTIONS = [
   { id: 'shadow', name: 'Quiet Gloom', icon: '🌑', glow: 'from-purple-500/40 via-fuchsia-400/30 to-indigo-500/40', border: 'border-purple-400' },
   { id: 'light', name: 'Golden Radiance', icon: '✨', glow: 'from-yellow-300/50 via-amber-400/40 to-yellow-500/50', border: 'border-amber-400' },
   { id: 'earth', name: 'Stoneheart', icon: '🪨', glow: 'from-amber-700/40 via-orange-400/30 to-yellow-700/40', border: 'border-amber-700' },
+  { id: 'air', name: 'Sky Whispers', icon: '🌬️', glow: 'from-sky-300/50 via-cyan-200/30 to-blue-400/40', border: 'border-sky-400' },
 ] as const;
 
 export const TITLE_OPTIONS = [

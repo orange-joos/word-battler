@@ -1,13 +1,18 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { Creature, Word, CatalogWords, BattleState, TabType, PartOfSpeech, PetLoadout, ElementType } from '../types';
+import { Creature, Word, CatalogWords, BattleState, TabType, PartOfSpeech, PetLoadout, ElementType, GameScreen, GameState } from '../types';
 import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData';
 import { ELEMENTS } from '../data/elements';
 import { createBattle } from '../engine/combat';
 import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/forge';
 import { juice } from '../engine/juice';
 import { applyEvolution } from '../data/evolutionData';
+import { createStarterCreature } from '../data/starterPets';
+import { useAuth } from './AuthContext';
 
 interface GameContextType {
+  gameState: GameState;
+  setActiveScreen: (screen: GameScreen) => void;
+  selectStarterPet: (element: ElementType) => void;
   tab: TabType;
   setTab: (tab: TabType) => void;
   creatures: Creature[];
@@ -172,12 +177,80 @@ function initializeCreatures(): Creature[] {
   }
 }
 
+function initializeGameState(): GameState {
+  try {
+    const saved = JSON.parse(localStorage.getItem('wb_game_state') || '{}');
+    const profile = JSON.parse(localStorage.getItem('wb_player_profile') || '{}');
+    return {
+      activeScreen: 'auth',
+      coins: typeof profile.lexiCoins === 'number' ? profile.lexiCoins : 0,
+      fusionTokens: typeof profile.fusionTokens === 'number' ? profile.fusionTokens : 0,
+      unlockedPetIds: Array.isArray(saved.unlockedPetIds)
+        ? saved.unlockedPetIds
+        : INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map((creature) => creature.id),
+      wordInventory: getAllWordsList(INITIAL_WORDS).map((word) => word.id),
+    };
+  } catch {
+    return {
+      activeScreen: 'auth',
+      coins: 0,
+      fusionTokens: 0,
+      unlockedPetIds: INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map((creature) => creature.id),
+      wordInventory: getAllWordsList(INITIAL_WORDS).map((word) => word.id),
+    };
+  }
+}
+
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
+  const [gameState, setGameState] = useState<GameState>(initializeGameState);
   const [tab, setTab] = useState<TabType>('hub');
   const [creatures, setCreatures] = useState<Creature[]>(initializeCreatures);
   const [words, setWords] = useState<CatalogWords>(initializeWords);
   const [playerId, setPlayerId] = useState<string>('emberfox');
   const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  const setActiveScreen = (activeScreen: GameScreen) => {
+    setGameState((previous) => ({ ...previous, activeScreen }));
+  };
+
+  const selectStarterPet = (element: ElementType) => {
+    const starterPet = creatures.find(
+      (creature) => creature.element === element && !creature.id.startsWith('boss_')
+    ) || createStarterCreature(element, getAllWordsList(words));
+
+    if (!creatures.some((creature) => creature.id === starterPet.id)) {
+      setCreatures((previous) => [...previous, starterPet]);
+    }
+
+    setPlayerId(starterPet.id);
+    setGameState((previous) => ({
+      ...previous,
+      activeScreen: 'tutorial',
+      unlockedPetIds: [starterPet.id],
+    }));
+  };
+
+  useEffect(() => {
+    setGameState((previous) => ({
+      ...previous,
+      coins: currentUser?.lexiCoins ?? 0,
+      fusionTokens: currentUser?.fusionTokens ?? 0,
+    }));
+  }, [currentUser?.id, currentUser?.lexiCoins, currentUser?.fusionTokens]);
+
+  useEffect(() => {
+    setGameState((previous) => ({
+      ...previous,
+      wordInventory: getAllWordsList(words).map((word) => word.id),
+    }));
+  }, [words]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('wb_game_state', JSON.stringify(gameState));
+    } catch {}
+  }, [gameState]);
 
   // Sync with localStorage
   useEffect(() => {
@@ -427,12 +500,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCreatures(INITIAL_CREATURES);
     setWords(INITIAL_WORDS);
     setPlayerId('emberfox');
+    setGameState((previous) => ({
+      ...previous,
+      unlockedPetIds: INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map((creature) => creature.id),
+      wordInventory: getAllWordsList(INITIAL_WORDS).map((word) => word.id),
+    }));
     restartBattle('emberfox');
   };
 
   return (
     <GameContext.Provider
       value={{
+        gameState,
+        setActiveScreen,
+        selectStarterPet,
         tab,
         setTab,
         creatures,

@@ -15,6 +15,7 @@ const OPPOSITE_ELEMENT: Record<ElementType, ElementType> = {
   shadow: 'shadow',
   light: 'light',
   earth: 'earth',
+  air: 'air',
 };
 
 const AFFIXATION_BONUS = 1;

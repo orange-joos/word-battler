@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Swords,
   Sparkles,
@@ -35,17 +35,20 @@ import { WORLD_TIERS, WorldTier } from '../data/worldTiers';
 import { juice } from '../engine/juice';
 import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { canPetEvolve, getNextEvolutionStage, getCurrentStage } from '../data/evolutionData';
-import { Creature } from '../types';
+import { Creature, TabType } from '../types';
 import { ELEMENTS } from '../data/elements';
+import { HUB_DESTINATIONS } from '../data/hubDestinations';
 
 interface OverworldMapProps {
   onOpenGuide?: () => void;
   onSelectZone?: (zoneId: string) => void;
-  onOpenForge?: () => void;
+  initialPanel?: 'shop' | 'hatchery' | null;
+  activeTab?: TabType;
 }
 
-export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelectZone, onOpenForge }) => {
+export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelectZone, initialPanel = null, activeTab = 'hub' }) => {
   const {
+    gameState,
     startBattleInZone,
     activeZoneId,
     zoneProgress,
@@ -65,11 +68,16 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
 
   // Active Pet
   const activePet = creatures.find((c) => c.id === playerId) || creatures[0];
+  const unlockedCreatures = creatures.filter((creature) => gameState.unlockedPetIds.includes(creature.id));
 
   // Active interactive modals
   const [activeModal, setActiveModal] = useState<
     'story' | 'hatchery' | 'shop' | 'roster' | 'quests' | 'events' | 'mail' | 'settings' | null
-  >(null);
+  >(initialPanel);
+
+  useEffect(() => {
+    setActiveModal(initialPanel);
+  }, [initialPanel]);
 
   // Active pet undergoing evolution
   const [evolvingCreature, setEvolvingCreature] = useState<Creature | null>(null);
@@ -132,6 +140,17 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
     juice.fanfare();
     startBattleInZone(tier.id, tier.boss.id);
     if (onSelectZone) onSelectZone(tier.id);
+  };
+
+  const openHubDestination = (destinationId: (typeof HUB_DESTINATIONS)[number]['id']) => {
+    const destination = HUB_DESTINATIONS.find((item) => item.id === destinationId);
+    if (!destination) return;
+    playSfx(destination.id === 'battle' ? 850 : 700);
+    if (destination.id === 'hub') {
+      setActiveModal('story');
+      return;
+    }
+    setTab(destination.id);
   };
 
   // Currencies & stats
@@ -287,7 +306,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
                 playSfx(750);
                 setActiveModal('events');
               }}
-              title="Events & Daily Streak"
+              title="Events & Daily Login Bonus"
               className="flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-1.5 shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
             >
               <Gift className="h-5 w-5 text-amber-600" />
@@ -676,64 +695,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
           {/* INTERACTIVE WOODEN SIGNBOARDS & HOTSPOTS OVER ISLANDS    */}
           {/* ======================================================== */}
 
-          {/* 1. Harmony Village (Center) */}
-          <div
-            style={{ position: 'absolute', left: '40%', top: '55%' }}
-            onClick={() => {
-              playSfx(650);
-              setActiveModal('story');
-            }}
-            className="group flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            {/* Animated Player Avatar standing right on Harmony Village */}
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                cycleSpeech();
-              }}
-              className="relative flex flex-col items-center mb-1"
-            >
-              {/* Speech Bubble ("Let's Explore!") */}
-              <div className="relative rounded-2xl border-3 border-[#5a2e12] bg-white px-3 py-1 shadow-[0_3px_0_#5a2e12] animate-bounce">
-                <span className="font-sans text-xs sm:text-sm font-black text-[#5a2e12]">
-                  {speechQuotes[speechIdx]}
-                </span>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-x-5 border-x-transparent border-t-5 border-t-[#5a2e12]" />
-              </div>
-
-              {/* Avatar Body */}
-              <div className="mt-1 flex h-11 w-11 items-center justify-center rounded-2xl border-3 border-[#5a2e12] bg-gradient-to-b from-amber-300 to-amber-500 text-2xl shadow-[0_3px_0_#5a2e12]">
-                <span>{currentUser?.avatarConfig?.emoji || currentUser?.avatarEmoji || '🦊'}</span>
-              </div>
-            </div>
-
-            {/* Wooden Plaque */}
-            <div className="rounded-xl border-3 border-[#3d1b06] bg-gradient-to-b from-[#eab308] via-[#d97706] to-[#b45309] px-3.5 py-1 text-center shadow-[0_4px_0_#3d1b06]">
-              <span className="font-serif text-xs sm:text-sm font-black text-[#3d1b06] drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
-                Harmony Village
-              </span>
-            </div>
-          </div>
-
-          {/* 2. Shadowcrypt (Bottom-Left / Arsenal) */}
-          <div
-            style={{ position: 'absolute', left: '26%', top: '65%' }}
-            onClick={() => {
-              playSfx(600);
-              setTab('loadout');
-            }}
-            className="group flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            <div className="rounded-xl border-3 border-[#0f172a] bg-gradient-to-b from-[#64748b] to-[#334155] px-3.5 py-1 text-center shadow-[0_4px_0_#0f172a]">
-              <span className="font-serif text-xs sm:text-sm font-black text-cyan-200 drop-shadow">
-                Shadowcrypt
-              </span>
-            </div>
-            <span className="mt-0.5 rounded-full bg-emerald-600 px-2 py-0.2 text-[9px] font-black uppercase text-white shadow">
-              🎒 Arsenal
-            </span>
-          </div>
-
           {/* 3. Pinkwood & Frostpeak (Top-Left / Pet Roster) */}
           <div
             style={{ position: 'absolute', left: '20%', top: '38%' }}
@@ -768,81 +729,25 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
             </div>
           </div>
 
-          {/* 5. Celestia (Top-Right / Battle Arena) */}
-          <div
-            style={{ position: 'absolute', left: '72%', top: '28%' }}
-            onClick={() => {
-              playSfx(850);
-              setTab('battle');
-            }}
-            className="group flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            <div className="rounded-xl border-3 border-[#1e293b] bg-gradient-to-b from-[#f8fafc] to-[#cbd5e1] px-4 py-1 text-center shadow-[0_4px_0_#1e293b]">
-              <span className="font-serif text-xs sm:text-sm font-black text-[#0f172a] drop-shadow">
-                Celestia
+          {HUB_DESTINATIONS.map((destination) => (
+            <button
+              key={destination.id}
+              type="button"
+              onClick={() => openHubDestination(destination.id)}
+              aria-label={`${destination.label} at ${destination.islandName}`}
+              aria-current={activeTab === destination.id ? 'page' : undefined}
+              title={`Open ${destination.label}`}
+              style={{ left: `${destination.x}%`, top: `${destination.y}%` }}
+              className={`group absolute z-10 flex min-h-12 -translate-x-1/2 -translate-y-1/2 touch-manipulation flex-col items-center justify-center rounded-2xl border-2 border-white/90 bg-gradient-to-r ${destination.tone} px-3 py-1.5 text-center text-white shadow-[0_4px_0_rgba(71,35,20,0.7)] transition duration-150 hover:z-20 hover:scale-110 hover:brightness-110 focus-visible:z-20 focus-visible:outline focus-visible:outline-4 focus-visible:outline-amber-200 active:translate-y-0`}
+            >
+              <span className="whitespace-nowrap font-serif text-[11px] font-black leading-tight drop-shadow sm:text-sm">
+                {destination.emoji} {destination.label}
               </span>
-            </div>
-            <span className="mt-0.5 rounded-full bg-red-600 px-2 py-0.2 text-[9px] font-black uppercase text-white shadow">
-              ⚔️ Battle Arena
-            </span>
-          </div>
-
-          {/* 6. Fireforge (Bottom-Right / Word Forge) */}
-          <div
-            style={{ position: 'absolute', left: '66%', top: '68%' }}
-            onClick={() => {
-              playSfx(700);
-              setTab('forge');
-            }}
-            className="group flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            <div className="rounded-xl border-3 border-[#450a0a] bg-gradient-to-b from-[#f97316] to-[#b91c1c] px-4 py-1 text-center shadow-[0_4px_0_#450a0a]">
-              <span className="font-serif text-xs sm:text-sm font-black text-amber-100 drop-shadow">
-                Fireforge
+              <span className="mt-0.5 whitespace-nowrap text-[8px] font-extrabold leading-tight text-white/95 sm:text-[10px]">
+                {destination.islandName}
               </span>
-            </div>
-            <span className="mt-0.5 rounded-full bg-purple-600 px-2 py-0.2 text-[9px] font-black uppercase text-white shadow">
-              🧬 Word Forge
-            </span>
-          </div>
-
-          {/* 7. Treetop Canopy (Far-Right / Pet Hatchery) */}
-          <div
-            style={{ position: 'absolute', left: '83%', top: '60%' }}
-            onClick={() => {
-              playSfx(780);
-              setActiveModal('hatchery');
-            }}
-            className="group flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            <div className="rounded-xl border-3 border-[#14532d] bg-gradient-to-b from-[#4ade80] to-[#15803d] px-3.5 py-1 text-center shadow-[0_4px_0_#14532d]">
-              <span className="font-serif text-xs sm:text-sm font-black text-white drop-shadow">
-                Treetop Canopy
-              </span>
-            </div>
-            <span className="mt-0.5 rounded-full bg-amber-500 px-2 py-0.2 text-[9px] font-black uppercase text-white shadow">
-              🥚 Hatchery
-            </span>
-          </div>
-
-          {/* 8. Galleon's Rest (Bottom-Center / Lexi-Shop) */}
-          <div
-            style={{ position: 'absolute', left: '47%', top: '80%' }}
-            onClick={() => {
-              playSfx(720);
-              setActiveModal('shop');
-            }}
-            className="group flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            <div className="rounded-xl border-3 border-[#451a03] bg-gradient-to-b from-[#fde047] via-[#eab308] to-[#ca8a04] px-3.5 py-1 text-center shadow-[0_4px_0_#451a03]">
-              <span className="font-serif text-xs sm:text-sm font-black text-[#451a03] drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
-                Galleon's Rest
-              </span>
-            </div>
-            <span className="mt-0.5 rounded-full bg-cyan-600 px-2 py-0.2 text-[9px] font-black uppercase text-white shadow">
-              🛍️ The Lexi-Shop
-            </span>
-          </div>
+            </button>
+          ))}
 
         </div>
 
@@ -863,7 +768,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
               playSfx(650);
               setActiveModal('quests');
             }}
-            title="Daily Tasks Progress"
+            title="Daily Quests Progress"
             className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-2 shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
           >
             <div className="relative">
@@ -873,7 +778,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
               </span>
             </div>
             <span className="text-[9px] sm:text-[10px] font-black text-[#5a2e12] leading-tight">
-              Daily Tasks
+              Daily Quests
             </span>
             <span className="text-[8px] font-bold text-[#8c4617]">(3/5)</span>
           </button>
@@ -889,7 +794,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
             className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-[#b45309] to-[#78350f] p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
           >
             <Backpack className="h-6 w-6 text-amber-200" />
-            <span className="text-[9px] sm:text-[10px] font-black">Backpack</span>
+            <span className="text-[9px] sm:text-[10px] font-black">Inventory</span>
           </button>
 
           {/* Chat / Lore */}
@@ -1006,7 +911,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
             type="button"
             onClick={() => setActiveModal('roster')}
             title="Classroom Explorers"
-            className="hidden sm:flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-amber-300 to-orange-400 p-1.5 sm:p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
+            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-amber-300 to-orange-400 p-1.5 sm:p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
           >
             <Users className="h-5 w-5 text-white" />
             <span className="text-[8px] sm:text-[9px] font-black">Social</span>
@@ -1031,20 +936,20 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
       {/* 4. SYSTEM MODALS (HATCHERY, SHOP, ROSTER, STORY, QUESTS) */}
       {/* ======================================================== */}
 
-      {/* A. STORY REALMS & GRADUATED VOCAB TIERS (ROOT VILLAGE TO SYNTAX SPIRE) */}
+      {/* A. NINE ELEMENTAL WORD WORLD AREAS */}
       {activeModal === 'story' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs overflow-y-auto">
           <div className="relative w-full max-w-2xl rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-5 sm:p-7 shadow-[0_10px_0_#5a2e12] space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b-3 border-amber-200 pb-3">
               <div className="flex items-center gap-3">
-                <span className="text-4xl">🏰</span>
+                <span className="text-4xl">🗺️</span>
                 <div>
                   <h3 className="font-serif text-2xl sm:text-3xl font-black text-[#542d1d]">
-                    Graduated Vocabulary Realms
+                Word World · Elemental Areas
                   </h3>
                   <p className="text-xs font-bold text-[#824c16]">
-                    Journey from Root Village to Syntax Spire (Grades 3–5)
+                Explore nine regions, learn new words, and challenge the area guardians.
                   </p>
                 </div>
               </div>
@@ -1060,8 +965,10 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
 
             {/* List of Tiers */}
             <div className="space-y-3">
-              {WORLD_TIERS.map((tier) => {
+              {WORLD_TIERS.map((tier, index) => {
                 const progress = zoneProgress[tier.id] || { stars: 0, cleared: false };
+                const previousTier = WORLD_TIERS[index - 1];
+                const isLocked = Boolean(previousTier && !zoneProgress[previousTier.id]?.cleared);
 
                 return (
                   <div
@@ -1075,17 +982,17 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
                       <div>
                         <div className="flex items-center gap-2 justify-center sm:justify-start">
                           <span className="rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black uppercase px-1.5 py-0.2">
-                            {tier.gradeBand}
+                            Area {tier.tierNumber} of {WORLD_TIERS.length}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-500">
-                            {tier.theme}
+                          <span className="text-[10px] font-black" style={{ color: ELEMENTS[tier.element].color }}>
+                            {ELEMENTS[tier.element].icon} {ELEMENTS[tier.element].name}
                           </span>
                         </div>
                         <h4 className="font-serif text-base font-black text-[#542d1d]">
-                          Tier {tier.tierNumber}: {tier.name}
+                          {tier.name}
                         </h4>
                         <p className="text-xs text-slate-600 font-bold">
-                          Boss: {tier.boss.name} ({tier.boss.spriteEmoji}) · Weakness: {tier.boss.weakness}
+                          {tier.subtitle} · {progress.cleared ? `Cleared · ${progress.stars} stars` : `Guardian: ${tier.boss.name} ${tier.boss.spriteEmoji}`}
                         </p>
                       </div>
                     </div>
@@ -1105,14 +1012,16 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
 
                       <button
                         type="button"
+                        disabled={isLocked}
                         onClick={() => {
                           setActiveModal(null);
                           handleLaunchBattle(tier);
                         }}
-                        className="flex items-center gap-1.5 rounded-xl border-2 border-[#5a2e12] bg-gradient-to-r from-red-500 to-orange-500 hover:brightness-110 px-4 py-2 text-xs font-black uppercase text-white shadow-xs cursor-pointer"
+                        title={isLocked ? `Clear ${previousTier?.name} to unlock this area` : `Battle in ${tier.name}`}
+                        className="flex items-center gap-1.5 rounded-xl border-2 border-[#5a2e12] bg-gradient-to-r from-red-500 to-orange-500 px-4 py-2 text-xs font-black uppercase text-white shadow-xs enabled:hover:brightness-110 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         <Swords className="h-4 w-4" />
-                        <span>Battle</span>
+                        <span>{isLocked ? 'Locked' : 'Battle'}</span>
                       </button>
                     </div>
                   </div>
@@ -1125,7 +1034,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
               <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-serif text-base font-black text-emerald-950">
-                    💡 Tier {selectedTier.tierNumber} Concept: {selectedTier.theme}
+                    💡 Area {selectedTier.tierNumber} Lesson: {selectedTier.theme}
                   </h4>
                   <button
                     type="button"
@@ -1303,7 +1212,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelec
             </div>
 
             <div className="space-y-3">
-              {creatures.map((c) => {
+              {unlockedCreatures.map((c) => {
                 const isActive = c.id === playerId;
                 const petLevel = c.level || 8;
                 const petStage = c.stage || 1;
