@@ -296,6 +296,12 @@ export function renderHub(container, ctx = {}, actions = {}) {
       streakClaimedToday: false,
       activeModal: null, // 'hatchery' | 'shop' | 'world' | 'avatar' | null
     };
+  } else if (ctx.player) {
+    if (ctx.player.name) ctx.hubState.username = ctx.player.name;
+    if (ctx.player.avatar) ctx.hubState.avatar = ctx.player.avatar;
+    if (ctx.player.lexiCoins !== undefined) ctx.hubState.lexiCoins = ctx.player.lexiCoins;
+    if (ctx.player.fusionTokens !== undefined) ctx.hubState.fusionTokens = ctx.player.fusionTokens;
+    if (ctx.player.streak !== undefined) ctx.hubState.streak = ctx.player.streak;
   }
 
   // Ensure daily missions are initialized on hubState
@@ -1072,7 +1078,11 @@ function attachHubEvents(container, ctx, hub, actions, saveHubProfile, saveMissi
   // Avatar Editor Button
   container.querySelector('#hub-avatar-btn')?.addEventListener('click', () => {
     playHubTone(500, 80);
-    showAvatarPickerModal(modalLayer, hub, saveHubProfile, rerender, AVATAR_OPTIONS);
+    if (actions.onEditCharacter) {
+      actions.onEditCharacter();
+    } else {
+      showAvatarPickerModal(modalLayer, hub, saveHubProfile, rerender, AVATAR_OPTIONS);
+    }
   });
 
   // Streak Reward Claim
@@ -1358,7 +1368,7 @@ function showShopModal(modalLayer, ctx, hub, saveHubProfile, rerender) {
         modalLayer.innerHTML = '';
         rerender();
       } else {
-        alert('Not enough Lexi-Coins! Play battles to earn more coins.');
+        showHubToast(container, '⚠️ Not enough Lexi-Coins! Play battles to earn more coins.');
       }
     });
   });
@@ -1368,42 +1378,113 @@ function showWorldSelectModal(modalLayer, actions) {
   if (!modalLayer) return;
   modalLayer.innerHTML = `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div class="w-full max-w-lg rounded-3xl border-4 border-[#246b38] bg-[#f2fcf4] p-6 shadow-[0_8px_0_#246b38] space-y-4">
-        <div class="flex justify-between items-center border-b-2 border-emerald-200 pb-2">
+      <div class="w-full max-w-2xl rounded-3xl border-4 border-[#246b38] bg-[#f2fcf4] p-5 sm:p-7 shadow-[0_10px_0_#246b38] space-y-4 max-h-[92vh] overflow-y-auto">
+        
+        <div class="flex justify-between items-center border-b-2 border-emerald-200 pb-3">
           <div>
-            <h3 class="font-serif text-2xl font-black text-[#1b552b]">🗺️ Overworld Map</h3>
-            <p class="text-xs font-bold text-emerald-800">Select a zone to explore grammar quests!</p>
+            <div class="flex items-center gap-2">
+              <span class="text-3xl">🗺️</span>
+              <h3 class="font-serif text-2xl sm:text-3xl font-black text-[#1b552b]">Overworld Map</h3>
+            </div>
+            <p class="text-xs font-bold text-emerald-800">
+              Graduated Vocabulary Tiers: Root Village ➜ Syntax Spire (Grades 3–5)
+            </p>
           </div>
-          <button type="button" id="modal-close" class="text-slate-400 hover:text-black font-bold text-lg">✕</button>
+          <button type="button" id="modal-close" class="text-slate-400 hover:text-black font-bold text-xl cursor-pointer">✕</button>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="rounded-2xl border-3 border-emerald-400 bg-white p-3 text-center shadow-xs">
-            <span class="text-3xl block">🌲</span>
-            <h4 class="font-bold text-sm text-emerald-950 mt-1">Verbia Meadow</h4>
-            <span class="text-[10px] text-emerald-700 block">Zones 1–4 · Easy</span>
-            <button type="button" id="launch-quest-1" class="mt-2 w-full rounded-xl bg-emerald-500 py-1 text-xs font-black text-white hover:bg-emerald-600">
-              Enter
+        <div class="space-y-2.5">
+          
+          <!-- Tier 1: Root Village -->
+          <div class="rounded-2xl border-3 border-emerald-400 bg-white p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl sm:text-4xl">🌱</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-black px-2 py-0.2">TIER 1 · Grade 3</span>
+                  <span class="text-[10px] font-bold text-slate-500">Latin/Greek Roots</span>
+                </div>
+                <h4 class="font-serif text-lg font-black text-emerald-950">Root Village</h4>
+                <p class="text-xs text-slate-600 font-bold">Roots: <em>tract, port, rupt, form</em> · Boss: Ruptor 🗿</p>
+              </div>
+            </div>
+            <button type="button" data-launch-zone="root-village" data-enemy="boss_ruptor" class="launch-tier-btn rounded-xl border-2 border-[#246b38] bg-emerald-500 hover:bg-emerald-600 px-4 py-2 text-xs font-black uppercase text-white shadow-xs cursor-pointer">
+              Enter Tier 1
             </button>
           </div>
 
-          <div class="rounded-2xl border-3 border-sky-400 bg-white p-3 text-center shadow-xs">
-            <span class="text-3xl block">❄️</span>
-            <h4 class="font-bold text-sm text-sky-950 mt-1">Frostpeak Ridge</h4>
-            <span class="text-[10px] text-sky-700 block">Zones 5–8 · Ice</span>
-            <button type="button" id="launch-quest-2" class="mt-2 w-full rounded-xl bg-sky-500 py-1 text-xs font-black text-white hover:bg-sky-600">
-              Enter
+          <!-- Tier 2: Prefix Path -->
+          <div class="rounded-2xl border-3 border-sky-400 bg-white p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl sm:text-4xl">🌲</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="rounded-full bg-sky-100 text-sky-900 text-[10px] font-black px-2 py-0.2">TIER 2 · Grade 3–4</span>
+                  <span class="text-[10px] font-bold text-slate-500">Reversal Prefixes</span>
+                </div>
+                <h4 class="font-serif text-lg font-black text-sky-950">Prefix Path &amp; Forest</h4>
+                <p class="text-xs text-slate-600 font-bold">Prefixes: <em>un-, re-, dis-, pre-</em> · Boss: Dis-Hornet 🐝</p>
+              </div>
+            </div>
+            <button type="button" data-launch-zone="prefix-path" data-enemy="boss_dishornet" class="launch-tier-btn rounded-xl border-2 border-[#18556d] bg-sky-500 hover:bg-sky-600 px-4 py-2 text-xs font-black uppercase text-white shadow-xs cursor-pointer">
+              Enter Tier 2
             </button>
           </div>
 
-          <div class="rounded-2xl border-3 border-orange-400 bg-white p-3 text-center shadow-xs">
-            <span class="text-3xl block">🌋</span>
-            <h4 class="font-bold text-sm text-orange-950 mt-1">Volcanix Crag</h4>
-            <span class="text-[10px] text-orange-700 block">Zones 9–12 · Fire</span>
-            <button type="button" id="launch-quest-3" class="mt-2 w-full rounded-xl bg-orange-500 py-1 text-xs font-black text-white hover:bg-orange-600">
-              Enter
+          <!-- Tier 3: Suffix Steppes -->
+          <div class="rounded-2xl border-3 border-amber-400 bg-white p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl sm:text-4xl">🏜️</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="rounded-full bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.2">TIER 3 · Grade 4</span>
+                  <span class="text-[10px] font-bold text-slate-500">Shifting Suffixes</span>
+                </div>
+                <h4 class="font-serif text-lg font-black text-amber-950">Suffix Steppes &amp; Canyon</h4>
+                <p class="text-xs text-slate-600 font-bold">Suffixes: <em>-ful, -less, -able, -ly</em> · Boss: Galecrest 🦅</p>
+              </div>
+            </div>
+            <button type="button" data-launch-zone="suffix-steppes" data-enemy="boss_galecrest" class="launch-tier-btn rounded-xl border-2 border-[#824c16] bg-amber-500 hover:bg-amber-600 px-4 py-2 text-xs font-black uppercase text-white shadow-xs cursor-pointer">
+              Enter Tier 3
             </button>
           </div>
+
+          <!-- Tier 4: Compound Colosseum -->
+          <div class="rounded-2xl border-3 border-rose-400 bg-white p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl sm:text-4xl">🌋</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="rounded-full bg-rose-100 text-rose-900 text-[10px] font-black px-2 py-0.2">TIER 4 · Grade 4–5</span>
+                  <span class="text-[10px] font-bold text-slate-500">Compound Fusion</span>
+                </div>
+                <h4 class="font-serif text-lg font-black text-rose-950">Compound Colosseum</h4>
+                <p class="text-xs text-slate-600 font-bold">Compounds: <em>firestorm, frostbite</em> · Boss: Pyrostorm 🦁</p>
+              </div>
+            </div>
+            <button type="button" data-launch-zone="compound-colosseum" data-enemy="boss_pyrostorm" class="launch-tier-btn rounded-xl border-2 border-[#8a2212] bg-rose-500 hover:bg-rose-600 px-4 py-2 text-xs font-black uppercase text-white shadow-xs cursor-pointer">
+              Enter Tier 4
+            </button>
+          </div>
+
+          <!-- Tier 5: Syntax Spire -->
+          <div class="rounded-2xl border-3 border-purple-400 bg-white p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl sm:text-4xl">🏰</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="rounded-full bg-purple-100 text-purple-900 text-[10px] font-black px-2 py-0.2">TIER 5 · Grade 5 Mastery</span>
+                  <span class="text-[10px] font-bold text-slate-500">Sentence Architecture</span>
+                </div>
+                <h4 class="font-serif text-lg font-black text-purple-950">Syntax Spire</h4>
+                <p class="text-xs text-slate-600 font-bold">4x4 Matrix Rhetoric · Boss: The Syntax Sovereign 👑</p>
+              </div>
+            </div>
+            <button type="button" data-launch-zone="syntax-spire" data-enemy="boss_sovereign" class="launch-tier-btn rounded-xl border-2 border-[#542589] bg-purple-600 hover:bg-purple-700 px-4 py-2 text-xs font-black uppercase text-white shadow-xs cursor-pointer">
+              Enter Tier 5
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1413,15 +1494,20 @@ function showWorldSelectModal(modalLayer, actions) {
     modalLayer.innerHTML = '';
   });
 
-  const launch = () => {
-    modalLayer.innerHTML = '';
-    if (actions.goToBattle) actions.goToBattle();
-    else if (typeof window.switchTab === 'function') window.switchTab('battle');
-  };
-
-  modalLayer.querySelector('#launch-quest-1')?.addEventListener('click', launch);
-  modalLayer.querySelector('#launch-quest-2')?.addEventListener('click', launch);
-  modalLayer.querySelector('#launch-quest-3')?.addEventListener('click', launch);
+  modalLayer.querySelectorAll('.launch-tier-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const zone = btn.getAttribute('data-launch-zone');
+      const enemy = btn.getAttribute('data-enemy');
+      modalLayer.innerHTML = '';
+      if (actions.startBattleInZone) {
+        actions.startBattleInZone(zone, enemy);
+      } else if (actions.goToBattle) {
+        actions.goToBattle();
+      } else if (typeof window.switchTab === 'function') {
+        window.switchTab('battle');
+      }
+    });
+  });
 }
 
 function showMissionQuizModal(modalLayer, mission, hub, saveHubProfile, saveMissionsState, rerender, container) {

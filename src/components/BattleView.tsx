@@ -9,6 +9,7 @@ import { BattleLogEntry, Creature, MoveCategory, PartOfSpeech, Word } from '../t
 import { FloatingCombatOverlay, CombatPopup } from './FloatingCombatOverlay';
 import { WordInspectorBanner } from './WordInspectorBanner';
 import { WordModal } from './WordModal';
+import { WORLD_TIERS } from '../data/worldTiers';
 
 const POS_STYLES: Record<PartOfSpeech, { label: string; card: string; badge: string; icon: string }> = {
   verb: { label: 'VERB', card: 'border-rose-300 bg-gradient-to-br from-rose-400 to-red-500 text-white shadow-rose-300/50', badge: 'bg-rose-700/70', icon: '⚡' },
@@ -24,13 +25,18 @@ const creatureEmoji = (creature: Creature) => {
   if (name.includes('dragon')) return '🐉';
   if (name.includes('bird') || name.includes('owl')) return '🦉';
   if (name.includes('turtle')) return '🐢';
+  if (name.includes('ruptor')) return '🗿';
+  if (name.includes('hornet')) return '🐝';
+  if (name.includes('galecrest') || name.includes('wyvern')) return '🦅';
+  if (name.includes('chimera') || name.includes('pyro')) return '🦁';
+  if (name.includes('sovereign')) return '👑';
   return creature.element === 'ice' ? '🐻‍❄️' : creature.element === 'nature' ? '🦌' : '🐲';
 };
 
 const healthColor = (element: string) => element === 'ice' ? 'from-sky-400 to-blue-500' : element === 'nature' ? 'from-lime-400 to-emerald-500' : 'from-orange-400 to-rose-500';
 
 export const BattleView: React.FC = () => {
-  const { battleState, words, playerId, submitCombo, restartBattle, goToLoadout } = useGame();
+  const { battleState, words, playerId, submitCombo, restartBattle, goToLoadout, activeZoneId, setTab } = useGame();
   const [activeCategory, setActiveCategory] = useState<MoveCategory>('ATTACK');
   const [slot1Word, setSlot1Word] = useState<Word | null>(null);
   const [slot2Word, setSlot2Word] = useState<Word | null>(null);
@@ -124,6 +130,8 @@ export const BattleView: React.FC = () => {
   const playerHpRatio = player.maxHp ? Math.max(0, (player.currentHp ?? 0) / player.maxHp) : 0;
   const enemyHpRatio = enemy.maxHp ? Math.max(0, (enemy.currentHp ?? 0) / enemy.maxHp) : 0;
 
+  const currentZone = WORLD_TIERS.find((t) => t.id === activeZoneId) || WORLD_TIERS[0];
+
   return (
     <main className="battle-page text-slate-900">
       <div className="battle-shell">
@@ -134,9 +142,27 @@ export const BattleView: React.FC = () => {
           <div className="stage-hill hill-back" /><div className="stage-hill hill-front" />
           <div className="stage-flower flower-one">🌼</div><div className="stage-flower flower-two">🌸</div><div className="stage-flower flower-three">🌼</div>
           <div className="stage-topline">
-            <div className="stage-level"><span className="level-star">★</span><span>WORD WILD</span></div>
-            <div className="stage-title"><span>🌈</span> MEADOW ARENA <span>🌈</span></div>
-            <div className="stage-round">{isBattleEnd ? 'BATTLE OVER' : battleState.phase === 'ENEMY_TURN' ? 'RIVAL TURN' : 'YOUR TURN'}</div>
+            <button
+              type="button"
+              onClick={() => setTab('hub')}
+              title="Return to World Map"
+              className="stage-level flex items-center gap-1 hover:brightness-110 cursor-pointer"
+            >
+              <span className="level-star">🗺️</span>
+              <span>T{currentZone.tierNumber}: {currentZone.name.toUpperCase()}</span>
+            </button>
+            <div className="stage-title"><span>{currentZone.icon}</span> {currentZone.subtitle.toUpperCase()} <span>{currentZone.icon}</span></div>
+            <div className="stage-round flex items-center gap-1.5">
+              <span>{isBattleEnd ? 'BATTLE OVER' : battleState.phase === 'ENEMY_TURN' ? 'RIVAL TURN' : 'YOUR TURN'}</span>
+              <button
+                type="button"
+                onClick={() => setTab('hub')}
+                title="Return to World Map"
+                className="ml-1 rounded-md bg-white/90 text-slate-900 text-[10px] font-black px-1.5 py-0.5 border border-slate-300 hover:bg-white cursor-pointer"
+              >
+                Map ➜
+              </button>
+            </div>
           </div>
           <div className="stage-tree tree-one" aria-hidden="true" />
           <div className="stage-tree tree-two" aria-hidden="true" />
@@ -199,7 +225,21 @@ export const BattleView: React.FC = () => {
               ['ATTACK', Swords, 'Strike'], ['DEFEND', Shield, 'Guard'], ['BUFF', Sparkles, 'Boost'], ['DEBUFF', Activity, 'Trick'],
             ] as const).map(([category, Icon, label]) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => { setActiveCategory(category); juice.ding(category === 'ATTACK' ? 520 : category === 'DEFEND' ? 660 : category === 'BUFF' ? 880 : 380, 80); }} className={`category-pill category-${category.toLowerCase()} ${activeCategory === category ? 'category-active' : ''}`}><Icon size={15} /> {label}</button>)}</div>
             <p className="pick-hint">{slot1Word ? slot2Word ? <><strong>{slot1Word.word} {slot2Word.word}</strong> — ready to go!</> : <>Tap a second word to make a combo, or use <strong>{slot1Word.word}</strong> alone.</> : 'Choose one of your four words to make a move!'}</p>
-            <button onClick={handleSubmit} disabled={!slot1Word && !isBattleEnd} className="battle-button">{isBattleEnd ? <><RotateCcw size={20} /> Battle again!</> : <><Zap size={20} fill="currentColor" /> {activeCategory === 'ATTACK' ? 'LET’S GO!' : `${activeCategory} MOVE!`}</>}</button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={handleSubmit} disabled={!slot1Word && !isBattleEnd} className="battle-button">
+                {isBattleEnd ? <><RotateCcw size={20} /> Battle again!</> : <><Zap size={20} fill="currentColor" /> {activeCategory === 'ATTACK' ? 'LET’S GO!' : `${activeCategory} MOVE!`}</>}
+              </button>
+              {isBattleEnd && (
+                <button
+                  type="button"
+                  onClick={() => setTab('hub')}
+                  className="rounded-2xl border-3 border-[#7b4632] bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-sm font-black uppercase text-white shadow-[0_4px_0_#134e4a] hover:brightness-110 active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🗺️</span>
+                  <span>World Map</span>
+                </button>
+              )}
+            </div>
             {slot1Word && <button onClick={clearSlots} className="clear-move">Clear move</button>}
           </div>
           {liveEvaluation && <div className={`move-preview ${liveEvaluation.valid ? 'preview-valid' : 'preview-invalid'}`}><span className="preview-label">{liveEvaluation.valid ? `✨ ${getMatrixEffectInfo(activeCategory, (slot2Word || slot1Word)!.partOfSpeech).name}` : '🔒 Check your word'}</span><span>{liveEvaluation.valid ? liveEvaluation.tacticalOutcome : liveEvaluation.reasons[0]}</span></div>}

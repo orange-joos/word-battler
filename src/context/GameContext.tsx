@@ -24,6 +24,13 @@ interface GameContextType {
   useCreatureInBattle: (id: string) => void;
   updatePetLoadout: (petId: string, slot: PartOfSpeech, wordId: string | null) => void;
   autoEquipBestLoadout: (petId: string) => void;
+  activeZoneId: string;
+  setActiveZoneId: (zoneId: string) => void;
+  enemyId: string;
+  setEnemyId: (id: string) => void;
+  zoneProgress: Record<string, { stars: number; cleared: boolean }>;
+  startBattleInZone: (zoneId: string, customEnemyId?: string) => void;
+  completeZone: (zoneId: string, stars?: number) => void;
   resetAll: () => void;
 }
 
@@ -157,15 +164,71 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     juice.setMuted(next);
   };
 
+  const [activeZoneId, setActiveZoneId] = useState<string>('root-village');
+  const [enemyId, setEnemyId] = useState<string>('boss_ruptor');
+  const [zoneProgress, setZoneProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
+    try {
+      const saved = localStorage.getItem('wb_zone_progress');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      'root-village': { stars: 3, cleared: true },
+      'prefix-path': { stars: 2, cleared: true },
+      'suffix-steppes': { stars: 1, cleared: false },
+      'compound-colosseum': { stars: 0, cleared: false },
+      'syntax-spire': { stars: 0, cleared: false },
+    };
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('wb_zone_progress', JSON.stringify(zoneProgress));
+    } catch {}
+  }, [zoneProgress]);
+
+  const completeZone = (zoneId: string, stars = 3) => {
+    setZoneProgress((prev) => {
+      const current = prev[zoneId] || { stars: 0, cleared: false };
+      return {
+        ...prev,
+        [zoneId]: {
+          stars: Math.max(current.stars, stars),
+          cleared: true,
+        },
+      };
+    });
+  };
+
+  const startBattleInZone = (zoneId: string, customEnemyId?: string) => {
+    setActiveZoneId(zoneId);
+    const chosenEnemy =
+      customEnemyId ||
+      (zoneId === 'root-village'
+        ? 'boss_ruptor'
+        : zoneId === 'prefix-path'
+        ? 'boss_dishornet'
+        : zoneId === 'suffix-steppes'
+        ? 'boss_galecrest'
+        : zoneId === 'compound-colosseum'
+        ? 'boss_pyrostorm'
+        : zoneId === 'syntax-spire'
+        ? 'boss_sovereign'
+        : 'boss_ruptor');
+
+    setEnemyId(chosenEnemy);
+    juice.fanfare();
+    setTab('battle');
+  };
+
   // Combat Engine Instance
   const battleEngine = useMemo(() => {
     return createBattle({
       playerId,
-      enemyId: 'rimepup',
+      enemyId,
       creatures,
       words,
     });
-  }, [playerId, creatures, words]);
+  }, [playerId, enemyId, creatures, words]);
 
   const [battleState, setBattleState] = useState<BattleState>(() => battleEngine.getState());
 
@@ -196,6 +259,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (nextState.phase === 'BATTLE_END') {
       if (nextState.winner === battleState.player.id) {
+        completeZone(activeZoneId, 3);
         setTimeout(() => juice.fanfare(), 600);
       }
     }
@@ -299,6 +363,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         useCreatureInBattle,
         updatePetLoadout,
         autoEquipBestLoadout,
+        activeZoneId,
+        setActiveZoneId,
+        enemyId,
+        setEnemyId,
+        zoneProgress,
+        startBattleInZone,
+        completeZone,
         resetAll,
       }}
     >

@@ -85,6 +85,7 @@ export interface Creature {
   empowered?: boolean;
   reflectStance?: boolean;
   evasionStance?: boolean;
+  spriteEmoji?: string;
 }
 
 export interface Affix {

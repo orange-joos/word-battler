@@ -42,6 +42,111 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
     allowedElements: ["ice"]
+  },
+  {
+    id: "boss_ruptor",
+    name: "Ruptor the Break-Beast",
+    element: "nature",
+    elementAffinity: "nature",
+    loadout: {
+      verb: "ignite",
+      noun: "boulder",
+      adjective: "ancient",
+      adverb: "fiercely"
+    },
+    description: "Guardian of Root Village. An ancient mossy stone beast that channels Greek and Latin root monoliths.",
+    stats: {
+      hp: 40,
+      attack: 10,
+      defense: 9,
+      speed: 8
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["nature", "fire"]
+  },
+  {
+    id: "boss_dishornet",
+    name: "Dis-Hornet Swarm",
+    element: "ice",
+    elementAffinity: "ice",
+    loadout: {
+      verb: "freeze",
+      noun: "shard",
+      adjective: "sharp",
+      adverb: "coldly"
+    },
+    description: "Terror of Prefix Path. A frost-coated winged colony that reverses meanings with rapid prefix stings.",
+    stats: {
+      hp: 46,
+      attack: 12,
+      defense: 10,
+      speed: 12
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["ice"]
+  },
+  {
+    id: "boss_galecrest",
+    name: "Galecrest Wyvern",
+    element: "nature",
+    elementAffinity: "nature",
+    loadout: {
+      verb: "strike",
+      noun: "gust",
+      adjective: "swift",
+      adverb: "fiercely"
+    },
+    description: "High-Altitude Suffix Sovereign. Shifts grammatical forms between noun and adjective mid-flight.",
+    stats: {
+      hp: 52,
+      attack: 13,
+      defense: 12,
+      speed: 11
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["nature", "ice"]
+  },
+  {
+    id: "boss_pyrostorm",
+    name: "Pyrostorm Chimera",
+    element: "fire",
+    elementAffinity: "fire",
+    loadout: {
+      verb: "ignite",
+      noun: "flame",
+      adjective: "blazing",
+      adverb: "fiercely"
+    },
+    description: "Apex champion of the Compound Colosseum. Formed from fused magma and storm nouns with double power.",
+    stats: {
+      hp: 58,
+      attack: 15,
+      defense: 12,
+      speed: 13
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["fire"]
+  },
+  {
+    id: "boss_sovereign",
+    name: "The Syntax Sovereign",
+    element: "cosmic",
+    elementAffinity: "fire",
+    loadout: {
+      verb: "ignite",
+      noun: "flame",
+      adjective: "blazing",
+      adverb: "fiercely"
+    },
+    description: "Grand Arbiter of Grammar at the peak of Syntax Spire. Commands the entire 4x4 Action Matrix.",
+    stats: {
+      hp: 68,
+      attack: 17,
+      defense: 15,
+      speed: 15
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ["fire", "ice", "nature"]
   }
 ];
 
