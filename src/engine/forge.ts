@@ -233,7 +233,7 @@ export function createForge(options: {
       definition: capitalize(definition) + '.',
       example:
         resultPos === 'noun'
-          ? `The ${compoundWord} glowed with immense arcane energy.`
+          ? `The ${compoundWord} glowed with immense elemental energy.`
           : `Her ${compoundWord} presence altered the battlefield.`,
       forge: {
         layer: 2,

@@ -235,7 +235,7 @@ export const TIERED_VOCAB_WORDS: Word[] = [
     gradeTier: 'K',
     powerBonus: 1,
     definition: 'At this very moment; right away.',
-    example: 'Cast your word spell right now!',
+    example: 'Launch your word strike right now!',
     morphologyNote: 'Time adverb with the "ow" diphthong.',
   },
 

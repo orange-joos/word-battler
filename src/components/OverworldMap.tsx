@@ -21,6 +21,7 @@ import { canPetEvolve, getEvolutionBranch } from '../data/evolutionData';
 import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
 import { LexiDexModal } from './LexiDexModal';
+import { ElementalNodeMap } from './ElementalNodeMap';
 import { ElementType, GradeTier, Word } from '../types';
 import { getGradeTierMeta } from '../data/vocabDatabase';
 
@@ -256,12 +257,18 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     restartBattle,
     levelUpPet,
     evolvePet,
+    feedPetStatTreat,
     commitWord,
+    returnToWordWorldMap,
+    setReturnToWordWorldMap,
+    preferredGradeBand,
+    setPreferredGradeBand,
   } = useGame();
   const { currentUser, logout, setIsCustomizingAvatar, updateProfile, addRewards } = useAuth();
 
   const [selectedIslandId, setSelectedIslandId] = useState<PrimaryHubNode['id']>('word-world');
   const [activeModal, setActiveModal] = useState<HubModalType>(null);
+  const [isModalFullScreen, setIsModalFullScreen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [evolvingCreatureId, setEvolvingCreatureId] = useState<string | null>(null);
 
@@ -293,12 +300,15 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
   const [flippedBoosterIndices, setFlippedBoosterIndices] = useState<number[]>([]);
 
   useEffect(() => {
-    if (initialPanel === 'shop') {
+    if (returnToWordWorldMap) {
+      setActiveModal('word-world');
+      setReturnToWordWorldMap(false);
+    } else if (initialPanel === 'shop') {
       setActiveModal('lexishop');
     } else if (initialPanel === 'hatchery') {
       setActiveModal('hatchery');
     }
-  }, [initialPanel]);
+  }, [initialPanel, returnToWordWorldMap, setReturnToWordWorldMap]);
 
   const selectablePets = creatures.filter((c) => !c.id.startsWith('boss_'));
   const selectedPet = selectablePets.find((c) => c.id === playerId) || selectablePets[0];
@@ -649,121 +659,66 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
 
     return (
       <div
-        className="fixed inset-0 z-50 bg-[#1a162b]/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5"
+        className={`fixed inset-0 z-50 bg-[#1a162b]/80 backdrop-blur-sm flex items-center justify-center ${
+          isModalFullScreen ? 'p-0' : 'p-3 sm:p-5'
+        }`}
         onClick={() => setActiveModal(null)}
       >
         <div
-          className="relative w-full max-w-4xl bg-[#fff8e7] border-[5px] border-[#1a162b] rounded-3xl shadow-[0_12px_0_#1a162b,0_20px_50px_rgba(0,0,0,0.75)] overflow-hidden animate-in zoom-in-95 duration-150"
+          className={`relative w-full ${
+            isModalFullScreen
+              ? 'max-w-none w-screen h-screen rounded-none border-0'
+              : activeModal === 'word-world'
+              ? 'max-w-6xl rounded-3xl border-[5px]'
+              : 'max-w-4xl rounded-3xl border-[5px]'
+          } bg-[#fff8e7] border-[#1a162b] shadow-[0_12px_0_#1a162b,0_20px_50px_rgba(0,0,0,0.75)] overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header — Monster-Tamer JRPG Banner */}
-          <div className="bg-gradient-to-r from-[#283593] via-[#3949ab] to-[#1a237e] px-6 py-4 flex items-center justify-between border-b-[4px] border-[#1a162b]">
-            <h2 className="font-display font-black text-xl sm:text-2xl text-[#ffd54f] tracking-wide drop-shadow-[0_2px_0_#1a162b] flex items-center gap-2.5">
-              {activeModal === 'word-world' && '🌍 1. Word World — 9 Elemental Adventure Realms'}
+          <div className="bg-gradient-to-r from-[#283593] via-[#3949ab] to-[#1a237e] px-5 py-3.5 flex items-center justify-between border-b-[4px] border-[#1a162b] shrink-0">
+            <h2 className="font-display font-black text-lg sm:text-2xl text-[#ffd54f] tracking-wide drop-shadow-[0_2px_0_#1a162b] flex items-center gap-2.5">
+              {activeModal === 'word-world' &&
+                '🌍 1. Word World — 9 Elemental Winding Node Maps (Stages 1-1 to 9-10)'}
               {activeModal === 'arena' && '⚔️ 2. Battle Arena — Matchmaking & Boss Lobby'}
-              {activeModal === 'hatchery' && '🥚 3. Pet Hatchery — Arsenal, Stats & Training'}
-              {activeModal === 'lexishop' && '🏪 5. Lexi-Shop — K–8 Booster Packs & Upgrades'}
+              {activeModal === 'hatchery' && '🥚 3. Pet Hatchery Sanctuary — Nests, Treats & Evolution'}
+              {activeModal === 'lexishop' && '🏪 5. Lexi-Shop Bazaar — Shopkeeper Barnaby & Field Gear'}
               {activeModal === 'quests' && '📋 Explorer Guild Quests & Rewards'}
-              {activeModal === 'settings' && '⚙️ Game Settings & Explorer Account'}
+              {activeModal === 'settings' && '⚙️ Game Settings & Adaptive K–8 Grade Band'}
               {activeModal === 'profile' && '🛡️ Official Aetheria Tamer License'}
             </h2>
-            <button
-              onClick={() => setActiveModal(null)}
-              className="w-9 h-9 rounded-xl bg-[#e53935] hover:bg-[#f44336] text-white font-black border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] active:translate-y-0.5 flex items-center justify-center cursor-pointer"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsModalFullScreen((v) => !v)}
+                className="px-3 py-1.5 rounded-xl bg-[#ffd54f] hover:bg-[#ffca28] text-[#1a162b] font-display font-black text-xs border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                title="Toggle Full-Screen Mode"
+              >
+                {isModalFullScreen ? '🗗 Windowed' : '⛶ Full Screen'}
+              </button>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="w-9 h-9 rounded-xl bg-[#e53935] hover:bg-[#f44336] text-white font-black border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] active:translate-y-0.5 flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Modal Body */}
-          <div className="p-5 sm:p-6 max-h-[78vh] overflow-y-auto space-y-5 text-[#1a162b]">
+          <div
+            className={`p-4 sm:p-6 ${
+              isModalFullScreen ? 'flex-1 overflow-y-auto' : 'max-h-[82vh] overflow-y-auto'
+            } space-y-5 text-[#1a162b]`}
+          >
             {/* ===============================================================
-                1. WORD WORLD (ADVENTURE MODE): 9 ELEMENTAL AREAS PROGRESSION
+                1. WORD WORLD (ADVENTURE MODE): 9 ELEMENTAL WINDING NODE MAPS
             ================================================================ */}
             {activeModal === 'word-world' && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-[#e8eaf6] p-3.5 rounded-2xl border-[3px] border-[#1a162b]">
-                  <div>
-                    <div className="font-display font-black text-base text-[#1a162b]">
-                      Elemental Campaign Progression ({clearedAreasCount} / 9 Areas Cleared)
-                    </div>
-                    <p className="text-xs font-bold text-[#3949ab]">
-                      Progress through all 9 Elemental Areas from Kindergarten roots to Grades 6–8 High-Achiever Extenders!
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 bg-[#1a162b] text-[#ffd54f] px-3 py-1.5 rounded-xl font-display font-black text-xs">
-                    <span>Active Partner: {selectedPet.name}</span>
-                    <span>· Lv.{selectedPet.level || 8}</span>
-                  </div>
-                </div>
-
-                {/* 9-Node Elemental Progression Trail */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {NINE_ELEMENTAL_AREAS.map((area) => {
-                    const prog = zoneProgress[area.zoneId] || { stars: 0, cleared: false };
-                    const elemMeta = ELEMENTS[area.element] || ELEMENTS.fire;
-
-                    return (
-                      <div
-                        key={area.zoneId}
-                        className="flex flex-col justify-between rounded-2xl border-[3px] border-[#1a162b] bg-white p-3.5 shadow-[0_5px_0_#1a162b] hover:-translate-y-0.5 transition-transform"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span
-                              className="px-2 py-0.5 rounded-md border-2 border-[#1a162b] font-display font-black text-[10px] text-white uppercase"
-                              style={{ backgroundColor: area.color }}
-                            >
-                              Area {area.order} · {elemMeta.icon} {elemMeta.name}
-                            </span>
-                            <span className="font-mono text-xs font-black text-[#f57f17]">
-                              {'★'.repeat(prog.stars)}
-                              {'☆'.repeat(Math.max(0, 3 - prog.stars))}
-                            </span>
-                          </div>
-
-                          <div className="mt-2.5 flex items-center gap-3">
-                            <div className="w-14 h-14 rounded-2xl bg-[#f5ebd6] border-2 border-[#1a162b] flex items-center justify-center shrink-0">
-                              <CreatureSprite
-                                creatureId={area.bossId}
-                                stage={3}
-                                element={area.element}
-                                size="sm"
-                                animated={false}
-                              />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-display font-black text-base text-[#1a162b] truncate">
-                                {area.name}
-                              </div>
-                              <div className="text-[11px] font-extrabold text-[#d84315]">
-                                Boss: {area.bossName}
-                              </div>
-                              <div className="text-[10px] font-bold text-[#5d4037]">
-                                {area.gradeBand}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-2 rounded-xl bg-[#fff8e7] border border-[#e6d0a7] px-2.5 py-1.5 text-[11px] font-bold text-[#4e342e]">
-                            🎯 {area.grammarFocus}
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            setActiveModal(null);
-                            startBattleInZone(area.zoneId, area.bossId);
-                          }}
-                          className="mt-3 w-full py-2 rounded-xl bg-gradient-to-b from-[#66bb6a] to-[#2e7d32] hover:brightness-110 text-white font-display font-black text-xs uppercase tracking-wider border-2 border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
-                        >
-                          {prog.cleared ? 'Replay Area ★' : 'Enter Area Battle →'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <ElementalNodeMap
+                onCloseModal={() => setActiveModal(null)}
+                isFullScreen={isModalFullScreen}
+                onToggleFullScreen={() => setIsModalFullScreen((v) => !v)}
+              />
             )}
 
             {/* ===============================================================
@@ -1065,46 +1020,81 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2.5 border-t-2 border-[#e6d0a7] flex items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const coins = currentUser?.lexiCoins ?? 0;
-                              if (coins < 50) {
-                                triggerToast('Need 50 Lexi-Coins to train!');
-                                return;
-                              }
-                              updateProfile({ lexiCoins: coins - 50 });
-                              levelUpPet(pet.id, 1);
-                              triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
-                            }}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
-                          >
-                            Train (+1 Lv · 50 🪙)
-                          </button>
+                         <div className="mt-3 pt-2.5 border-t-2 border-[#e6d0a7] space-y-2">
+                          {/* Improvement #13: Companion Bonding & Stat-Boosting Treats */}
+                          <div className="flex flex-wrap items-center gap-1">
+                            {(
+                              [
+                                { stat: 'hp', label: '🍎 +4 HP', title: 'Heart Berry (+4 Max HP)' },
+                                { stat: 'attack', label: '🌶️ +2 ATK', title: 'Blaze Pepper (+2 Attack)' },
+                                { stat: 'defense', label: '🪨 +2 DEF', title: 'Iron Truffle (+2 Defense)' },
+                                { stat: 'speed', label: '⚡ +2 SPD', title: 'Volt Melon (+2 Speed)' },
+                              ] as const
+                            ).map((treat) => (
+                              <button
+                                key={treat.stat}
+                                type="button"
+                                title={`${treat.title} · 25 Lexi-Coins`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const coins = currentUser?.lexiCoins ?? 0;
+                                  if (coins < 25) {
+                                    triggerToast('Need 25 Lexi-Coins for a Bonding Treat!');
+                                    return;
+                                  }
+                                  updateProfile({ lexiCoins: coins - 25 });
+                                  feedPetStatTreat(pet.id, treat.stat);
+                                  juice.ding(840, 110);
+                                  triggerToast(`Fed ${treat.title} to ${pet.name}!`);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-[#e8f5e9] hover:bg-[#a5d6a7] border border-[#1a162b] text-[10px] font-black text-[#1b5e20] cursor-pointer"
+                              >
+                                {treat.label}
+                              </button>
+                            ))}
+                          </div>
 
-                          {readyToEvolve ? (
+                          <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                juice.fanfare();
-                                setEvolvingCreatureId(pet.id);
+                                const coins = currentUser?.lexiCoins ?? 0;
+                                if (coins < 50) {
+                                  triggerToast('Need 50 Lexi-Coins to train!');
+                                  return;
+                                }
+                                updateProfile({ lexiCoins: coins - 50 });
+                                levelUpPet(pet.id, 1);
+                                triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
                               }}
-                              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
                             >
-                              <Sparkles className="w-3.5 h-3.5" /> Evolve!
+                              Train (+1 Lv · 50 🪙)
                             </button>
-                          ) : petStage < maxStage ? (
-                            <span className="text-[10px] font-black text-[#5d4037]">
-                              Evolves at Lv.{pet.evolvesAtLevel || 10}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-black text-[#e65100]">
-                              ★ Max Form
-                            </span>
-                          )}
+
+                            {readyToEvolve ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  juice.fanfare();
+                                  setEvolvingCreatureId(pet.id);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" /> Evolve!
+                              </button>
+                            ) : petStage < maxStage ? (
+                              <span className="text-[10px] font-black text-[#5d4037]">
+                                Evolves at Lv.{pet.evolvesAtLevel || 10}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black text-[#e65100]">
+                                ★ Max Form
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1192,10 +1182,80 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                   </div>
                 </div>
 
+                {/* Improvement #11 & #12: Shopkeeper Barnaby & Explorer Field Gear Counter */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fef3c7] via-[#fde68a] to-[#fcd34d] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-[#1a162b]/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-[#78350f] border-2 border-[#1a162b] flex items-center justify-center text-2xl shadow">
+                        🦉
+                      </div>
+                      <div>
+                        <div className="font-display font-black text-base text-[#1a162b]">
+                          Shopkeeper Barnaby&apos;s Explorer Outfitter Counter
+                        </div>
+                        <p className="text-xs font-bold text-[#5d4037]">
+                          &ldquo;Equip a Fossil Ranger hat or Expedition Coat for your journey across the 9 Realms!&rdquo;
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-xl bg-[#1a162b] text-[#ffd54f] font-mono text-[11px] font-black self-start sm:self-center">
+                      Wearing: {currentUser?.avatarConfig?.headgearEmoji || '🎩'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                      { hat: '🤠', name: 'Fossil Ranger Hat', theme: '#b45309', cost: 60 },
+                      { hat: '👑', name: 'Crown of Syntax', theme: '#7e22ce', cost: 90 },
+                      { hat: '🥽', name: 'Forge Goggles', theme: '#dc2626', cost: 60 },
+                      { hat: '🪖', name: 'Valor Knight Helm', theme: '#0284c7', cost: 80 },
+                    ].map((gear) => {
+                      const isEquipped = currentUser?.avatarConfig?.headgearEmoji === gear.hat;
+                      return (
+                        <button
+                          key={gear.name}
+                          type="button"
+                          onClick={() => {
+                            if (isEquipped) return;
+                            const coins = currentUser?.lexiCoins ?? 0;
+                            if (coins < gear.cost) {
+                              triggerToast(`Need ${gear.cost} Lexi-Coins for ${gear.name}!`);
+                              return;
+                            }
+                            if (currentUser) {
+                              updateProfile({
+                                lexiCoins: coins - gear.cost,
+                                avatarConfig: {
+                                  ...currentUser.avatarConfig,
+                                  headgearEmoji: gear.hat,
+                                  colorTheme: gear.theme,
+                                },
+                              });
+                            }
+                            juice.fanfare();
+                            triggerToast(`Equipped ${gear.hat} ${gear.name}!`);
+                          }}
+                          className={`p-2.5 rounded-xl border-2 border-[#1a162b] flex flex-col items-center text-center transition cursor-pointer ${
+                            isEquipped
+                              ? 'bg-[#2e7d32] text-white shadow-[0_2px_0_#1a162b]'
+                              : 'bg-white hover:bg-[#fff8e7] text-[#1a162b] shadow-[0_3px_0_#1a162b]'
+                          }`}
+                        >
+                          <span className="text-2xl">{gear.hat}</span>
+                          <span className="font-display font-black text-xs mt-1">{gear.name}</span>
+                          <span className="text-[10px] font-black mt-1 opacity-90">
+                            {isEquipped ? '✓ Equipped' : `${gear.cost} 🪙`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {openedBoosterCards && (
                   <div className="p-4 rounded-2xl bg-[#1a162b] text-white border-[3px] border-[#ffd54f]">
                     <div className="text-xs font-black uppercase tracking-wider text-[#ffd54f] mb-3 text-center">
-                      ✨ Click Cards to Flip &amp; Speak Aloud! ✨
+                      ✨ Click Word Tablets to Flip &amp; Speak Aloud! ✨
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {openedBoosterCards.map((card, idx) => {
@@ -1253,7 +1313,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                   },
                   {
                     id: 'quest-2',
-                    title: 'Unlock 50+ K–8 Vocabulary Words in Your Grimoire',
+                    title: 'Unlock 50+ K–8 Word Tablets in Your Lexicon Field Guide',
                     coins: 150,
                     tokens: 3,
                     ready: allWords.length >= 50,
@@ -1367,6 +1427,46 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
 
             {activeModal === 'settings' && (
               <div className="space-y-4">
+                {/* Improvement #15: Adaptive K–8 Grade Band Selector */}
+                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2.5">
+                  <div>
+                    <div className="font-display font-black text-base text-[#1a162b]">
+                      🎓 Adaptive K–8 Vocabulary Grade Band
+                    </div>
+                    <div className="text-xs font-semibold text-[#5d4037]">
+                      Filter default Word Tablets in battle and tailor your Explorer experience
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(
+                      [
+                        { id: 'all', label: 'All K–8 Tiers', desc: 'Complete Catalog' },
+                        { id: 'k-2', label: 'Grades K–2', desc: 'Sprout Foundations' },
+                        { id: '3-5', label: 'Grades 3–5', desc: 'Core Elementary' },
+                        { id: '6-8', label: 'Grades 6–8', desc: 'High-Achiever Extender' },
+                      ] as const
+                    ).map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          setPreferredGradeBand(b.id);
+                          juice.click();
+                          triggerToast(`Grade Band set to ${b.label}!`);
+                        }}
+                        className={`p-2.5 rounded-xl border-2 border-[#1a162b] text-left cursor-pointer transition ${
+                          preferredGradeBand === b.id
+                            ? 'bg-[#ffd54f] text-[#1a162b] shadow-[0_3px_0_#1a162b]'
+                            : 'bg-[#fff8e7] hover:bg-[#ffe082] text-[#1a162b]'
+                        }`}
+                      >
+                        <div className="font-display font-black text-xs">{b.label}</div>
+                        <div className="text-[10px] font-bold text-[#5d4037]">{b.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
                   <div>
                     <div className="font-display font-black text-base">

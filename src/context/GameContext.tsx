@@ -38,15 +38,34 @@ interface GameContextType {
   updatePetLoadout: (petId: string, slot: PartOfSpeech, wordId: string | null) => void;
   autoEquipBestLoadout: (petId: string, preferredTier?: GradeTier | 'all') => void;
   levelUpPet: (petId: string, levels?: number) => void;
+  feedPetStatTreat: (petId: string, stat: 'hp' | 'attack' | 'defense' | 'speed') => void;
+  recruitWildCompanion: (zoneId: string) => Creature | null;
   trainPetWithCoins: (petId: string, coinCost?: number) => { success: boolean; error?: string };
   evolvePet: (petId: string) => { success: boolean; evolvedCreature: Creature };
   activeZoneId: string;
   setActiveZoneId: (zoneId: string) => void;
+  activeNodeId: string;
+  setActiveNodeId: (nodeId: string) => void;
+  activeEnemyName: string | null;
+  activeEnemyStage: 1 | 2 | 3;
   enemyId: string;
   setEnemyId: (id: string) => void;
   zoneProgress: Record<string, { stars: number; cleared: boolean }>;
+  nodeProgress: Record<string, { stars: number; cleared: boolean }>;
   startBattleInZone: (zoneId: string, customEnemyId?: string) => void;
+  startBattleAtNode: (
+    zoneId: string,
+    nodeId: string,
+    customEnemyId?: string,
+    customEnemyName?: string,
+    customStage?: 1 | 2 | 3
+  ) => void;
   completeZone: (zoneId: string, stars?: number) => void;
+  completeMapNode: (zoneId: string, nodeId: string, stars?: number) => void;
+  returnToWordWorldMap: boolean;
+  setReturnToWordWorldMap: (val: boolean) => void;
+  preferredGradeBand: 'all' | 'k-2' | '3-5' | '6-8';
+  setPreferredGradeBand: (band: 'all' | 'k-2' | '3-5' | '6-8') => void;
   resetAll: () => void;
 }
 
@@ -299,6 +318,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const [activeZoneId, setActiveZoneId] = useState<string>('area-grass');
+  const [activeNodeId, setActiveNodeId] = useState<string>('1-1');
+  const [activeEnemyName, setActiveEnemyName] = useState<string | null>(null);
+  const [activeEnemyStage, setActiveEnemyStage] = useState<1 | 2 | 3>(3);
+  const [returnToWordWorldMap, setReturnToWordWorldMap] = useState<boolean>(false);
+  const [preferredGradeBand, setPreferredGradeBandState] = useState<'all' | 'k-2' | '3-5' | '6-8'>(() => {
+    try {
+      const saved = localStorage.getItem('wb_grade_band');
+      if (saved === 'k-2' || saved === '3-5' || saved === '6-8') return saved;
+    } catch {}
+    return 'all';
+  });
+
+  const setPreferredGradeBand = (band: 'all' | 'k-2' | '3-5' | '6-8') => {
+    setPreferredGradeBandState(band);
+    try {
+      localStorage.setItem('wb_grade_band', band);
+    } catch {}
+  };
   const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
   const [zoneProgress, setZoneProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
     try {
@@ -323,11 +360,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   });
 
+  const [nodeProgress, setNodeProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
+    try {
+      const saved = localStorage.getItem('wb_node_progress');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      '1-1': { stars: 3, cleared: true },
+      '1-2': { stars: 3, cleared: true },
+      '1-3': { stars: 2, cleared: true },
+      '2-1': { stars: 3, cleared: true },
+    };
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem('wb_zone_progress', JSON.stringify(zoneProgress));
     } catch {}
   }, [zoneProgress]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('wb_node_progress', JSON.stringify(nodeProgress));
+    } catch {}
+  }, [nodeProgress]);
 
   const completeZone = (zoneId: string, stars = 3) => {
     setZoneProgress((prev) => {
@@ -340,6 +396,35 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       };
     });
+  };
+
+  const completeMapNode = (zoneId: string, nodeId: string, stars = 3) => {
+    setNodeProgress((prev) => {
+      const current = prev[nodeId] || { stars: 0, cleared: false };
+      return {
+        ...prev,
+        [nodeId]: {
+          stars: Math.max(current.stars, Math.min(3, Math.max(1, stars))),
+          cleared: true,
+        },
+      };
+    });
+
+    const stageNum = Number(nodeId.split('-')[1] || 1);
+    if (stageNum >= 10) {
+      completeZone(zoneId, stars);
+    } else {
+      setZoneProgress((prev) => {
+        const current = prev[zoneId] || { stars: 0, cleared: false };
+        return {
+          ...prev,
+          [zoneId]: {
+            stars: Math.max(current.stars, Math.min(3, stars)),
+            cleared: current.cleared,
+          },
+        };
+      });
+    }
   };
 
   // Combat Engine Instance
@@ -384,6 +469,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const startBattleInZone = (zoneId: string, customEnemyId?: string) => {
     setActiveZoneId(zoneId);
+    setActiveEnemyName(null);
+    setActiveEnemyStage(3);
     const chosenEnemy = customEnemyId || ZONE_TO_BOSS[zoneId] || 'boss_ruptor';
 
     setEnemyId(chosenEnemy);
@@ -394,6 +481,49 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       words,
     });
     setBattleState(freshBattle.getState());
+    juice.fanfare();
+    setTab('battle');
+  };
+
+  const startBattleAtNode = (
+    zoneId: string,
+    nodeId: string,
+    customEnemyId?: string,
+    customEnemyName?: string,
+    customStage?: 1 | 2 | 3
+  ) => {
+    setActiveZoneId(zoneId);
+    setActiveNodeId(nodeId);
+    setReturnToWordWorldMap(true);
+    const chosenEnemy = customEnemyId || ZONE_TO_BOSS[zoneId] || 'boss_galecrest';
+    const stageNum = Number(nodeId.split('-')[1] || 10);
+    const resolvedStage: 1 | 2 | 3 =
+      customStage || (stageNum >= 10 ? 3 : stageNum === 5 ? 2 : 1);
+
+    setActiveEnemyName(customEnemyName || null);
+    setActiveEnemyStage(resolvedStage);
+    setEnemyId(chosenEnemy);
+    const freshBattle = createBattle({
+      playerId,
+      enemyId: chosenEnemy,
+      creatures,
+      words,
+    });
+
+    const baseState = freshBattle.getState();
+    const hpScale = stageNum >= 10 ? 1.0 : stageNum === 5 ? 0.8 : 0.65;
+    const scaledMaxHp = Math.max(36, Math.round((baseState.enemy.maxHp || baseState.enemy.stats.hp) * hpScale));
+
+    setBattleState({
+      ...baseState,
+      enemy: {
+        ...baseState.enemy,
+        name: customEnemyName || baseState.enemy.name,
+        stage: resolvedStage,
+        currentHp: scaledMaxHp,
+        maxHp: scaledMaxHp,
+      },
+    });
     juice.fanfare();
     setTab('battle');
   };
@@ -429,7 +559,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (nextState.phase === 'BATTLE_END') {
       if (nextState.winner === battleState.player.id) {
-        completeZone(activeZoneId, 3);
+        const remainingRatio =
+          (nextState.player.currentHp ?? nextState.player.stats.hp) /
+          Math.max(1, nextState.player.maxHp ?? nextState.player.stats.hp);
+        const earnedStars = remainingRatio >= 0.6 ? 3 : remainingRatio >= 0.3 ? 2 : 1;
+        completeMapNode(activeZoneId, activeNodeId, earnedStars);
+        completeZone(activeZoneId, earnedStars);
         setTimeout(() => juice.fanfare(), 600);
       }
     }
@@ -542,6 +677,54 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     juice.ding(880, 150);
   };
 
+  const feedPetStatTreat = (petId: string, stat: 'hp' | 'attack' | 'defense' | 'speed') => {
+    setCreatures((prev) =>
+      prev.map((c) => {
+        if (c.id !== petId) return c;
+        const nextHp = stat === 'hp' ? c.stats.hp + 4 : c.stats.hp;
+        return {
+          ...c,
+          stats: {
+            hp: nextHp,
+            attack: stat === 'attack' ? c.stats.attack + 2 : c.stats.attack,
+            defense: stat === 'defense' ? c.stats.defense + 2 : c.stats.defense,
+            speed: stat === 'speed' ? c.stats.speed + 2 : c.stats.speed,
+          },
+          maxHp: stat === 'hp' ? (c.maxHp || c.stats.hp) + 4 : c.maxHp || c.stats.hp,
+        };
+      })
+    );
+    juice.ding(960, 140);
+  };
+
+  const recruitWildCompanion = (zoneId: string): Creature | null => {
+    const ZONE_ELEMENT_MAP: Record<string, ElementType> = {
+      'area-grass': 'grass',
+      'area-water': 'water',
+      'area-earth': 'earth',
+      'area-fire': 'fire',
+      'area-ice': 'ice',
+      'area-air': 'air',
+      'area-electric': 'electric',
+      'area-shadow': 'shadow',
+      'area-light': 'light',
+    };
+    const elem = ZONE_ELEMENT_MAP[zoneId] || 'grass';
+    const existing = creatures.find((c) => !c.id.startsWith('boss_') && c.element === elem);
+    if (existing) {
+      levelUpPet(existing.id, 1);
+      return existing;
+    }
+    const wildPet = createStarterCreature(elem, getAllWordsList(words));
+    setCreatures((prev) => [...prev, wildPet]);
+    setGameState((prev) => ({
+      ...prev,
+      unlockedPetIds: Array.from(new Set([...prev.unlockedPetIds, wildPet.id])),
+    }));
+    juice.fanfare();
+    return wildPet;
+  };
+
   const trainPetWithCoins = (petId: string, coinCost = 50): { success: boolean; error?: string } => {
     try {
       const rawUser = localStorage.getItem('wb_player_profile');
@@ -617,15 +800,28 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePetLoadout,
         autoEquipBestLoadout,
         levelUpPet,
+        feedPetStatTreat,
+        recruitWildCompanion,
         trainPetWithCoins,
         evolvePet,
         activeZoneId,
         setActiveZoneId,
+        activeNodeId,
+        setActiveNodeId,
+        activeEnemyName,
+        activeEnemyStage,
         enemyId,
         setEnemyId,
         zoneProgress,
+        nodeProgress,
         startBattleInZone,
+        startBattleAtNode,
         completeZone,
+        completeMapNode,
+        returnToWordWorldMap,
+        setReturnToWordWorldMap,
+        preferredGradeBand,
+        setPreferredGradeBand,
         resetAll,
       }}
     >

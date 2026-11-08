@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Shield,
   Volume2,
   RotateCcw,
-  Sparkles,
   Swords,
   Heart,
   Zap,
   Award,
-  Sliders,
   Map,
-  Wand2,
-  BookOpen,
   FastForward,
   Target,
 } from 'lucide-react';
@@ -223,10 +218,17 @@ export const BattleView: React.FC = () => {
     restartBattle,
     goToLoadout,
     activeZoneId,
+    activeNodeId,
+    setActiveNodeId,
+    setReturnToWordWorldMap,
     setTab,
     levelUpPet,
     evolvePet,
     updatePetLoadout,
+    activeEnemyName,
+    activeEnemyStage,
+    preferredGradeBand,
+    setPreferredGradeBand,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -236,8 +238,10 @@ export const BattleView: React.FC = () => {
   const [fastMode, setFastMode] = useState(false);
   const [hoveredCmd, setHoveredCmd] = useState<string>('ultimate');
   const [projectileBurst, setProjectileBurst] = useState<boolean>(false);
+  const [tagTeamComboActive, setTagTeamComboActive] = useState<boolean>(false);
 
   const [playerAnim, setPlayerAnim] = useState<'idle' | 'lunge' | 'hit'>('idle');
+  const [sidekickAnim, setSidekickAnim] = useState<'idle' | 'lunge'>('idle');
   const [enemyAnim, setEnemyAnim] = useState<'idle' | 'lunge' | 'hit'>('idle');
   const [floatingNumbers, setFloatingNumbers] = useState<
     { id: number; target: 'player' | 'enemy'; text: string; color: string }[]
@@ -423,8 +427,16 @@ export const BattleView: React.FC = () => {
     setSelectedWordIds([word.id]);
   };
 
-  const handleCastSpell = () => {
+  const handleLaunchWordStrike = () => {
     if (isBattleOver || !previewCombo.valid || selectedWords.length === 0) return;
+    if (selectedWords.length === 4) {
+      setSidekickAnim('lunge');
+      setTagTeamComboActive(true);
+      setTimeout(() => {
+        setSidekickAnim('idle');
+        setTagTeamComboActive(false);
+      }, 900);
+    }
     submitCombo(
       selectedWords[0].id,
       selectedWords[1]?.id || null,
@@ -433,6 +445,44 @@ export const BattleView: React.FC = () => {
     );
     setSelectedWordIds([]);
   };
+
+  const displayEnemyName = activeEnemyName || enemy.name;
+  const displayEnemyStage: 1 | 2 | 3 = activeEnemyStage || 3;
+  const enemyStageBadge =
+    displayEnemyStage === 1
+      ? '★ Vanguard 12'
+      : displayEnemyStage === 2
+      ? '★★ Mid-Boss 20'
+      : '★★★ Guardian 30';
+
+  // Improvement #8: Tactical Enemy Intent & Telegraph Bubble
+  const enemyIntent =
+    roundNumber % 3 === 1
+      ? {
+          icon: '⚔️',
+          title: 'Heavy Crush Incoming',
+          hint: 'Counter: Build a 2-Word Shield (Adj + Noun)!',
+          actionLabel: 'Auto-Guard',
+          onCounter: handleQuick2WordShield,
+          color: 'from-amber-500 to-orange-600 border-amber-200',
+        }
+      : roundNumber % 3 === 2
+      ? {
+          icon: '🛡️',
+          title: 'Iron Guard Stance',
+          hint: 'Counter: Pierce with a 2-Word Strike (Adv + Verb)!',
+          actionLabel: 'Auto-Pierce',
+          onCounter: handleQuick2WordStrike,
+          color: 'from-sky-500 to-blue-600 border-sky-200',
+        }
+      : {
+          icon: '⚡',
+          title: 'Elemental Surge Charging',
+          hint: 'Counter: Weave a 4-Word Tag-Team Ultimate!',
+          actionLabel: 'Weave 4-Word',
+          onCounter: handleWeaveFullSentence,
+          color: 'from-purple-600 to-rose-600 border-yellow-300',
+        };
 
   const playerHpPct = Math.max(
     0,
@@ -448,9 +498,14 @@ export const BattleView: React.FC = () => {
   const playerWeakElem = ELEMENTS[OPPOSITE_ELEMENT[player.element] || 'water'] || ELEMENTS.water;
   const enemyWeakElem = ELEMENTS[OPPOSITE_ELEMENT[enemy.element] || 'fire'] || ELEMENTS.fire;
 
-  const filteredReserveWords = allWords.filter((w) =>
-    gradeFilter === 'all' ? true : (w.gradeTier || '3') === gradeFilter
-  );
+  const filteredReserveWords = allWords.filter((w) => {
+    const tier = w.gradeTier || '3';
+    if (gradeFilter !== 'all') return tier === gradeFilter;
+    if (preferredGradeBand === 'k-2') return ['K', '1', '2'].includes(tier);
+    if (preferredGradeBand === '3-5') return ['3', '4', '5'].includes(tier);
+    if (preferredGradeBand === '6-8') return ['5', 'extender'].includes(tier);
+    return true;
+  });
 
   // Power Pip Bar (Prodigy "Power: ■■■■□" style)
   const powerFilledPips = Math.min(
@@ -612,7 +667,7 @@ export const BattleView: React.FC = () => {
               <ellipse cx="1135" cy="342" rx="56" ry="16" fill="#a8a29e" />
             </g>
 
-            {/* Spell Starburst Projectile Trail on Attack (Prodigy Reference #3) */}
+            {/* Word Strike Starburst Projectile Trail + 2-Pet Tag-Team Beam on Attack */}
             {projectileBurst && (
               <g>
                 <line
@@ -625,6 +680,19 @@ export const BattleView: React.FC = () => {
                   strokeLinecap="round"
                   opacity="0.75"
                 />
+                {tagTeamComboActive && (
+                  <line
+                    x1="160"
+                    y1="390"
+                    x2="880"
+                    y2="320"
+                    stroke="#facc15"
+                    strokeWidth="10"
+                    strokeDasharray="14 6"
+                    strokeLinecap="round"
+                    opacity="0.9"
+                  />
+                )}
                 <circle cx="720" cy="320" r="45" fill="url(#starBurst)" />
                 <polygon
                   points="720,285 730,308 755,310 735,326 742,350 720,336 698,350 705,326 685,310 710,308"
@@ -722,7 +790,7 @@ export const BattleView: React.FC = () => {
                     : `${player.name}'s Turn!`}
                 </div>
                 <div className="text-[10px] font-black uppercase tracking-wider text-[#fde047]">
-                  {biome.title}
+                  Stage {activeNodeId} · {biome.title}
                 </div>
               </div>
 
@@ -750,7 +818,7 @@ export const BattleView: React.FC = () => {
                   <div className="skew-x-12 flex items-center gap-2">
                     <span className="text-base">{enemyElem.icon}</span>
                     <span className="font-display text-xs sm:text-sm font-black text-white drop-shadow-[0_1.5px_0_#1a162b]">
-                      {enemy.name}
+                      {displayEnemyName}
                     </span>
                     <span className="rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[10px] font-black text-[#4ade80]">
                       {enemyHpPct}%
@@ -820,7 +888,7 @@ export const BattleView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Reserve Sidekick Companion */}
+                {/* Reserve Sidekick Companion (with Improvement #9 Tag-Team Combo Lunge) */}
                 {sidekickPet && (
                   <button
                     type="button"
@@ -829,14 +897,24 @@ export const BattleView: React.FC = () => {
                       restartBattle(sidekickPet.id);
                     }}
                     title={`Tag in ${sidekickPet.name}`}
-                    className="group flex flex-col items-center cursor-pointer transition-transform hover:scale-105"
+                    className={`group relative flex flex-col items-center cursor-pointer transition-transform ${
+                      sidekickAnim === 'lunge'
+                        ? 'translate-x-8 -translate-y-3 scale-115'
+                        : 'hover:scale-105'
+                    }`}
                   >
+                    {tagTeamComboActive && (
+                      <span className="absolute -top-5 whitespace-nowrap rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.5 font-display text-[9px] font-black uppercase text-[#1a162b] shadow animate-bounce">
+                        ⚡ Tag-Team Assist!
+                      </span>
+                    )}
                     <CreatureSprite
                       creatureId={sidekickPet.forged?.sourceId || sidekickPet.id}
                       stage={sidekickPet.stage || 1}
                       element={sidekickPet.element}
                       size="sm"
                       facing="right"
+                      isAttacking={sidekickAnim === 'lunge'}
                     />
                     <div className="rounded-md border border-[#1a162b] bg-emerald-950/90 px-2 py-0.5 text-[9px] font-black text-emerald-300">
                       Swap: {sidekickPet.name}
@@ -913,7 +991,7 @@ export const BattleView: React.FC = () => {
               <div className="relative rounded-2xl border-[4px] border-[#451a03] bg-[#5c3a21] p-2.5 shadow-[0_6px_0_#271306]">
                 <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
                   <span className="font-display text-[11px] font-black uppercase tracking-wider text-[#fde047]">
-                    ⚡ Syntax Rune Matrix
+                    🦴 Word Tablet Matrix
                   </span>
                   <span className="rounded bg-[#271306] px-1.5 py-0.5 font-mono text-[10px] font-black text-amber-200">
                     {selectedWords.length}/4 Linked
@@ -1012,8 +1090,32 @@ export const BattleView: React.FC = () => {
 
             {/* RIGHT 4 COLS: GUARDIAN BOSS + SENTINEL ON STEPPED STONE PEDESTALS */}
             <div className="md:col-span-4 relative flex items-end justify-center gap-2 min-h-[230px]">
-              {/* Main Guardian Boss + Prodigy Inline Floating HP Bar (Reference #3) */}
+              {/* Main Guardian Boss + Enemy Intent Telegraph (#8) + Distinct Stage (#10) */}
               <div className="relative flex flex-col items-center">
+                {/* Improvement #8: Tactical Enemy Intent Telegraph Bubble */}
+                {!isBattleOver && (
+                  <div
+                    className={`mb-1.5 flex items-center justify-between gap-2 rounded-2xl border-2 bg-gradient-to-r ${enemyIntent.color} px-3 py-1 text-white shadow-[0_3px_0_#1a162b] max-w-[250px]`}
+                  >
+                    <div className="text-left leading-tight">
+                      <div className="font-display text-[10px] font-black uppercase tracking-wide flex items-center gap-1">
+                        <span>{enemyIntent.icon}</span>
+                        <span>{enemyIntent.title}</span>
+                      </div>
+                      <div className="text-[9px] font-bold text-white/95">
+                        {enemyIntent.hint}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={enemyIntent.onCounter}
+                      className="shrink-0 rounded-lg border border-[#1a162b] bg-[#fde047] hover:bg-white px-2 py-0.5 font-display text-[9px] font-black uppercase text-[#1a162b] shadow cursor-pointer"
+                    >
+                      {enemyIntent.actionLabel}
+                    </button>
+                  </div>
+                )}
+
                 {floatingNumbers
                   .filter((f) => f.target === 'enemy')
                   .map((f) => (
@@ -1027,9 +1129,9 @@ export const BattleView: React.FC = () => {
 
                 <CreatureSprite
                   creatureId={enemy.id}
-                  stage={3}
+                  stage={displayEnemyStage}
                   element={enemy.element}
-                  size="xl"
+                  size={displayEnemyStage === 1 ? 'lg' : 'xl'}
                   facing="left"
                   isAttacking={enemyAnim === 'lunge'}
                   isHit={enemyAnim === 'hit'}
@@ -1042,7 +1144,7 @@ export const BattleView: React.FC = () => {
                       Weak to {enemyWeakElem.icon}
                     </span>
                     <span className="font-display text-xs text-rose-300 truncate">
-                      {enemy.name}
+                      {displayEnemyName}
                     </span>
                   </div>
                   <div className="relative h-4 w-full overflow-hidden rounded-md border-2 border-[#1a162b] bg-slate-950">
@@ -1056,7 +1158,7 @@ export const BattleView: React.FC = () => {
                   </div>
                   <div className="mt-1 flex items-center justify-between">
                     <span className="rounded bg-[#0f172a] border border-rose-400/50 px-1.5 py-0.2 font-mono text-[10px] font-black text-rose-300">
-                      ★ Boss 30
+                      {enemyStageBadge}
                     </span>
                     <div className="flex items-center gap-1">
                       {(enemy.shield ?? 0) > 0 && (
@@ -1096,23 +1198,39 @@ export const BattleView: React.FC = () => {
                 </h3>
                 <p className="text-xs sm:text-sm font-bold text-[#4e342e]">
                   {winner === player.id
-                    ? `${player.name} conquered ${biome.title}! Earned +65 Lexi-Coins, +1 Fusion Gem, and +1 Pet Level!`
-                    : `${enemy.name} held the realm this time. Weave a 4-Card Ultimate Sentence or exploit its ${enemyWeakElem.name} weakness!`}
+                    ? `${player.name} cleared Stage ${activeNodeId} in ${biome.title}! Earned ★ Stars, +65 Lexi-Coins, +1 Fusion Gem, and +1 Pet Level!`
+                    : `${enemy.name} held Stage ${activeNodeId} this time. Weave a 4-Tablet Ultimate Sentence or exploit its ${enemyWeakElem.name} weakness!`}
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
                   <button
                     type="button"
                     onClick={() => restartBattle()}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#ffd54f] hover:bg-[#ffca28] px-5 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#ffd54f] hover:bg-[#ffca28] px-4 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
                     Battle Again
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTab('hub')}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#4caf50] hover:bg-[#66bb6a] px-5 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    onClick={() => {
+                      const parts = activeNodeId.split('-');
+                      const zNum = Number(parts[0] || 1);
+                      const sNum = Number(parts[1] || 1);
+                      if (winner === player.id && sNum < 10) {
+                        setActiveNodeId(`${zNum}-${sNum + 1}`);
+                      }
+                      setReturnToWordWorldMap(true);
+                      setTab('hub');
+                    }}
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#38bdf8] to-[#0284c7] hover:brightness-110 px-4 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    Return to World Map
+                    🗺️ Next Stage on Node Map →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTab('hub')}
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#4caf50] hover:bg-[#66bb6a] px-4 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    Sanctuary Hub
                   </button>
                 </div>
               </div>
@@ -1194,27 +1312,27 @@ export const BattleView: React.FC = () => {
             </div>
           </div>
 
-          {/* CENTER 5 COLS: PRODIGY LEATHER SPELLBOOK + 4 VERTICAL SPELL CARDS (Reference #3) */}
+          {/* CENTER 5 COLS: LEXICON FIELD GUIDE + 4 VERTICAL WORD TABLET CARDS (Reference #3) */}
           <div className="lg:col-span-5 flex items-stretch gap-2">
-            {/* Chunky Leather Grimoire Spellbook Toggle Button (Reference #3 Bottom-Left) */}
+            {/* Chunky Leather Lexicon Field Guide Toggle Button */}
             <button
               type="button"
               onClick={() => setShowReserveDrawer((prev) => !prev)}
               className="flex flex-col items-center justify-center gap-1 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#b45309] via-[#92400e] to-[#5c2d0c] px-3 py-2 text-white shadow-[0_5px_0_#1a162b] hover:brightness-110 cursor-pointer shrink-0 w-20"
-              title="Open K–8 Vocabulary Grimoire"
+              title="Open K–8 Lexicon Field Guide"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-[#fde68a] bg-[#fef3c7] text-2xl text-[#92400e] shadow-inner">
-                ⭐
+                🦴
               </div>
               <span className="font-display text-[10px] font-black uppercase tracking-wider text-[#fef3c7] text-center leading-tight">
-                {showReserveDrawer ? 'Close Book' : 'Grimoire'}
+                {showReserveDrawer ? 'Close Guide' : 'Field Guide'}
               </span>
               <span className="font-mono text-[9px] font-bold text-amber-200">
-                {allWords.length} Words
+                {allWords.length} Tablets
               </span>
             </button>
 
-            {/* 4 Prodigy-Style Vertical Spell Cards */}
+            {/* 4 Vertical Word Tablet Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
               {runeSlots.map(({ pos, label, word }) => {
                 if (!word) return null;
@@ -1261,7 +1379,7 @@ export const BattleView: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Central Spell Icon Illustration */}
+                    {/* Central Word Tablet Icon Illustration */}
                     <div className="my-1.5 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/75 py-2 text-center">
                       <span className="text-2xl drop-shadow">{elemInfo.icon}</span>
                       <span className="font-display text-sm font-black text-[#1a162b] truncate max-w-full px-1">
@@ -1269,7 +1387,7 @@ export const BattleView: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Bottom Corner Badge (Prodigy Reference #3) */}
+                    {/* Bottom Corner Badge */}
                     <div className="flex items-center justify-between text-[10px] font-black">
                       <span
                         className={`rounded px-1 py-0.2 border border-[#1a162b] ${tierMeta.badgeBg} ${tierMeta.badgeText}`}
@@ -1290,7 +1408,7 @@ export const BattleView: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT 4 COLS: PRODIGY "SPELL INSPECTOR" PARCHMENT CARD & CAST BUTTON (Reference #3) */}
+          {/* RIGHT 4 COLS: WORD TABLET INSPECTOR CARD & STRIKE BUTTON */}
           <div className="lg:col-span-4 flex items-stretch gap-2 rounded-2xl border-[3px] border-[#2dd4bf] bg-[#fef9c3] p-3 text-[#1a162b] shadow-[0_5px_0_#0f766e]">
             <div className="flex-1 flex flex-col justify-between">
               <div>
@@ -1298,14 +1416,14 @@ export const BattleView: React.FC = () => {
                   <span className="font-display text-sm sm:text-base font-black text-[#1a162b] truncate">
                     {selectedWords.length > 0
                       ? `“${previewCombo.phrase}”`
-                      : 'Tap Cards or Command to Weave'}
+                      : 'Tap Word Tablets or Command to Weave'}
                   </span>
                 </div>
 
-                {/* Prodigy-Style Power Pips, Aim, and Effect Rows */}
+                {/* Power Pips, Syntax, and Effect Rows */}
                 <div className="mt-1.5 space-y-1 text-xs font-bold">
                   <div className="flex items-center gap-2">
-                    <Wand2 className="h-3.5 w-3.5 text-[#1a162b]" />
+                    <Swords className="h-3.5 w-3.5 text-[#1a162b]" />
                     <span className="w-14 font-black">Power:</span>
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map((pip) => (
@@ -1330,7 +1448,7 @@ export const BattleView: React.FC = () => {
                         : selectedWords.length === 2
                         ? 'Excellent Combo'
                         : selectedWords.length === 1
-                        ? 'Single Cast'
+                        ? 'Single Strike'
                         : 'Ready'}
                     </span>
                   </div>
@@ -1341,19 +1459,19 @@ export const BattleView: React.FC = () => {
                     <span className="truncate font-semibold text-[#451a03]">
                       {selectedWords.length > 0
                         ? previewCombo.effectName
-                        : 'Select 1, 2, or 4 Word Cards'}
+                        : 'Select 1, 2, or 4 Word Tablets'}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Cast & Clear Action Column */}
+            {/* Strike & Clear Action Column */}
             <div className="flex flex-col justify-between gap-1.5 shrink-0">
               <button
                 type="button"
                 disabled={!previewCombo.valid || isBattleOver}
-                onClick={handleCastSpell}
+                onClick={handleLaunchWordStrike}
                 className={`flex-1 flex flex-col items-center justify-center gap-1 rounded-xl border-[3px] px-4 py-2 font-display text-xs sm:text-sm font-black uppercase tracking-wider transition ${
                   previewCombo.valid && !isBattleOver
                     ? 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_4px_0_#1a162b] hover:brightness-105 cursor-pointer'
@@ -1361,7 +1479,7 @@ export const BattleView: React.FC = () => {
                 }`}
               >
                 <Swords className="h-5 w-5" />
-                <span>CAST</span>
+                <span>STRIKE</span>
               </button>
 
               {selectedWords.length > 0 && (
@@ -1378,26 +1496,39 @@ export const BattleView: React.FC = () => {
         </div>
 
         {/* ====================================================================
-            3. COLLAPSIBLE K–8 VOCABULARY GRIMOIRE DRAWER
+            3. COLLAPSIBLE K–8 LEXICON FIELD GUIDE DRAWER
            ==================================================================== */}
         {showReserveDrawer && (
           <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#fff8e7] p-3 shadow-[0_5px_0_#1a162b] space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-display text-xs sm:text-sm font-black text-[#1a162b]">
-                📖 K–8 Vocabulary Grimoire — Click Any Word to Equip &amp; Slot into Battle
+                📖 K–8 Lexicon Field Guide — Click Any Word Tablet to Equip &amp; Slot into Battle
               </span>
               <div className="flex flex-wrap items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setGradeFilter('all')}
-                  className={`rounded-lg px-2 py-0.5 text-[10px] font-black uppercase cursor-pointer ${
-                    gradeFilter === 'all'
-                      ? 'bg-[#1a162b] text-[#fde047]'
-                      : 'bg-amber-200/70 text-[#1a162b]'
-                  }`}
-                >
-                  All Tiers
-                </button>
+                {(
+                  [
+                    { id: 'all', label: 'All K–8' },
+                    { id: 'k-2', label: 'Grades K–2' },
+                    { id: '3-5', label: 'Grades 3–5' },
+                    { id: '6-8', label: 'Grades 6–8' },
+                  ] as const
+                ).map((band) => (
+                  <button
+                    key={band.id}
+                    type="button"
+                    onClick={() => {
+                      setPreferredGradeBand(band.id);
+                      setGradeFilter('all');
+                    }}
+                    className={`rounded-lg px-2 py-0.5 text-[10px] font-black uppercase cursor-pointer border border-[#1a162b] ${
+                      preferredGradeBand === band.id && gradeFilter === 'all'
+                        ? 'bg-[#2e7d32] text-white'
+                        : 'bg-emerald-100 text-[#1a162b]'
+                    }`}
+                  >
+                    {band.label}
+                  </button>
+                ))}
                 {GRADE_TIERS.map((t) => (
                   <button
                     key={t.id}

@@ -44,7 +44,7 @@ export const ARCHETYPE_OPTIONS = [
 export const HEADGEAR_OPTIONS = [
   { id: 'none', name: 'Natural / None', emoji: '✖️' },
   { id: 'crown', name: 'Crown of Syntax', emoji: '👑' },
-  { id: 'wizard', name: 'Rune Wizard Hat', emoji: '🧙‍♂️' },
+  { id: 'wizard', name: 'Fossil Ranger Hat', emoji: '🤠' },
   { id: 'helm', name: 'Valor Knight Helm', emoji: '🪖' },
   { id: 'cap', name: 'Explorer Cap', emoji: '🧢' },
   { id: 'goggles', name: 'Forge Goggles', emoji: '🥽' },
@@ -57,10 +57,10 @@ export const HEADGEAR_OPTIONS = [
 export const OUTFIT_OPTIONS = [
   { id: 'tunic', name: "Adventurer's Tunic", icon: '🥋', desc: 'Light & swift for overworld journeys' },
   { id: 'armor', name: 'Dragonplate Armor', icon: '🛡️', desc: 'Sturdy protection in heated arena duels' },
-  { id: 'robe', name: 'Mystic Scholar Robe', icon: '👘', desc: 'Woven with morphology enchantments' },
+  { id: 'robe', name: 'Scholar Field Coat', icon: '👘', desc: 'Woven for morphology expeditions' },
   { id: 'cape', name: 'Heroic Royal Cape', icon: '🦹', desc: 'Fluttering silk of vocabulary champions' },
-  { id: 'coat', name: 'Alchemist Lab Coat', icon: '🥼', desc: 'Stain-resistant for word forge experiments' },
-  { id: 'vest', name: 'Field Explorer Vest', icon: '🎽', desc: 'Packed with pockets for word cards' },
+  { id: 'coat', name: 'Paleontology Lab Coat', icon: '🥼', desc: 'Stain-resistant for word forge experiments' },
+  { id: 'vest', name: 'Field Explorer Vest', icon: '🎽', desc: 'Packed with pockets for word tablets' },
 ] as const;
 
 export const AURA_OPTIONS = [
@@ -76,7 +76,7 @@ export const AURA_OPTIONS = [
 ] as const;
 
 export const TITLE_OPTIONS = [
-  'Word Wizard',
+  'Fossil Ranger',
   'Grammar Knight',
   'Morphology Master',
   'Root Explorer',
@@ -93,7 +93,7 @@ export const DEFAULT_AVATAR_CONFIG: AvatarConfig = {
   headgearEmoji: '🧢',
   outfit: 'tunic',
   aura: 'fire',
-  title: 'Word Wizard',
+  title: 'Fossil Ranger',
   favoriteElement: 'fire',
   colorTheme: '#f97316',
 };

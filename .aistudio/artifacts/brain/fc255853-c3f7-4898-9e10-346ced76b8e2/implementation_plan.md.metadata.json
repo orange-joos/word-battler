@@ -1,6 +1,6 @@
 {
-  "summary":  "15-Point Monster-Tamer & JRPG Art and UI Overhaul Plan (inspired by Pokémon, Digimon, Amazing Island, Fossil Fighters, Final Fantasy, and the uploaded isometric island references) focused strictly on visual art and UI polish.",
-  "updatedAt":  "2026-11-08T13:00:05.378857772Z",
+  "summary":  "Updated implementation plan replacing Shrines with Fossil Excavation Dig Sites for buried Word Tablets and removing all 'spell' / 'spellbook' terminology across the entire game in favor of secular Word Tablets, Lexicon Field Guide, and Word Combos.",
+  "updatedAt":  "2026-11-08T15:21:47.733008266Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

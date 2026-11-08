@@ -5,10 +5,11 @@ import {
   Volume2,
   RotateCcw,
   Swords,
-  Check,
   Map,
   Flame,
   BookOpen,
+  Compass,
+  ArrowRight,
 } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +20,74 @@ import { ForgeToken, Word, Creature, GradeTier } from '../types';
 import { juice } from '../engine/juice';
 import { CreatureSprite } from './CreatureSprite';
 import { GRADE_TIERS, getGradeTierMeta } from '../data/vocabDatabase';
+
+interface ForgeBlueprint {
+  id: string;
+  title: string;
+  category: 'Prefix Tablet' | 'Suffix Shift' | 'Compound Word' | 'Hybrid Companion';
+  ruleNote: string;
+  token1: ForgeToken;
+  token2: ForgeToken;
+}
+
+const FORGE_BLUEPRINTS: ForgeBlueprint[] = [
+  {
+    id: 'bp-unfrozen',
+    title: 'un- + frozen → unfrozen',
+    category: 'Prefix Tablet',
+    ruleNote: 'Prefix Rule: Attach "un-" to the front without changing the root spelling!',
+    token1: { kind: 'affix', id: 'un' },
+    token2: { kind: 'word', id: 'frozen' },
+  },
+  {
+    id: 'bp-reignite',
+    title: 're- + ignite → reignite',
+    category: 'Prefix Tablet',
+    ruleNote: 'Prefix Rule: "re-" means again—to ignite a second time!',
+    token1: { kind: 'affix', id: 're' },
+    token2: { kind: 'word', id: 'ignite' },
+  },
+  {
+    id: 'bp-chilliness',
+    title: 'chilly + -ness → chilliness',
+    category: 'Suffix Shift',
+    ruleNote: 'Y-to-I Rule: Final consonant + Y changes to I before adding "-ness"!',
+    token1: { kind: 'word', id: 'chilly' },
+    token2: { kind: 'affix', id: 'ness' },
+  },
+  {
+    id: 'bp-flameling',
+    title: 'flame + -ling → flameling',
+    category: 'Suffix Shift',
+    ruleNote: 'Drop-Silent-E Rule: Drop silent E on "flame" before adding "-ling"!',
+    token1: { kind: 'word', id: 'flame' },
+    token2: { kind: 'affix', id: 'ling' },
+  },
+  {
+    id: 'bp-flameless',
+    title: 'flame + -less → flameless',
+    category: 'Suffix Shift',
+    ruleNote: 'Suffix "-less" means "without" and inverts the elemental polarity!',
+    token1: { kind: 'word', id: 'flame' },
+    token2: { kind: 'affix', id: 'less' },
+  },
+  {
+    id: 'bp-compound',
+    title: 'blazing + flame → blazingflame',
+    category: 'Compound Word',
+    ruleNote: 'Compound Head Rule: Second word ("flame") sets the Noun part of speech!',
+    token1: { kind: 'word', id: 'blazing' },
+    token2: { kind: 'word', id: 'flame' },
+  },
+  {
+    id: 'bp-hybrid-pet',
+    title: 'Emberfox + Rimepup → Hybrid Companion',
+    category: 'Hybrid Companion',
+    ruleNote: 'Splices two companion cores into a dual-morpheme hybrid creature!',
+    token1: { kind: 'creature', id: 'emberfox' },
+    token2: { kind: 'creature', id: 'rimepup' },
+  },
+];
 
 export const WordForgeView: React.FC = () => {
   const {
@@ -35,7 +104,9 @@ export const WordForgeView: React.FC = () => {
 
   const [slot1, setSlot1] = useState<ForgeToken | null>(null);
   const [slot2, setSlot2] = useState<ForgeToken | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'affixes' | 'words' | 'creatures'>('affixes');
+  const [drawerTab, setDrawerTab] = useState<'affixes' | 'words' | 'creatures' | 'blueprints'>(
+    'blueprints'
+  );
   const [gradeFilter, setGradeFilter] = useState<GradeTier | 'all'>('all');
   const [forgedWordIds, setForgedWordIds] = useState<string[]>([]);
   const [forgedCreatureIds, setForgedCreatureIds] = useState<string[]>([]);
@@ -75,6 +146,12 @@ export const WordForgeView: React.FC = () => {
     }
   };
 
+  const handleLoadBlueprint = (bp: ForgeBlueprint) => {
+    juice.ding(780, 120);
+    setSlot1(bp.token1);
+    setSlot2(bp.token2);
+  };
+
   const preview =
     slot1 && slot2
       ? forgeCombine(slot1, slot2, {
@@ -83,6 +160,68 @@ export const WordForgeView: React.FC = () => {
           creatures: nonBossCreatures,
         })
       : null;
+
+  // Improvement #7: Compute Live Step-by-Step Spelling Transformation Breakdown
+  const getSpellingTransformationSteps = () => {
+    if (!slot1 || !slot2 || !preview || !preview.ok || !preview.result) return null;
+    if (!('word' in preview.result)) return null;
+
+    const finalWord = preview.result.word;
+    const w1 = slot1.kind === 'word' ? allWords.find((x) => x.id === slot1.id) : null;
+    const w2 = slot2.kind === 'word' ? allWords.find((x) => x.id === slot2.id) : null;
+    const a1 = slot1.kind === 'affix' ? INITIAL_AFFIXES.find((x) => x.id === slot1.id) : null;
+    const a2 = slot2.kind === 'affix' ? INITIAL_AFFIXES.find((x) => x.id === slot2.id) : null;
+
+    const baseWord = w1 || w2;
+    const affix = a1 || a2;
+
+    if (baseWord && affix) {
+      if (affix.respell.includes('yToI') && /[^aeiou]y$/i.test(baseWord.word)) {
+        const stem = baseWord.word.slice(0, -1);
+        return {
+          ruleBadge: 'Y → I Suffix Shift Rule',
+          step1: `${baseWord.word} + -${affix.text}`,
+          step2: `${stem}[y → i] + ${affix.text}`,
+          step3: finalWord,
+        };
+      }
+      if (affix.respell.includes('dropSilentE') && baseWord.word.endsWith('e')) {
+        const stem = baseWord.word.slice(0, -1);
+        return {
+          ruleBadge: 'Drop Silent-E Rule',
+          step1: `${baseWord.word} + -${affix.text}`,
+          step2: `${stem}[drop -e] + ${affix.text}`,
+          step3: finalWord,
+        };
+      }
+      return {
+        ruleBadge:
+          affix.type === 'prefix' ? 'Clean Prefix Attachment' : 'Clean Suffix Attachment',
+        step1:
+          affix.type === 'prefix'
+            ? `${affix.text}- + ${baseWord.word}`
+            : `${baseWord.word} + -${affix.text}`,
+        step2:
+          affix.type === 'prefix'
+            ? `[${affix.text}][${baseWord.word}]`
+            : `[${baseWord.word}][${affix.text}]`,
+        step3: finalWord,
+      };
+    }
+
+    if (w1 && w2) {
+      return {
+        ruleBadge: 'Compound Word Fusion',
+        step1: `${w1.word} (${w1.partOfSpeech})`,
+        step2: `+ ${w2.word} (Head ${w2.partOfSpeech})`,
+        step3: finalWord,
+      };
+    }
+
+    return null;
+  };
+
+  const spellingSteps = getSpellingTransformationSteps();
 
   const handleStrikeAnvil = () => {
     if (!preview || !preview.ok || !preview.result) return;
@@ -104,7 +243,7 @@ export const WordForgeView: React.FC = () => {
         updatePetLoadout(playerId, w.partOfSpeech, w.id);
         setForgedWordIds((prev) => (prev.includes(w.id) ? prev : [w.id, ...prev]));
         setJustForgedBanner(
-          `Forged "${w.word}" (${w.partOfSpeech.toUpperCase()}) & Auto-Equipped! (+25 XP)`
+          `Chiseled Word Tablet "${w.word}" (${w.partOfSpeech.toUpperCase()}) & Equipped! (+25 XP)`
         );
         juice.speakWord(w.word);
       }
@@ -122,7 +261,7 @@ export const WordForgeView: React.FC = () => {
       return {
         title: a.type === 'prefix' ? `${a.text}-` : `-${a.text}`,
         subtitle: `${a.type.toUpperCase()} · "${a.gloss}"`,
-        badge: a.type === 'prefix' ? 'Prefix Rune' : 'Suffix Rune',
+        badge: a.type === 'prefix' ? 'Prefix Tablet' : 'Suffix Tablet',
       };
     }
     if (token.kind === 'word') {
@@ -151,26 +290,28 @@ export const WordForgeView: React.FC = () => {
   );
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#231208] p-2 sm:p-4 select-none">
-      <div className="mx-auto max-w-[1240px] space-y-3 pb-8">
-        {/* TOP WOODEN STORYBOOK HEADER */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-4 border-[#5a2e12] bg-gradient-to-r from-[#5a2410] via-[#7c2d12] to-[#5a2410] px-4 py-2.5 text-white shadow-[0_4px_0_#2a1006]">
+    <div className="h-full w-full overflow-y-auto bg-[#1e140c] p-2 sm:p-4 select-none">
+      <div className="mx-auto max-w-[1280px] space-y-3.5 pb-8">
+        {/* ====================================================================
+            TOP CEL-SHADED FOSSIL SPLICER & WORD FORGE BANNER (Improvement #5)
+        ==================================================================== */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border-[4px] border-[#1a162b] bg-gradient-to-r from-[#7c2d12] via-[#b45309] to-[#7c2d12] px-5 py-3 text-white shadow-[0_6px_0_#1a162b]">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setTab('hub')}
-              className="flex items-center gap-1.5 rounded-xl border-2 border-[#ffce7a] bg-gradient-to-b from-[#fcd34d] to-[#f59e0b] px-3 py-1.5 text-xs font-black uppercase tracking-wider text-[#451a03] shadow-[0_3px_0_#92400e] hover:brightness-105 cursor-pointer"
+              className="flex items-center gap-1.5 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#fde047] to-[#f59e0b] px-3.5 py-2 text-xs font-display font-black uppercase tracking-wider text-[#1a162b] shadow-[0_3px_0_#1a162b] hover:brightness-105 cursor-pointer"
             >
               <Map className="h-4 w-4" />
-              <span>World Map</span>
+              <span>Sanctuary Map</span>
             </button>
             <div>
-              <h2 className="font-serif text-base sm:text-xl font-black text-[#fff3d1] flex items-center gap-2">
-                <Hammer className="h-5 w-5 text-amber-400" />
-                <span>Fireforge Anvil &amp; Morphology Crucible</span>
+              <h2 className="font-display text-lg sm:text-2xl font-black text-[#fef08a] drop-shadow-[0_2px_0_#1a162b] flex items-center gap-2">
+                <Hammer className="h-5 w-5 text-[#fde047]" />
+                <span>4. Word Forge — Stone Tablet Chisel &amp; Hybrid Splicer</span>
               </h2>
-              <p className="text-[11px] font-bold text-amber-200/85">
-                Fuse Prefixes, Suffixes, and K–8 Root Words on the blacksmith anvil to craft high-power vocabulary!
+              <p className="text-xs font-bold text-amber-100">
+                Combine Prefixes, Suffixes, K–8 Word Tablets, or Companion Cores using real morphology rules!
               </p>
             </div>
           </div>
@@ -182,15 +323,15 @@ export const WordForgeView: React.FC = () => {
               setSlot2(null);
               setJustForgedBanner(null);
             }}
-            className="flex items-center gap-1.5 rounded-xl border-2 border-amber-400/50 bg-black/30 hover:bg-black/50 px-3 py-1.5 text-xs font-black text-amber-200 cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl border-2 border-[#fde047] bg-[#1a162b] hover:bg-slate-800 px-3.5 py-2 text-xs font-display font-black text-[#fde047] cursor-pointer"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span>Clear Anvil</span>
+            <span>Reset Anvil</span>
           </button>
         </div>
 
         {justForgedBanner && (
-          <div className="flex items-center justify-between rounded-2xl border-3 border-amber-400 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 px-4 py-2.5 text-slate-950 font-black text-sm shadow-lg">
+          <div className="flex items-center justify-between rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#fde047] via-[#facc15] to-[#f59e0b] px-4 py-2.5 text-[#1a162b] font-display font-black text-sm shadow-[0_4px_0_#1a162b]">
             <span className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
               {justForgedBanner}
@@ -198,59 +339,103 @@ export const WordForgeView: React.FC = () => {
             <button
               type="button"
               onClick={() => setTab('battle')}
-              className="rounded-xl bg-slate-950 px-3 py-1 text-xs font-black uppercase text-amber-300 cursor-pointer"
+              className="rounded-xl border-2 border-[#1a162b] bg-[#1a162b] px-3.5 py-1 text-xs font-black uppercase text-[#fde047] cursor-pointer"
             >
               Test in Battle →
             </button>
           </div>
         )}
 
-        {/* 3-COLUMN BLACKSMITH WORKSHOP */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-          {/* LEFT 5 COLS: RUNE DRAWERS (Affixes, K-8 Base Words, Creatures) */}
-          <div className="lg:col-span-5 rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-4 shadow-[0_6px_0_#381b09] space-y-3">
-            {/* Drawer Category Tabs */}
-            <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-[#e5cca8] p-1">
+        {/* MAIN 12-COLUMN FORGE WORKSHOP */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* LEFT 5 COLS: 4-TAB TABLET & BLUEPRINT DRAWER (Includes Improvement #6) */}
+          <div className="lg:col-span-5 rounded-3xl border-[4px] border-[#1a162b] bg-[#fff8e7] p-4 shadow-[0_7px_0_#1a162b] space-y-3">
+            {/* 4 Drawer Category Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-2xl bg-[#e6d0a7] p-1.5 border-2 border-[#1a162b]">
+              <button
+                type="button"
+                onClick={() => setDrawerTab('blueprints')}
+                className={`rounded-xl py-2 text-[11px] font-display font-black uppercase transition cursor-pointer ${
+                  drawerTab === 'blueprints'
+                    ? 'bg-[#1a162b] text-[#fde047] shadow'
+                    : 'text-[#1a162b] hover:bg-amber-100'
+                }`}
+              >
+                📜 Blueprints
+              </button>
               <button
                 type="button"
                 onClick={() => setDrawerTab('affixes')}
-                className={`rounded-xl py-2 text-xs font-black uppercase transition cursor-pointer ${
+                className={`rounded-xl py-2 text-[11px] font-display font-black uppercase transition cursor-pointer ${
                   drawerTab === 'affixes'
-                    ? 'bg-[#5a2e12] text-amber-200 shadow'
-                    : 'text-[#5a2e12] hover:bg-amber-100/60'
+                    ? 'bg-[#1a162b] text-[#fde047] shadow'
+                    : 'text-[#1a162b] hover:bg-amber-100'
                 }`}
               >
-                1. Affix Runes ({INITIAL_AFFIXES.length})
+                1. Affixes ({INITIAL_AFFIXES.length})
               </button>
               <button
                 type="button"
                 onClick={() => setDrawerTab('words')}
-                className={`rounded-xl py-2 text-xs font-black uppercase transition cursor-pointer ${
+                className={`rounded-xl py-2 text-[11px] font-display font-black uppercase transition cursor-pointer ${
                   drawerTab === 'words'
-                    ? 'bg-[#5a2e12] text-amber-200 shadow'
-                    : 'text-[#5a2e12] hover:bg-amber-100/60'
+                    ? 'bg-[#1a162b] text-[#fde047] shadow'
+                    : 'text-[#1a162b] hover:bg-amber-100'
                 }`}
               >
-                2. K–8 Words ({allWords.length})
+                2. Tablets ({allWords.length})
               </button>
               <button
                 type="button"
                 onClick={() => setDrawerTab('creatures')}
-                className={`rounded-xl py-2 text-xs font-black uppercase transition cursor-pointer ${
+                className={`rounded-xl py-2 text-[11px] font-display font-black uppercase transition cursor-pointer ${
                   drawerTab === 'creatures'
-                    ? 'bg-[#5a2e12] text-amber-200 shadow'
-                    : 'text-[#5a2e12] hover:bg-amber-100/60'
+                    ? 'bg-[#1a162b] text-[#fde047] shadow'
+                    : 'text-[#1a162b] hover:bg-amber-100'
                 }`}
               >
-                3. Beast Cores ({nonBossCreatures.length})
+                3. Pets ({nonBossCreatures.length})
               </button>
             </div>
+
+            {/* IMPROVEMENT #6: RECIPE DISCOVERY BOOK ("FORGE BLUEPRINTS") */}
+            {drawerTab === 'blueprints' && (
+              <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                <div className="rounded-xl bg-amber-100 border-2 border-[#1a162b] p-2.5 text-xs font-bold text-[#451a03] flex items-center gap-2">
+                  <Compass className="h-4 w-4 shrink-0 text-[#b45309]" />
+                  <span>
+                    Click any <strong>Forge Blueprint</strong> below to load both tablets directly onto the Anvil!
+                  </span>
+                </div>
+                {FORGE_BLUEPRINTS.map((bp) => (
+                  <button
+                    key={bp.id}
+                    type="button"
+                    onClick={() => handleLoadBlueprint(bp)}
+                    className="w-full rounded-2xl border-[3px] border-[#1a162b] bg-white hover:bg-[#fef3c7] p-3 text-left shadow-[0_4px_0_#1a162b] transition-transform hover:-translate-y-0.5 cursor-pointer space-y-1"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-md bg-[#1a162b] px-2 py-0.5 font-mono text-[9px] font-black uppercase text-[#fde047]">
+                        {bp.category}
+                      </span>
+                      <span className="text-[10px] font-black text-emerald-700">
+                        Click to Load →
+                      </span>
+                    </div>
+                    <div className="font-display text-sm sm:text-base font-black text-[#1a162b]">
+                      {bp.title}
+                    </div>
+                    <p className="text-[11px] font-semibold text-[#5d4037]">{bp.ruleNote}</p>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* TAB 1: PREFIXES & SUFFIXES */}
             {drawerTab === 'affixes' && (
               <div className="space-y-2 max-h-[470px] overflow-y-auto pr-1">
-                <p className="text-xs font-bold text-[#7c4a27]">
-                  Select a <strong>Prefix</strong> (placed in Slot 1) or <strong>Suffix</strong> (placed in Slot 2) to transform a base word:
+                <p className="text-xs font-bold text-[#5d4037]">
+                  Select a <strong>Prefix</strong> (Slot 1) or <strong>Suffix</strong> (Slot 2) to chisel onto a Word Tablet:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {INITIAL_AFFIXES.map((affix) => {
@@ -262,30 +447,30 @@ export const WordForgeView: React.FC = () => {
                         key={affix.id}
                         type="button"
                         onClick={() => handleSelectToken({ kind: 'affix', id: affix.id })}
-                        className={`flex flex-col justify-between rounded-2xl border-2 p-3 text-left transition cursor-pointer ${
+                        className={`flex flex-col justify-between rounded-2xl border-[3px] p-3 text-left transition cursor-pointer ${
                           isSelected
-                            ? 'border-amber-600 bg-amber-100 ring-2 ring-amber-400'
-                            : 'border-[#d6bfa3] bg-white hover:border-amber-500'
+                            ? 'border-[#1a162b] bg-[#fde047] shadow-[0_4px_0_#1a162b]'
+                            : 'border-[#1a162b] bg-white hover:bg-amber-50 shadow-[0_3px_0_#1a162b]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <span
-                            className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                            className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase border border-[#1a162b] ${
                               affix.type === 'prefix'
-                                ? 'bg-purple-100 text-purple-900'
-                                : 'bg-teal-100 text-teal-900'
+                                ? 'bg-purple-200 text-purple-950'
+                                : 'bg-teal-200 text-teal-950'
                             }`}
                           >
                             {affix.type}
                           </span>
-                          <span className="text-[10px] font-bold text-stone-500">
+                          <span className="text-[10px] font-bold text-stone-600">
                             {affix.from.join('/')} → {affix.to}
                           </span>
                         </div>
-                        <div className="font-serif text-xl font-black text-[#2a170b] my-1">
+                        <div className="font-display text-xl font-black text-[#1a162b] my-1">
                           {affix.type === 'prefix' ? `${affix.text}-` : `-${affix.text}`}
                         </div>
-                        <p className="text-xs font-bold text-[#6e3818]">
+                        <p className="text-xs font-bold text-[#5d4037]">
                           Meaning: “{affix.gloss}”
                         </p>
                       </button>
@@ -295,7 +480,7 @@ export const WordForgeView: React.FC = () => {
               </div>
             )}
 
-            {/* TAB 2: K-8 BASE WORDS */}
+            {/* TAB 2: K-8 WORD TABLETS */}
             {drawerTab === 'words' && (
               <div className="space-y-2.5">
                 <div className="flex flex-wrap gap-1">
@@ -304,8 +489,8 @@ export const WordForgeView: React.FC = () => {
                     onClick={() => setGradeFilter('all')}
                     className={`rounded-lg px-2 py-0.5 text-[10px] font-black uppercase cursor-pointer ${
                       gradeFilter === 'all'
-                        ? 'bg-[#5a2e12] text-white'
-                        : 'bg-[#f7ebd9] text-[#5a2e12]'
+                        ? 'bg-[#1a162b] text-[#fde047]'
+                        : 'bg-[#e6d0a7] text-[#1a162b]'
                     }`}
                   >
                     All
@@ -317,7 +502,7 @@ export const WordForgeView: React.FC = () => {
                       onClick={() => setGradeFilter(t.id)}
                       className={`rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase cursor-pointer ${
                         gradeFilter === t.id
-                          ? 'bg-[#5a2e12] text-white border-[#5a2e12]'
+                          ? 'bg-[#1a162b] text-[#fde047] border-[#1a162b]'
                           : `${t.badgeBg} ${t.badgeText} ${t.badgeBorder}`
                       }`}
                     >
@@ -339,12 +524,12 @@ export const WordForgeView: React.FC = () => {
                         onClick={() => handleSelectToken({ kind: 'word', id: w.id })}
                         className={`flex flex-col justify-between rounded-xl border-2 p-2.5 text-left transition cursor-pointer ${
                           isSelected
-                            ? 'border-amber-600 bg-amber-100 ring-2 ring-amber-400'
-                            : 'border-[#d6bfa3] bg-white hover:border-amber-500'
+                            ? 'border-[#1a162b] bg-[#fde047] shadow-[0_3px_0_#1a162b]'
+                            : 'border-[#1a162b] bg-white hover:bg-amber-50'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-black uppercase text-stone-500">
+                          <span className="text-[9px] font-black uppercase text-stone-600">
                             {w.partOfSpeech}
                           </span>
                           <span
@@ -353,10 +538,10 @@ export const WordForgeView: React.FC = () => {
                             {tierMeta.shortLabel}
                           </span>
                         </div>
-                        <div className="font-serif text-base font-black text-[#2a170b] my-0.5">
+                        <div className="font-display text-base font-black text-[#1a162b] my-0.5">
                           {w.word}
                         </div>
-                        <div className="flex items-center justify-between text-[10px] font-bold text-stone-600">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-stone-700">
                           <span>
                             {ELEMENTS[w.element]?.icon} {w.element}
                           </span>
@@ -371,7 +556,7 @@ export const WordForgeView: React.FC = () => {
               </div>
             )}
 
-            {/* TAB 3: CREATURE FUSION CORES */}
+            {/* TAB 3: COMPANION CORES */}
             {drawerTab === 'creatures' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[460px] overflow-y-auto pr-1">
                 {nonBossCreatures.map((c) => {
@@ -383,23 +568,23 @@ export const WordForgeView: React.FC = () => {
                       key={c.id}
                       type="button"
                       onClick={() => handleSelectToken({ kind: 'creature', id: c.id })}
-                      className={`flex items-center gap-2.5 rounded-2xl border-2 p-2.5 text-left transition cursor-pointer ${
+                      className={`flex items-center gap-2.5 rounded-2xl border-[3px] p-2.5 text-left transition cursor-pointer ${
                         isSelected
-                          ? 'border-amber-600 bg-amber-100 ring-2 ring-amber-400'
-                          : 'border-[#d6bfa3] bg-white hover:border-amber-500'
+                          ? 'border-[#1a162b] bg-[#fde047] shadow-[0_3px_0_#1a162b]'
+                          : 'border-[#1a162b] bg-white hover:bg-amber-50'
                       }`}
                     >
                       <CreatureSprite
-                        creatureId={c.id}
+                        creatureId={c.forged?.sourceId || c.id}
                         stage={c.stage || 1}
                         element={c.element}
                         size="sm"
                       />
                       <div>
-                        <span className="font-serif text-sm font-black text-[#2a170b] block">
+                        <span className="font-display text-sm font-black text-[#1a162b] block">
                           {c.name}
                         </span>
-                        <span className="text-[10px] font-bold text-[#7c4a27]">
+                        <span className="text-[10px] font-bold text-[#5d4037]">
                           {ELEMENTS[c.element]?.icon} {c.element.toUpperCase()}
                         </span>
                       </div>
@@ -410,40 +595,39 @@ export const WordForgeView: React.FC = () => {
             )}
           </div>
 
-          {/* CENTER 7 COLS: VISUAL BLACKSMITH ANVIL & MORPHOLOGY RULE SCROLL */}
-          <div className="lg:col-span-7 space-y-3.5">
+          {/* RIGHT 7 COLS: STONE TABLET CHISEL ANVIL & LIVE SPELLING ANIMATION */}
+          <div className="lg:col-span-7 space-y-4">
             {/* THE ANVIL & CRUCIBLE STAGE */}
-            <div className="relative overflow-hidden rounded-3xl border-4 border-[#5a2e12] bg-gradient-to-b from-[#3d1a0a] via-[#261005] to-[#170902] p-5 text-white shadow-[0_6px_0_#1a0903] space-y-4">
-              {/* Glowing Forge Hearth Background */}
+            <div className="relative overflow-hidden rounded-3xl border-[4px] border-[#1a162b] bg-gradient-to-b from-[#3d1a0a] via-[#261005] to-[#170902] p-5 text-white shadow-[0_7px_0_#1a162b] space-y-4">
               <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 h-44 w-96 rounded-full bg-orange-500/25 blur-3xl" />
 
-              <div className="relative z-10 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 rounded-xl border border-orange-400/50 bg-orange-950/70 px-3 py-1 text-xs font-black uppercase text-orange-300">
-                  <Flame className="h-4 w-4 text-orange-400" />
-                  Blacksmith Crucible
+              <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 rounded-xl border-2 border-[#fde047] bg-[#7c2d12] px-3 py-1 text-xs font-display font-black uppercase text-[#fde047]">
+                  <Flame className="h-4 w-4 text-orange-300" />
+                  Stone Tablet Chisel Anvil
                 </span>
-                <span className="text-xs font-bold text-amber-200/80">
-                  Try: [un- + frozen], [flame + -less], [bright + -ness], or [Emberfox + Rimepup]
+                <span className="text-xs font-bold text-amber-200">
+                  Click any Blueprint on the left or pick 2 Tablets to splice!
                 </span>
               </div>
 
-              {/* 2 RUNE SLOTS ABOVE THE ANVIL */}
+              {/* 2 TABLET SLOTS ABOVE THE ANVIL */}
               <div className="relative z-10 grid grid-cols-1 sm:grid-cols-11 items-center gap-3">
                 {/* SLOT 1 */}
                 <div
                   onClick={() => setSlot1(null)}
-                  className={`sm:col-span-5 flex flex-col items-center justify-center rounded-2xl border-3 p-4 min-h-[115px] text-center transition cursor-pointer ${
+                  className={`sm:col-span-5 flex flex-col items-center justify-center rounded-2xl border-[3px] p-4 min-h-[115px] text-center transition cursor-pointer ${
                     slot1Info
-                      ? 'border-amber-400 bg-amber-950/70 shadow-[0_0_20px_rgba(251,191,36,0.25)]'
-                      : 'border-dashed border-amber-700/70 bg-black/40 hover:border-amber-500'
+                      ? 'border-[#fde047] bg-amber-950/80 shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                      : 'border-dashed border-amber-600/70 bg-black/40 hover:border-amber-400'
                   }`}
                 >
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-                    Slot 1 · Modifier / Prefix
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#fde047]">
+                    Slot 1 · Prefix / Modifier
                   </span>
                   {slot1Info ? (
                     <>
-                      <span className="font-serif text-2xl font-black text-white my-1">
+                      <span className="font-display text-2xl font-black text-white my-1">
                         {slot1Info.title}
                       </span>
                       <span className="text-[11px] font-bold text-amber-200">
@@ -451,17 +635,17 @@ export const WordForgeView: React.FC = () => {
                       </span>
                     </>
                   ) : (
-                    <span className="mt-2 text-xs font-bold text-amber-200/50">
-                      Click an Affix, Word, or Pet on the left
+                    <span className="mt-2 text-xs font-bold text-amber-200/60">
+                      Select Slot 1 Tablet
                     </span>
                   )}
                 </div>
 
-                {/* PLUS / HAMMER ICON */}
+                {/* PLUS / CHISEL ICON */}
                 <div className="sm:col-span-1 flex items-center justify-center">
                   <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-amber-400 bg-orange-600 font-black text-xl shadow-lg transition-transform ${
-                      isStriking ? 'scale-150 rotate-45 bg-yellow-300 text-slate-950' : ''
+                    className={`flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-[#1a162b] bg-[#fde047] font-black text-xl text-[#1a162b] shadow-lg transition-transform ${
+                      isStriking ? 'scale-150 rotate-45 bg-emerald-400' : ''
                     }`}
                   >
                     +
@@ -471,18 +655,18 @@ export const WordForgeView: React.FC = () => {
                 {/* SLOT 2 */}
                 <div
                   onClick={() => setSlot2(null)}
-                  className={`sm:col-span-5 flex flex-col items-center justify-center rounded-2xl border-3 p-4 min-h-[115px] text-center transition cursor-pointer ${
+                  className={`sm:col-span-5 flex flex-col items-center justify-center rounded-2xl border-[3px] p-4 min-h-[115px] text-center transition cursor-pointer ${
                     slot2Info
-                      ? 'border-amber-400 bg-amber-950/70 shadow-[0_0_20px_rgba(251,191,36,0.25)]'
-                      : 'border-dashed border-amber-700/70 bg-black/40 hover:border-amber-500'
+                      ? 'border-[#fde047] bg-amber-950/80 shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                      : 'border-dashed border-amber-600/70 bg-black/40 hover:border-amber-400'
                   }`}
                 >
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#fde047]">
                     Slot 2 · Root Head / Suffix
                   </span>
                   {slot2Info ? (
                     <>
-                      <span className="font-serif text-2xl font-black text-white my-1">
+                      <span className="font-display text-2xl font-black text-white my-1">
                         {slot2Info.title}
                       </span>
                       <span className="text-[11px] font-bold text-amber-200">
@@ -490,22 +674,44 @@ export const WordForgeView: React.FC = () => {
                       </span>
                     </>
                   ) : (
-                    <span className="mt-2 text-xs font-bold text-amber-200/50">
-                      Click a second Rune to combine
+                    <span className="mt-2 text-xs font-bold text-amber-200/60">
+                      Select Slot 2 Tablet
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* SVG BLACKSMITH ANVIL & RESULT PREVIEW */}
+              {/* IMPROVEMENT #7: LIVE STEP-BY-STEP SPELLING TRANSFORMATION ANIMATION */}
+              {spellingSteps && (
+                <div className="relative z-10 rounded-2xl border-2 border-[#fde047] bg-[#1a162b]/90 p-3 text-center space-y-2">
+                  <span className="inline-block rounded-full bg-[#fde047] px-3 py-0.5 font-mono text-[10px] font-black uppercase text-[#1a162b]">
+                    🔬 Live Spelling Transformation: {spellingSteps.ruleBadge}
+                  </span>
+                  <div className="flex flex-wrap items-center justify-center gap-2 font-mono text-xs sm:text-sm font-black">
+                    <span className="rounded-xl bg-slate-800 border border-slate-600 px-3 py-1.5 text-amber-200">
+                      {spellingSteps.step1}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-[#fde047]" />
+                    <span className="rounded-xl bg-amber-500/20 border-2 border-[#fde047] px-3 py-1.5 text-[#fde047] animate-pulse">
+                      {spellingSteps.step2}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-emerald-400" />
+                    <span className="rounded-xl bg-emerald-600 border-2 border-white px-3.5 py-1.5 text-white">
+                      {spellingSteps.step3}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* RESULT PREVIEW & STRIKE BUTTON */}
               <div className="relative z-10 rounded-2xl border-2 border-amber-500/40 bg-black/50 p-4 text-center space-y-3">
                 {preview ? (
                   preview.ok && preview.result ? (
                     <div className="space-y-2">
                       <span className="rounded-lg bg-emerald-500/20 border border-emerald-400 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-300">
-                        ✨ Valid {preview.kind} Recipe!
+                        ✨ Valid {preview.kind} Blueprint!
                       </span>
-                      <div className="font-serif text-3xl font-black text-amber-300">
+                      <div className="font-display text-3xl font-black text-[#fde047]">
                         {'word' in preview.result ? preview.result.word : preview.result.name}
                       </div>
                       <p className="text-xs font-bold text-amber-100 max-w-lg mx-auto">
@@ -514,10 +720,10 @@ export const WordForgeView: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleStrikeAnvil}
-                        className="mt-2 inline-flex items-center gap-2 rounded-2xl border-3 border-amber-200 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 px-8 py-3 text-sm sm:text-base font-black uppercase tracking-wider text-slate-950 shadow-[0_5px_0_#9a3412] hover:brightness-110 active:translate-y-1 transition cursor-pointer"
+                        className="mt-2 inline-flex items-center gap-2 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] px-8 py-3 font-display text-sm sm:text-base font-black uppercase tracking-wider text-[#1a162b] shadow-[0_5px_0_#1a162b] hover:brightness-110 active:translate-y-1 transition cursor-pointer"
                       >
                         <Hammer className="h-5 w-5" />
-                        <span>Strike Anvil &amp; Forge!</span>
+                        <span>Chisel Word Tablet &amp; Equip!</span>
                       </button>
                     </div>
                   ) : (
@@ -527,44 +733,54 @@ export const WordForgeView: React.FC = () => {
                       </span>
                       <p className="text-xs font-bold text-amber-100/90">
                         {preview.reasons[0] ||
-                          'Try pairing a Prefix + Base Word, Base Word + Suffix, or two Words/Pets!'}
+                          'Try pairing a Prefix + Base Word, Base Word + Suffix, or click a Blueprint on the left!'}
                       </p>
                     </div>
                   )
                 ) : (
                   <div className="py-2 text-xs font-bold text-amber-200/70">
-                    Place two runes on the anvil above to preview the morphological transformation and spelling rule!
+                    Place two tablets on the anvil above (or click a Blueprint on the left) to preview the spelling transformation!
                   </div>
                 )}
               </div>
             </div>
 
-            {/* MORPHOLOGY SCHOLAR'S RULEBOOK & RECENTLY FORGED ITEMS */}
-            <div className="rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-4 shadow-[0_6px_0_#381b09] space-y-3">
-              <div className="flex items-center gap-2 border-b border-[#e5cca8] pb-2">
+            {/* MORPHOLOGY SCHOLAR'S RULEBOOK & RECENTLY FORGED TABLETS */}
+            <div className="rounded-3xl border-[4px] border-[#1a162b] bg-[#fff8e7] p-4 shadow-[0_6px_0_#1a162b] space-y-3">
+              <div className="flex items-center gap-2 border-b-2 border-[#e5cca8] pb-2">
                 <BookOpen className="h-4 w-4 text-[#6e3818]" />
-                <h3 className="font-serif text-sm font-black uppercase tracking-wider text-[#3d1e0d]">
-                  Morphology Spelling Rules &amp; Newly Forged Grimoire
+                <h3 className="font-display text-sm font-black uppercase tracking-wider text-[#1a162b]">
+                  Morphology Spelling Rules &amp; Newly Chiseled Word Tablets
                 </h3>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                <div className="rounded-xl border border-amber-300 bg-amber-50 p-2.5">
-                  <span className="font-black text-[#5a2e12] block">1. Prefix Rule</span>
-                  <p className="text-[11px] text-stone-700 mt-0.5">
-                    Prefixes attach to the front (<strong>un- + frozen = unfrozen</strong>, <strong>re- + ignite = reignite</strong>) without changing the root spelling!
+                <div className="rounded-xl border-2 border-[#1a162b] bg-amber-50 p-2.5">
+                  <span className="font-display font-black text-[#1a162b] block">
+                    1. Prefix Rule
+                  </span>
+                  <p className="text-[11px] font-semibold text-stone-700 mt-0.5">
+                    Prefixes attach to the front (<strong>un- + frozen = unfrozen</strong>,{' '}
+                    <strong>re- + ignite = reignite</strong>) without changing the root spelling!
                   </p>
                 </div>
-                <div className="rounded-xl border border-sky-300 bg-sky-50 p-2.5">
-                  <span className="font-black text-sky-950 block">2. Suffix Shift Rule</span>
-                  <p className="text-[11px] text-stone-700 mt-0.5">
-                    Adding <strong>-ness</strong> or <strong>-ly</strong> changes final <strong>y → i</strong> (<em>chilly + -ness = chilliness</em>), and <strong>-ling</strong> drops silent <strong>e</strong>!
+                <div className="rounded-xl border-2 border-[#1a162b] bg-sky-50 p-2.5">
+                  <span className="font-display font-black text-sky-950 block">
+                    2. Suffix Shift Rule
+                  </span>
+                  <p className="text-[11px] font-semibold text-stone-700 mt-0.5">
+                    Adding <strong>-ness</strong> or <strong>-ly</strong> changes final{' '}
+                    <strong>y → i</strong> (<em>chilly + -ness = chilliness</em>), and{' '}
+                    <strong>-ling</strong> drops silent <strong>e</strong>!
                   </p>
                 </div>
-                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-2.5">
-                  <span className="font-black text-emerald-950 block">3. Compound Head Rule</span>
-                  <p className="text-[11px] text-stone-700 mt-0.5">
-                    In English compounds, the <strong>second word (Head)</strong> sets the part of speech and core element!
+                <div className="rounded-xl border-2 border-[#1a162b] bg-emerald-50 p-2.5">
+                  <span className="font-display font-black text-emerald-950 block">
+                    3. Compound Head Rule
+                  </span>
+                  <p className="text-[11px] font-semibold text-stone-700 mt-0.5">
+                    In English compounds, the <strong>second word (Head)</strong> sets the part of
+                    speech and core element!
                   </p>
                 </div>
               </div>
@@ -572,7 +788,7 @@ export const WordForgeView: React.FC = () => {
               {(forgedWordIds.length > 0 || forgedCreatureIds.length > 0) && (
                 <div className="pt-1 space-y-2">
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">
-                    ✨ Forged in This Session:
+                    ✨ Chiseled in This Session:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {forgedWordIds.map((id) => {
@@ -581,16 +797,16 @@ export const WordForgeView: React.FC = () => {
                       return (
                         <div
                           key={id}
-                          className="flex items-center gap-2 rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-950"
+                          className="flex items-center gap-2 rounded-xl border-2 border-[#1a162b] bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-950"
                         >
                           <span>{w.word}</span>
-                          <span className="rounded bg-emerald-200 px-1.5 py-0.5 font-mono text-[10px]">
+                          <span className="rounded bg-emerald-300 px-1.5 py-0.5 font-mono text-[10px]">
                             +{w.powerBonus ?? w.forge?.powerBonus ?? 4} Pwr
                           </span>
                           <button
                             type="button"
                             onClick={() => juice.speakWord(w.word)}
-                            className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
+                            className="text-emerald-800 hover:text-emerald-950 cursor-pointer"
                           >
                             <Volume2 className="h-3.5 w-3.5" />
                           </button>
@@ -605,7 +821,7 @@ export const WordForgeView: React.FC = () => {
                           key={id}
                           type="button"
                           onClick={() => useCreatureInBattle(c.id)}
-                          className="flex items-center gap-2 rounded-xl border-2 border-amber-500 bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-950 cursor-pointer"
+                          className="flex items-center gap-2 rounded-xl border-2 border-[#1a162b] bg-[#fde047] px-3 py-1.5 text-xs font-black text-[#1a162b] cursor-pointer"
                         >
                           <Swords className="h-3.5 w-3.5" />
                           <span>Battle with {c.name}!</span>
@@ -622,3 +838,4 @@ export const WordForgeView: React.FC = () => {
     </div>
   );
 };
+export default WordForgeView;
