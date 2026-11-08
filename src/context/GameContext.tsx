@@ -78,6 +78,24 @@ interface GameContextType {
   equipPetAccessory: (petId: string, accessoryId: string) => void;
   petSpecializations: Record<string, 'vanguard' | 'bastion'>;
   setPetSpecialization: (petId: string, branch: 'vanguard' | 'bastion') => void;
+  supportCreatureId: string;
+  setSupportCreatureId: (id: string) => void;
+  awakenedFossils: Record<string, boolean>;
+  awakenPrehistoricCompanion: (element: ElementType) => Creature;
+  petBonds: Record<string, number>;
+  increasePetBond: (petId: string, amount?: number) => void;
+  bountiesClaimed: Record<string, boolean>;
+  claimBounty: (bountyId: string) => void;
+  dyslexiaFriendly: boolean;
+  setDyslexiaFriendly: (val: boolean) => void;
+  mistakeWords: string[];
+  addMistakeWord: (word: string) => void;
+  masterMistakeWord: (word: string) => void;
+  sanctuaryTheme: 'classic' | 'autumn' | 'frostfall' | 'starlight';
+  setSanctuaryTheme: (theme: 'classic' | 'autumn' | 'frostfall' | 'starlight') => void;
+  ancientAmber: number;
+  addAncientAmber: (delta: number) => void;
+  advanceToNextNode: () => { zoneId: string; nextNodeId: string } | null;
   resetAll: () => void;
 }
 
@@ -474,6 +492,162 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
     juice.fanfare();
   };
+
+  // Efficiency #8: Unified Profile State Loader
+  const unifiedInitial = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('aetheria_unified_save_v2');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  // Feature #5: Dual-Companion Tag-Team Support Slot
+  const [supportCreatureId, setSupportCreatureId] = useState<string>(
+    () => unifiedInitial.supportCreatureId || 'aquafin'
+  );
+
+  // Feature #12: Fossil Awakening (Prehistoric Companion Revival)
+  const [awakenedFossils, setAwakenedFossils] = useState<Record<string, boolean>>(
+    () => unifiedInitial.awakenedFossils || {}
+  );
+
+  const awakenPrehistoricCompanion = (element: ElementType): Creature => {
+    const PREHISTORIC_NAMES: Record<string, { name: string; title: string; emoji: string }> = {
+      fire: { name: 'Pyroraptor Rex', title: 'Ancient Magma Saurian', emoji: '🦖' },
+      water: { name: 'Plesiocrest', title: 'Tidal Abyssal Fossil', emoji: '🦕' },
+      grass: { name: 'Ferntops', title: 'Primeval Canopy Horn', emoji: '🌿' },
+      earth: { name: 'Ankylostone', title: 'Bedrock Bastion Titan', emoji: '🪨' },
+      ice: { name: 'Mammothfrost', title: 'Glacial Tusk Ancient', emoji: '🦣' },
+      air: { name: 'Pterogale', title: 'Skycrest Wing Fossil', emoji: '🦅' },
+      electric: { name: 'Voltadon', title: 'Amber Spark Crest', emoji: '⚡' },
+      shadow: { name: 'Nyxosaurus', title: 'Twilight Obsidian Stalker', emoji: '🐉' },
+      light: { name: 'Solarchaeon', title: 'Dawnfeather Relic', emoji: '✨' },
+    };
+    const meta = PREHISTORIC_NAMES[element] || PREHISTORIC_NAMES.fire;
+    const fossilId = `fossil_${element}`;
+    setAwakenedFossils((prev) => ({ ...prev, [element]: true }));
+
+    const existing = creatures.find((c) => c.id === fossilId);
+    if (existing) {
+      levelUpPet(fossilId, 2);
+      return existing;
+    }
+
+    const base = createStarterCreature(element, getAllWordsList(words));
+    const awakened: Creature = {
+      ...base,
+      id: fossilId,
+      name: meta.name,
+      title: meta.title,
+      spriteEmoji: meta.emoji,
+      level: 12,
+      stage: 2,
+      stats: {
+        hp: 115,
+        attack: 22,
+        defense: 19,
+        speed: 17,
+      },
+    };
+    setCreatures((prev) => [...prev, awakened]);
+    setGameState((prev) => ({
+      ...prev,
+      unlockedPetIds: Array.from(new Set([...prev.unlockedPetIds, fossilId])),
+    }));
+    juice.fanfare();
+    return awakened;
+  };
+
+  // Feature #13: Companion Bond & Mood Meter
+  const [petBonds, setPetBonds] = useState<Record<string, number>>(
+    () => unifiedInitial.petBonds || { emberfox: 4, aquafin: 3 }
+  );
+
+  const increasePetBond = (petId: string, amount = 1) => {
+    setPetBonds((prev) => ({
+      ...prev,
+      [petId]: Math.min(10, (prev[petId] || 1) + amount),
+    }));
+  };
+
+  // Feature #15: Daily Expedition Bounty Board
+  const [bountiesClaimed, setBountiesClaimed] = useState<Record<string, boolean>>(
+    () => unifiedInitial.bountiesClaimed || {}
+  );
+
+  const claimBounty = (bountyId: string) => {
+    setBountiesClaimed((prev) => ({ ...prev, [bountyId]: true }));
+    juice.fanfare();
+  };
+
+  // Feature #18: Dyslexia-Friendly Typography & High-Contrast Toggle
+  const [dyslexiaFriendly, setDyslexiaFriendly] = useState<boolean>(
+    () => Boolean(unifiedInitial.dyslexiaFriendly)
+  );
+
+  // Feature #19: Mistake Review "Field Journal" Deck
+  const [mistakeWords, setMistakeWords] = useState<string[]>(
+    () => unifiedInitial.mistakeWords || ['Their / There', 'Affect / Effect', 'Ferocious']
+  );
+
+  const addMistakeWord = (word: string) => {
+    setMistakeWords((prev) => (prev.includes(word) ? prev : [word, ...prev].slice(0, 12)));
+  };
+
+  const masterMistakeWord = (word: string) => {
+    setMistakeWords((prev) => prev.filter((w) => w !== word));
+    juice.fanfare();
+  };
+
+  // Feature #20: Seasonal & Holiday Sanctuary Themes
+  const [sanctuaryTheme, setSanctuaryTheme] = useState<'classic' | 'autumn' | 'frostfall' | 'starlight'>(
+    () => unifiedInitial.sanctuaryTheme || 'classic'
+  );
+
+  // Efficiency #10: Universal Ancient Amber currency
+  const [ancientAmber, setAncientAmber] = useState<number>(
+    () => unifiedInitial.ancientAmber ?? 18
+  );
+
+  const addAncientAmber = (delta: number) => {
+    setAncientAmber((prev) => Math.max(0, prev + delta));
+  };
+
+  // Efficiency #8: Consolidate persistence into single unified save key
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'aetheria_unified_save_v2',
+        JSON.stringify({
+          supportCreatureId,
+          awakenedFossils,
+          petBonds,
+          bountiesClaimed,
+          dyslexiaFriendly,
+          mistakeWords,
+          sanctuaryTheme,
+          ancientAmber,
+          petAccessories,
+          petSpecializations,
+          preferredGradeBand,
+        })
+      );
+    } catch {}
+  }, [
+    supportCreatureId,
+    awakenedFossils,
+    petBonds,
+    bountiesClaimed,
+    dyslexiaFriendly,
+    mistakeWords,
+    sanctuaryTheme,
+    ancientAmber,
+    petAccessories,
+    petSpecializations,
+    preferredGradeBand,
+  ]);
 
   const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
   const [zoneProgress, setZoneProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
@@ -914,6 +1088,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     restartBattle('emberfox');
   };
 
+  // Efficiency #9: Quick-Replay / Next Node Launcher from Battle Victory Banner
+  const advanceToNextNode = (): { zoneId: string; nextNodeId: string } | null => {
+    const parts = activeNodeId.split('-');
+    const worldNum = Number(parts[0] || 1);
+    const stageNum = Number(parts[1] || 1);
+    const nextStage = Math.min(10, stageNum + 1);
+    const nextNodeId = `${worldNum}-${nextStage}`;
+    setActiveNodeId(nextNodeId);
+    const stageRank: 1 | 2 | 3 = nextStage >= 10 ? 3 : nextStage >= 5 ? 2 : 1;
+    startBattleAtNode(
+      activeZoneId,
+      nextNodeId,
+      undefined,
+      `Stage ${nextNodeId} Challenger`,
+      stageRank
+    );
+    return { zoneId: activeZoneId, nextNodeId };
+  };
+
   return (
     <GameContext.Provider
       value={{
@@ -967,10 +1160,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         equipPetAccessory,
         petSpecializations,
         setPetSpecialization,
+        supportCreatureId,
+        setSupportCreatureId,
+        awakenedFossils,
+        awakenPrehistoricCompanion,
+        petBonds,
+        increasePetBond,
+        bountiesClaimed,
+        claimBounty,
+        dyslexiaFriendly,
+        setDyslexiaFriendly,
+        mistakeWords,
+        addMistakeWord,
+        masterMistakeWord,
+        sanctuaryTheme,
+        setSanctuaryTheme,
+        ancientAmber,
+        addAncientAmber,
+        advanceToNextNode,
         resetAll,
       }}
     >
-      {children}
+      <div className={dyslexiaFriendly ? 'tracking-wider leading-relaxed font-sans' : ''}>
+        {children}
+      </div>
     </GameContext.Provider>
   );
 };

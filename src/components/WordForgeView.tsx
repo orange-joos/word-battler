@@ -785,6 +785,62 @@ export const WordForgeView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Feature #11: Shades-of-Meaning Thermometer ("Intensity Scale" Mini-Game) */}
+              <div className="rounded-2xl border-2 border-[#1a162b] bg-gradient-to-r from-[#fef3c7] via-[#fde68a] to-[#fca5a5] p-3.5 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="rounded-full bg-[#1a162b] px-2.5 py-0.5 font-display text-[10px] font-black uppercase text-[#fde047]">
+                      🌡️ Feature #11 · Shades-of-Meaning Intensity Thermometer
+                    </span>
+                    <div className="font-display text-sm font-black text-[#1a162b] mt-1">
+                      Tap Along the Intensity Scale to Temper Word Tablet Power (+3 → +8 Pwr)
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  {[
+                    { deg: '1. Mild (+3 Pwr)', word: 'Chilly', elem: 'ice' as const, pwr: 3 },
+                    { deg: '2. Moderate (+5 Pwr)', word: 'Cold', elem: 'ice' as const, pwr: 5 },
+                    { deg: '3. Strong (+6 Pwr)', word: 'Freezing', elem: 'ice' as const, pwr: 6 },
+                    { deg: '4. Apex (+8 Pwr!)', word: 'Glacial', elem: 'ice' as const, pwr: 8 },
+                  ].map((step, idx) => (
+                    <button
+                      key={step.word}
+                      type="button"
+                      onClick={() => {
+                        juice.ding(600 + idx * 110, 120);
+                        juice.speakWord(`${step.word}. Intensity level ${idx + 1}.`);
+                        if (idx === 3) {
+                          const tempered: Word = {
+                            id: 'tempered_glacial',
+                            word: 'Glacial',
+                            definition: 'Extremely freezing, like an ancient glacier (Apex Intensity).',
+                            example: 'The glacial wind swept across Frostpeak.',
+                            partOfSpeech: 'adjective',
+                            element: 'ice',
+                            gradeTier: '5',
+                            powerBonus: 8,
+                          };
+                          commitWord(tempered);
+                          setJustForgedBanner(
+                            '🌡️ Tempered Apex Intensity Tablet: "Glacial" (+8 Power Bonus)!'
+                          );
+                          juice.fanfare();
+                        }
+                      }}
+                      className="rounded-xl border-2 border-[#1a162b] bg-white/90 hover:bg-[#fde047] p-2 text-left transition cursor-pointer shadow-[0_2px_0_#1a162b]"
+                    >
+                      <div className="font-mono text-[9px] font-black uppercase text-rose-700">
+                        {step.deg}
+                      </div>
+                      <div className="font-display text-sm font-black text-[#1a162b]">
+                        {step.word}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {(forgedWordIds.length > 0 || forgedCreatureIds.length > 0) && (
                 <div className="pt-1 space-y-2">
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">

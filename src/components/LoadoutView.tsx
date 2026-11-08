@@ -28,7 +28,7 @@ import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
 import { GRADE_TIERS, getGradeTierMeta } from '../data/vocabDatabase';
 
-type ArsenalTab = 'my-creatures' | 'word-catalog' | 'charabom-bestiary';
+type ArsenalTab = 'my-creatures' | 'word-catalog' | 'companion-bestiary';
 
 const LETTER_GROUPS = [
   { id: 'ALL', label: 'ALL', letters: null, bg: 'bg-[#fde047] border-[#ca8a04] text-[#1a162b]' },
@@ -340,15 +340,15 @@ export const LoadoutView: React.FC = () => {
             type="button"
             onClick={() => {
               juice.click();
-              setActiveTab('charabom-bestiary');
+              setActiveTab('companion-bestiary');
             }}
             className={`rounded-t-3xl border-[4px] border-b-0 border-[#581c87] px-6 py-2.5 font-display text-xs sm:text-base font-black uppercase tracking-wider transition cursor-pointer ${
-              activeTab === 'charabom-bestiary'
+              activeTab === 'companion-bestiary'
                 ? 'bg-[#d8b4fe] text-[#581c87] -translate-y-1 shadow-[0_-3px_0_rgba(255,255,255,0.6)_inset]'
                 : 'bg-[#e9d5ff]/80 text-[#6b21a8] hover:bg-[#d8b4fe]/70'
             }`}
           >
-            👾 CHARABOM BESTIARY &amp; EVOLUTIONS
+            👾 COMPANION BESTIARY &amp; EVOLUTIONS
           </button>
         </div>
 
@@ -643,7 +643,7 @@ export const LoadoutView: React.FC = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setBestiaryInspectId(pet.id);
-                                setActiveTab('charabom-bestiary');
+                                setActiveTab('companion-bestiary');
                               }}
                               className="rounded-lg bg-black/35 hover:bg-black/55 px-2 py-1 text-[#fde047] cursor-pointer"
                             >
@@ -929,15 +929,15 @@ export const LoadoutView: React.FC = () => {
         )}
 
         {/* ====================================================================
-            TAB 3: "CHARABOM BESTIARY & EVOLUTIONS"
+            TAB 3: "COMPANION BESTIARY & EVOLUTIONS"
             Combines:
-            - GBA "★ Charabom Select ★" Inspector (Reference #4: IMG_4199_8dcb1870.PNG)
-            - Mint-Green (#00e676) Portrait Matrix (Reference #1: IMG_4198_e61ea328.JPG)
-            - Lavender 3-Stage Side-by-Side Evolution Sheet (Reference #3: IMG_4200_ace0f650.PNG)
+            - Companion Inspector Screen
+            - Mint-Green (#00e676) Portrait Matrix
+            - Lavender 3-Stage Side-by-Side Evolution Sheet
            ==================================================================== */}
-        {activeTab === 'charabom-bestiary' && (
+        {activeTab === 'companion-bestiary' && (
           <div className="space-y-4">
-            {/* 1. GBA "★ CHARABOM SELECT ★" INSPECTOR SCREEN (Reference #4) */}
+            {/* 1. COMPANION INSPECTOR SCREEN */}
             <div
               className="rounded-3xl border-[4px] border-[#1a162b] p-4 sm:p-5 shadow-[0_8px_0_#1a162b]"
               style={{
@@ -951,7 +951,7 @@ export const LoadoutView: React.FC = () => {
                 <div className="inline-flex items-center gap-2 rounded-2xl border-[4px] border-[#991b1b] bg-gradient-to-b from-[#fef08a] via-[#facc15] to-[#eab308] px-6 py-1.5 shadow-[0_4px_0_#450a0a]">
                   <span className="text-lg">⭐</span>
                   <span className="font-display text-lg sm:text-2xl font-black tracking-wide text-[#991b1b] drop-shadow-[0_1.5px_0_#fff]">
-                    Charabom Companion Select
+                    Elemental Companion Select
                   </span>
                   <span className="text-lg">⭐</span>
                 </div>
@@ -1067,7 +1067,7 @@ export const LoadoutView: React.FC = () => {
               <div className="lg:col-span-6 rounded-3xl border-[4px] border-[#1a162b] bg-[#00e676] p-3.5 shadow-[0_6px_0_#1a162b]">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="font-display text-sm font-black uppercase text-[#1a162b]">
-                    🟩 Charabom Mugshot Matrix (All Forms &amp; Guardians)
+                    🟩 Companion Mugshot Matrix (All Forms &amp; Guardians)
                   </span>
                   <span className="rounded bg-[#1a162b] px-2 py-0.5 font-mono text-[10px] font-black text-[#00e676]">
                     Click Any Tile

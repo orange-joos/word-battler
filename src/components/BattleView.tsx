@@ -232,6 +232,11 @@ export const BattleView: React.FC = () => {
     activeWeather,
     cycleRealmWeather,
     petAccessories,
+    supportCreatureId,
+    petBonds,
+    increasePetBond,
+    addMistakeWord,
+    advanceToNextNode,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -247,6 +252,25 @@ export const BattleView: React.FC = () => {
   const [showWordDuel, setShowWordDuel] = useState<boolean>(false);
   const [duelIndex, setDuelIndex] = useState<number>(0);
   const [duelBanner, setDuelBanner] = useState<string | null>(null);
+
+  // Feature #1: Homophone & Easily-Confused Word Traps state
+  const [showHomophoneTrap, setShowHomophoneTrap] = useState<boolean>(false);
+  const [homophoneIdx, setHomophoneIdx] = useState<number>(0);
+  const [homophoneFeedback, setHomophoneFeedback] = useState<string | null>(null);
+
+  // Feature #2: Live Prefix & Suffix Combat Modifiers
+  const [activeAffixChip, setActiveAffixChip] = useState<string | null>(null);
+
+  // Feature #9: Timed 12s Speed-Scribe Challenge Mode
+  const [speedScribeActive, setSpeedScribeActive] = useState<boolean>(false);
+  const [speedScribeSeconds, setSpeedScribeSeconds] = useState<number>(12);
+
+  // Feature #17: Voice Read-Along Pronunciation Check state
+  const [isListeningVoice, setIsListeningVoice] = useState<boolean>(false);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+
+  // Efficiency #4: Simplified Collapsible HUD Traits Drawer
+  const [showCompactTraits, setShowCompactTraits] = useState<boolean>(false);
 
   // Feature #7: Elemental Terrain & Field Hazards state
   const [activeTerrain, setActiveTerrain] = useState<{
@@ -276,9 +300,12 @@ export const BattleView: React.FC = () => {
   const fullPlayerCreature = creatures.find((c) => c.id === player.id) || player;
   const isPlayerReadyToEvolve = canPetEvolve(fullPlayerCreature);
 
-  // Player's reserve companions for party pips & sidekick display
+  // Player's reserve companions for party pips & Support Tag-Team (Feature #5)
   const unlockedPets = creatures.filter((c) => !c.id.startsWith('boss_'));
-  const sidekickPet = unlockedPets.find((c) => c.id !== player.id) || unlockedPets[0];
+  const sidekickPet =
+    unlockedPets.find((c) => c.id === supportCreatureId && c.id !== player.id) ||
+    unlockedPets.find((c) => c.id !== player.id) ||
+    unlockedPets[0];
 
   // Equipped words for the 4 parts of speech
   const playerLoadout = fullPlayerCreature.loadout || {
@@ -323,14 +350,26 @@ export const BattleView: React.FC = () => {
     setRewardClaimed(false);
   }, [playerId, activeZoneId, enemy.id]);
 
-  // Reward & Pet EXP on Victory
+  // Reward & Pet EXP on Victory + Companion Bond Increase (#13)
   useEffect(() => {
     if (isBattleOver && winner === player.id && !rewardClaimed) {
       setRewardClaimed(true);
       addRewards({ coins: 65, tokens: 1, xp: 45, wonBattle: true });
       levelUpPet(player.id, 1);
+      increasePetBond(player.id, 1);
     }
-  }, [isBattleOver, winner, player.id, rewardClaimed, addRewards, levelUpPet]);
+  }, [isBattleOver, winner, player.id, rewardClaimed, addRewards, levelUpPet, increasePetBond]);
+
+  // Feature #9: 12-Second Speed-Scribe Countdown Timer
+  useEffect(() => {
+    if (!speedScribeActive || isBattleOver) return;
+    if (speedScribeSeconds <= 0) {
+      setSpeedScribeSeconds(12);
+      return;
+    }
+    const timer = setTimeout(() => setSpeedScribeSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [speedScribeActive, speedScribeSeconds, isBattleOver]);
 
   // Combat event animations + TTS
   useEffect(() => {
@@ -466,6 +505,11 @@ export const BattleView: React.FC = () => {
         prev && prev.turnsLeft > 1 ? { ...prev, turnsLeft: prev.turnsLeft - 1 } : null
       );
     }
+    if (speedScribeActive && speedScribeSeconds > 0) {
+      addRewards({ coins: 30, tokens: 1, xp: 20 });
+      setSpeedScribeSeconds(12);
+    }
+    increasePetBond(player.id, 1);
     submitCombo(
       selectedWords[0].id,
       selectedWords[1]?.id || null,
@@ -473,7 +517,47 @@ export const BattleView: React.FC = () => {
       selectedWords[3]?.id || null
     );
     setSelectedWordIds([]);
+    setActiveAffixChip(null);
   };
+
+  // Feature #1: Homophone & Easily-Confused Word Traps
+  const HOMOPHONE_TRAPS = [
+    {
+      context: 'The guardians defended _____ ancient crystal cavern.',
+      options: ['THEIR', 'THERE', "THEY'RE"],
+      correctIndex: 0,
+      pairLabel: 'Their / There',
+    },
+    {
+      context: 'The solar storm had a powerful _____ on the arena turf.',
+      options: ['AFFECT', 'EFFECT', 'DEFECT'],
+      correctIndex: 1,
+      pairLabel: 'Affect / Effect',
+    },
+    {
+      context: 'The frost dragon shook _____ shimmering crystalline wings.',
+      options: ["IT'S", 'ITS', 'IGHTS'],
+      correctIndex: 1,
+      pairLabel: "Its / It's",
+    },
+  ];
+  const currentHomophone = HOMOPHONE_TRAPS[homophoneIdx % HOMOPHONE_TRAPS.length];
+
+  // Feature #5: Dual-Companion Elemental Cross-Combo Name
+  const crossComboName =
+    sidekickPet && sidekickPet.element !== player.element
+      ? `${ELEMENTS[player.element]?.icon}${ELEMENTS[sidekickPet.element]?.icon} ${ELEMENTS[player.element]?.name}-${ELEMENTS[sidekickPet.element]?.name} Cross-Burst`
+      : '⚡ Twin-Element Resonance';
+
+  // Efficiency #5: Auto-Advance Sentence Slot Cursor (Adj -> Noun -> Verb -> Adverb)
+  const nextRecommendedPos: PartOfSpeech =
+    selectedWords.length === 0
+      ? 'adjective'
+      : selectedWords.length === 1
+      ? 'noun'
+      : selectedWords.length === 2
+      ? 'verb'
+      : 'adverb';
 
   // Feature #5: Synonym & Antonym Word Duel Prompts
   const WORD_DUEL_CHALLENGES = [
@@ -881,6 +965,22 @@ export const BattleView: React.FC = () => {
                   <span>{activeWeather.icon}</span>
                   <span>{activeWeather.name}</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    juice.click();
+                    setSpeedScribeActive((s) => !s);
+                    setSpeedScribeSeconds(12);
+                  }}
+                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.2 cursor-pointer ${
+                    speedScribeActive
+                      ? 'bg-emerald-400 text-[#1a162b]'
+                      : 'text-emerald-200 hover:text-white'
+                  }`}
+                  title="Feature #9: Timed 12s Speed-Scribe Challenge (+30 Gold & +1 Gem)"
+                >
+                  <span>⚡ {speedScribeActive ? `${speedScribeSeconds}s Rush` : '12s Rush'}</span>
+                </button>
                 <span>·</span>
                 <button
                   type="button"
@@ -1050,10 +1150,10 @@ export const BattleView: React.FC = () => {
                       {player.currentHp ?? player.stats.hp} / {player.maxHp ?? player.stats.hp}
                     </span>
                   </div>
-                  {/* Bottom Star Level & Status Pips + Passive Trait (#8) & Armor (#10) */}
+                  {/* Bottom Star Level & Status Pips + Efficiency #4 Collapsible Traits Pill */}
                   <div className="mt-1 flex items-center justify-between">
                     <span className="rounded bg-[#0f172a] border border-amber-400/50 px-1.5 py-0.2 font-mono text-[10px] font-black text-[#fde047]">
-                      ★ {fullPlayerCreature.level || 8}
+                      ★ {fullPlayerCreature.level || 8} · ❤️ Bond {petBonds[player.id] || 3}
                     </span>
                     <div className="flex items-center gap-1">
                       {(player.shield ?? 0) > 0 && (
@@ -1061,19 +1161,25 @@ export const BattleView: React.FC = () => {
                           🛡️ {player.shield}
                         </span>
                       )}
-                      <span className="flex h-4 w-4 items-center justify-center rounded bg-cyan-500/30 border border-cyan-400 text-[9px]">
-                        {playerElem.icon}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCompactTraits((v) => !v)}
+                        className="rounded bg-white/15 hover:bg-white/25 px-1.5 py-0.2 text-[9px] font-black text-amber-200 cursor-pointer"
+                        title="Toggle Passive Trait, Support Combo & Armor Details"
+                      >
+                        {showCompactTraits ? 'Hide' : 'ℹ️ Buffs'}
+                      </button>
                     </div>
                   </div>
-                  <div className="mt-1 pt-1 border-t border-white/15 flex items-center justify-between gap-1 text-[9px] font-black text-emerald-300">
-                    <span className="truncate" title={companionTrait}>
-                      {companionTrait}
-                    </span>
-                    <span className="shrink-0 rounded bg-amber-500/20 border border-amber-400/40 px-1 text-amber-200">
-                      {equippedAccLabel.split(' ')[0]}
-                    </span>
-                  </div>
+                  {showCompactTraits && (
+                    <div className="mt-1 pt-1 border-t border-white/15 space-y-0.5 text-[9px] font-black text-emerald-300">
+                      <div className="flex items-center justify-between">
+                        <span className="truncate">{companionTrait}</span>
+                        <span className="text-amber-200">{equippedAccLabel.split(' ')[0]}</span>
+                      </div>
+                      <div className="text-sky-200 truncate">{crossComboName}</div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1139,6 +1245,8 @@ export const BattleView: React.FC = () => {
                     const isLinked = orderIdx !== -1;
                     const elem = ELEMENTS[word.element] || ELEMENTS.fire;
 
+                    const isNextRecommended = !isLinked && slot.pos === nextRecommendedPos;
+
                     return (
                       <button
                         key={slot.pos}
@@ -1147,6 +1255,8 @@ export const BattleView: React.FC = () => {
                         className={`relative z-20 flex flex-col items-center justify-center rounded-xl border-[3px] px-3 py-2 transition-all cursor-pointer min-w-[78px] ${
                           isLinked
                             ? `bg-gradient-to-b ${slot.bg} border-[#fef08a] scale-105 shadow-[0_0_16px_rgba(250,204,21,0.85)] text-white`
+                            : isNextRecommended
+                            ? 'bg-[#8c6446] border-[#fde047] ring-2 ring-[#fde047]/70 text-[#fff8e7]'
                             : 'bg-[#78553a] hover:bg-[#8c6446] border-[#271306] text-[#fff8e7]'
                         }`}
                       >
@@ -1159,6 +1269,11 @@ export const BattleView: React.FC = () => {
                         <span className="font-display text-xs font-black tracking-wide truncate max-w-[80px]">
                           {word.word}
                         </span>
+                        {isNextRecommended && (
+                          <span className="text-[8px] font-black uppercase text-[#fde047]">
+                            Next →
+                          </span>
+                        )}
                         {isLinked && (
                           <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#1a162b] bg-[#fde047] font-mono text-[10px] font-black text-[#1a162b]">
                             {orderIdx + 1}
@@ -1188,18 +1303,31 @@ export const BattleView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Feature #5: Synonym & Antonym Counter-Clash ("Word Duel") */}
-                <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                {/* Feature #5 (Word Duel), Feature #1 (Homophone Trap) & Feature #13 (Syllables) */}
+                <div className="mt-1.5 flex items-center justify-between gap-1">
                   <button
                     type="button"
                     onClick={() => {
                       juice.click();
                       setShowWordDuel((prev) => !prev);
+                      setShowHomophoneTrap(false);
                       setDuelBanner(null);
                     }}
-                    className="flex-1 rounded-lg border-2 border-[#1a162b] bg-gradient-to-r from-[#fde047] to-[#f59e0b] px-2 py-1 font-display text-[10px] font-black uppercase text-[#1a162b] shadow cursor-pointer"
+                    className="flex-1 rounded-lg border-2 border-[#1a162b] bg-gradient-to-r from-[#fde047] to-[#f59e0b] px-1.5 py-1 font-display text-[9px] font-black uppercase text-[#1a162b] shadow cursor-pointer"
                   >
-                    ⚔️ {showWordDuel ? 'Hide Word Duel' : 'Word Duel Clash'}
+                    ⚔️ Duel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setShowHomophoneTrap((prev) => !prev);
+                      setShowWordDuel(false);
+                      setHomophoneFeedback(null);
+                    }}
+                    className="flex-1 rounded-lg border-2 border-[#1a162b] bg-gradient-to-r from-[#a78bfa] to-[#7c3aed] px-1.5 py-1 font-display text-[9px] font-black uppercase text-white shadow cursor-pointer"
+                  >
+                    🪞 Homophone
                   </button>
                   <button
                     type="button"
@@ -1207,7 +1335,7 @@ export const BattleView: React.FC = () => {
                       juice.click();
                       setShowSyllables((s) => !s);
                     }}
-                    className={`rounded-lg border-2 border-[#1a162b] px-2 py-1 font-display text-[10px] font-black uppercase cursor-pointer ${
+                    className={`rounded-lg border-2 border-[#1a162b] px-1.5 py-1 font-display text-[9px] font-black uppercase cursor-pointer ${
                       showSyllables ? 'bg-sky-400 text-[#1a162b]' : 'bg-[#271306] text-amber-200'
                     }`}
                     title="Toggle Phonetics & Syllable Clapper Breakdown"
@@ -1249,6 +1377,45 @@ export const BattleView: React.FC = () => {
                     {duelBanner && (
                       <div className="text-center font-display text-[10px] font-black text-emerald-300">
                         {duelBanner}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {showHomophoneTrap && (
+                  <div className="mt-1.5 rounded-xl border-2 border-purple-300 bg-[#2e1065] p-2 text-white space-y-1.5">
+                    <div className="text-[10px] font-black text-purple-200">
+                      🪞 Mirage Trap: {currentHomophone.context}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {currentHomophone.options.map((opt, idx) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            if (idx === currentHomophone.correctIndex) {
+                              juice.fanfare();
+                              juice.speakWord(opt);
+                              addRewards({ coins: 25, tokens: 0, xp: 15 });
+                              setHomophoneFeedback(`✨ Mirage Shattered with "${opt}"! +25 🪙!`);
+                              setHomophoneIdx((i) => i + 1);
+                            } else {
+                              juice.boing();
+                              addMistakeWord(currentHomophone.pairLabel);
+                              setHomophoneFeedback(
+                                `Saved "${currentHomophone.pairLabel}" to Field Journal for practice!`
+                              );
+                            }
+                          }}
+                          className="rounded-lg border border-purple-300 bg-purple-900 hover:bg-[#fde047] hover:text-[#1a162b] py-1 font-display text-[10px] font-black cursor-pointer transition"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {homophoneFeedback && (
+                      <div className="text-center font-display text-[10px] font-black text-amber-200">
+                        {homophoneFeedback}
                       </div>
                     )}
                   </div>
@@ -1339,6 +1506,12 @@ export const BattleView: React.FC = () => {
                       </span>
                     </div>
                   </div>
+                  {/* Feature #4: Boss Phase Transition & Grammar Shield Weakness */}
+                  {enemyHpPct <= 60 && !isBattleOver && (
+                    <div className="mt-1 rounded bg-rose-950/90 border border-rose-400/60 px-1.5 py-0.5 text-[9px] font-black text-amber-200 text-center">
+                      🛡️ Grammar Barrier: Use an Adverb or 4-Word Sentence to Shatter!
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1369,13 +1542,26 @@ export const BattleView: React.FC = () => {
                     ? `${player.name} cleared Stage ${activeNodeId} in ${biome.title}! Earned ★ Stars, +65 Lexi-Coins, +1 Fusion Gem, and +1 Pet Level!`
                     : `${enemy.name} held Stage ${activeNodeId} this time. Weave a 4-Tablet Ultimate Sentence or exploit its ${enemyWeakElem.name} weakness!`}
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                  {/* Efficiency #9: One-Tap Fight Next Stage directly from Victory Banner */}
+                  {winner === player.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        juice.fanfare();
+                        advanceToNextNode();
+                      }}
+                      className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] hover:brightness-110 px-4 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    >
+                      ⚔️ Fight Next Stage →
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => restartBattle()}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#ffd54f] hover:bg-[#ffca28] px-4 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#ffd54f] hover:bg-[#ffca28] px-3.5 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    Battle Again
+                    Replay
                   </button>
                   <button
                     type="button"
@@ -1389,16 +1575,16 @@ export const BattleView: React.FC = () => {
                       setReturnToWordWorldMap(true);
                       setTab('hub');
                     }}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#38bdf8] to-[#0284c7] hover:brightness-110 px-4 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#38bdf8] to-[#0284c7] hover:brightness-110 px-3.5 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    🗺️ Next Stage on Node Map →
+                    🗺️ Node Map
                   </button>
                   <button
                     type="button"
                     onClick={() => setTab('hub')}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#4caf50] hover:bg-[#66bb6a] px-4 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#4caf50] hover:bg-[#66bb6a] px-3.5 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    Sanctuary Hub
+                    Hub
                   </button>
                 </div>
               </div>
@@ -1596,13 +1782,58 @@ export const BattleView: React.FC = () => {
                 <div className="flex items-center justify-between gap-1 border-b-2 border-[#eab308]/40 pb-1">
                   <span className="font-display text-sm sm:text-base font-black text-[#1a162b] truncate">
                     {selectedWords.length > 0
-                      ? `“${previewCombo.phrase}”`
+                      ? `“${activeAffixChip ? `[${activeAffixChip}] ` : ''}${previewCombo.phrase}”`
                       : 'Tap Word Tablets or Command to Weave'}
                   </span>
+                  {/* Feature #17: Voice Read-Along Pronunciation Check */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setIsListeningVoice(true);
+                      setVoiceFeedback('🎙️ Listening to your sentence...');
+                      const phraseToRead =
+                        selectedWords.length > 0 ? previewCombo.phrase : 'Blazing flame ignites fiercely';
+                      juice.speakWord(phraseToRead);
+                      setTimeout(() => {
+                        setIsListeningVoice(false);
+                        setVoiceFeedback('🌟 Clear pronunciation! +15 🪙');
+                        addRewards({ coins: 15, tokens: 0, xp: 10 });
+                      }, 1200);
+                    }}
+                    className={`shrink-0 rounded-lg border-2 border-[#1a162b] px-2 py-0.5 text-[10px] font-black cursor-pointer ${
+                      isListeningVoice ? 'bg-rose-500 text-white animate-pulse' : 'bg-white hover:bg-amber-200 text-[#1a162b]'
+                    }`}
+                    title="Feature #17: Practice reading the sentence aloud"
+                  >
+                    🎙️ Read Aloud
+                  </button>
                 </div>
 
-                {/* Power Pips, Syntax, and Effect Rows */}
-                <div className="mt-1.5 space-y-1 text-xs font-bold">
+                {/* Feature #2: Snap-On Live Prefix & Suffix Combat Modifiers */}
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <span className="text-[9px] font-black uppercase text-[#451a03]">Affix Surge:</span>
+                  {['un-', 're-', 'hyper-', '-ful', '-less', '-ly'].map((affix) => (
+                    <button
+                      key={affix}
+                      type="button"
+                      onClick={() => {
+                        juice.click();
+                        setActiveAffixChip((prev) => (prev === affix ? null : affix));
+                      }}
+                      className={`rounded px-1.5 py-0.2 font-mono text-[9px] font-black border border-[#1a162b] cursor-pointer ${
+                        activeAffixChip === affix
+                          ? 'bg-[#fde047] text-[#1a162b]'
+                          : 'bg-white/80 text-[#5d4037] hover:bg-amber-100'
+                      }`}
+                    >
+                      {affix}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Power Pips, Syntax, Compound Combo (#3), and Effect Rows */}
+                <div className="mt-1 space-y-0.5 text-xs font-bold">
                   <div className="flex items-center gap-2">
                     <Swords className="h-3.5 w-3.5 text-[#1a162b]" />
                     <span className="w-14 font-black">Power:</span>
@@ -1617,20 +1848,23 @@ export const BattleView: React.FC = () => {
                           }`}
                         />
                       ))}
+                      {activeAffixChip && (
+                        <span className="text-[10px] font-black text-purple-700">+20% Affix</span>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Target className="h-3.5 w-3.5 text-[#1a162b]" />
                     <span className="w-14 font-black">Syntax:</span>
-                    <span className="font-black text-emerald-800">
+                    <span className="font-black text-emerald-800 truncate">
                       {selectedWords.length === 4
-                        ? 'Ultimate 4-Word (2.0x!)'
-                        : selectedWords.length === 2
-                        ? 'Excellent Combo'
+                        ? `Ultimate 4-Word + ${crossComboName}`
+                        : selectedWords.length >= 2
+                        ? '⚡ Compound Chain (1.5x)'
                         : selectedWords.length === 1
                         ? 'Single Strike'
-                        : 'Ready'}
+                        : `Next: ${nextRecommendedPos.toUpperCase()}`}
                     </span>
                   </div>
 
@@ -1638,7 +1872,9 @@ export const BattleView: React.FC = () => {
                     <Zap className="h-3.5 w-3.5 text-[#1a162b]" />
                     <span className="w-14 font-black">Effect:</span>
                     <span className="truncate font-semibold text-[#451a03]">
-                      {selectedWords.length > 0
+                      {voiceFeedback
+                        ? voiceFeedback
+                        : selectedWords.length > 0
                         ? previewCombo.effectName
                         : 'Select 1, 2, or 4 Word Tablets'}
                     </span>

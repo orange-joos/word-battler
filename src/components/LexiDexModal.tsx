@@ -39,7 +39,7 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
     useCreatureInBattle,
   } = useGame();
 
-  const [activeTab, setActiveTab] = useState<'grimoire' | 'beastiary'>('grimoire');
+  const [activeTab, setActiveTab] = useState<'grimoire' | 'beastiary' | 'roots'>('grimoire');
   const [gradeFilter, setGradeFilter] = useState<GradeTier | 'all'>('all');
   const [posFilter, setPosFilter] = useState<PartOfSpeech | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,10 +74,10 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
             </div>
             <div>
               <h2 className="font-serif text-xl sm:text-2xl font-black text-[#fff3d1]">
-                Scholar’s Lexi-Dex &amp; K–8 Word Grimoire
+                Scholar’s Lexi-Dex &amp; K–8 Word Tablet Archive
               </h2>
               <p className="text-xs font-bold text-amber-200/90">
-                Complete Kindergarten to 5th Grade + Middle School Extender Database &amp; 3-Stage Pet Evolution Trees
+                Complete Kindergarten to 5th Grade + Middle School Extender Database, Root Family Trees &amp; 3-Stage Pet Evolutions
               </p>
             </div>
           </div>
@@ -93,7 +93,7 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
 
         {/* Sub-Navigation Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#e5cca8] bg-[#f7ebd9] px-5 py-2.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setActiveTab('grimoire')}
@@ -104,7 +104,19 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
               }`}
             >
               <GraduationCap className="h-4 w-4" />
-              <span>K–8 Tiered Word Grimoire ({allWords.length} Words)</span>
+              <span>K–8 Word Tablets ({allWords.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('roots')}
+              className={`flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-xs font-black uppercase transition cursor-pointer ${
+                activeTab === 'roots'
+                  ? 'border-[#3d1e0d] bg-[#5a2e12] text-amber-200 shadow-xs'
+                  : 'border-[#c8a97e] bg-white text-[#5a2e12] hover:bg-amber-50'
+              }`}
+            >
+              <span>🌳 Root Family Trees</span>
             </button>
 
             <button
@@ -117,7 +129,7 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
               }`}
             >
               <Sparkles className="h-4 w-4" />
-              <span>Companion Beastiary &amp; Evolution Trees ({companionCreatures.length})</span>
+              <span>Companion Bestiary ({companionCreatures.length})</span>
             </button>
           </div>
 
@@ -280,6 +292,88 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          ) : activeTab === 'roots' ? (
+            /* Feature #16: Root-Word Family Tree Visualizer */
+            <div className="space-y-4">
+              <div className="rounded-2xl border-2 border-[#5a2e12] bg-amber-50 p-4">
+                <h3 className="font-serif text-lg font-black text-[#2a170b]">
+                  🌳 Latin &amp; Greek Root-Word Family Tree Visualizer
+                </h3>
+                <p className="text-xs font-bold text-[#7c4a27]">
+                  Click any branching derivative word below to hear how a single ancient root grows into an entire family of vocabulary words!
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  {
+                    root: 'SPECT (Latin: "to look / see")',
+                    icon: '🔭',
+                    branches: [
+                      { word: 'Inspect', note: 'in- (into) + spect = look closely into' },
+                      { word: 'Spectacle', note: 'spect + -acle = an impressive sight' },
+                      { word: 'Perspective', note: 'per- (through) + spect = point of view' },
+                    ],
+                  },
+                  {
+                    root: 'RUPT (Latin: "to break / burst")',
+                    icon: '🌋',
+                    branches: [
+                      { word: 'Erupt', note: 'e- (out) + rupt = burst outward like magma' },
+                      { word: 'Disrupt', note: 'dis- (apart) + rupt = break apart order' },
+                      { word: 'Uninterrupted', note: 'un- + inter- + rupt = unbroken continuity' },
+                    ],
+                  },
+                  {
+                    root: 'PORT (Latin: "to carry")',
+                    icon: '⛵',
+                    branches: [
+                      { word: 'Transport', note: 'trans- (across) + port = carry across realms' },
+                      { word: 'Portable', note: 'port + -able = able to be carried easily' },
+                      { word: 'Export', note: 'ex- (out) + port = carry goods outward' },
+                    ],
+                  },
+                  {
+                    root: 'LUM / LUC (Latin: "light / shine")',
+                    icon: '✨',
+                    branches: [
+                      { word: 'Luminous', note: 'lumin + -ous = full of radiant light' },
+                      { word: 'Illuminate', note: 'il- + lumin + -ate = brighten with light' },
+                      { word: 'Translucent', note: 'trans- + luc = letting light shine through' },
+                    ],
+                  },
+                ].map((tree) => (
+                  <div
+                    key={tree.root}
+                    className="rounded-2xl border-2 border-[#5a2e12] bg-white p-4 space-y-2.5 shadow"
+                  >
+                    <div className="flex items-center gap-2 border-b border-amber-200 pb-2">
+                      <span className="text-2xl">{tree.icon}</span>
+                      <span className="font-serif text-base font-black text-[#5a2e12]">
+                        {tree.root}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 pl-3 border-l-4 border-emerald-600">
+                      {tree.branches.map((b) => (
+                        <button
+                          key={b.word}
+                          type="button"
+                          onClick={() => juice.speakWord(`${b.word}. ${b.note}`)}
+                          className="w-full rounded-xl border border-[#c8a97e] bg-[#fffaf2] hover:bg-amber-100 px-3 py-2 text-left transition cursor-pointer flex items-center justify-between"
+                        >
+                          <div>
+                            <div className="font-serif text-sm font-black text-[#2a170b]">
+                              🌿 {b.word}
+                            </div>
+                            <div className="text-[11px] font-bold text-[#7c4a27]">{b.note}</div>
+                          </div>
+                          <Volume2 className="h-4 w-4 text-amber-800 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (

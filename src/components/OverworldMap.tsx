@@ -268,6 +268,23 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     equipPetAccessory,
     petSpecializations,
     setPetSpecialization,
+    autoEquipBestLoadout,
+    supportCreatureId,
+    setSupportCreatureId,
+    awakenedFossils,
+    awakenPrehistoricCompanion,
+    petBonds,
+    increasePetBond,
+    bountiesClaimed,
+    claimBounty,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
+    mistakeWords,
+    masterMistakeWord,
+    sanctuaryTheme,
+    setSanctuaryTheme,
+    ancientAmber,
+    addAncientAmber,
   } = useGame();
   const { currentUser, logout, setIsCustomizingAvatar, updateProfile, addRewards } = useAuth();
 
@@ -276,6 +293,12 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
   const [isModalFullScreen, setIsModalFullScreen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [evolvingCreatureId, setEvolvingCreatureId] = useState<string | null>(null);
+
+  // Efficiency #1: Compact Explorer Pack Drawer toggle in Top-Right HUD
+  const [showExplorerPack, setShowExplorerPack] = useState<boolean>(false);
+
+  // Feature #14: Interactive Courtyard Training Dummy state
+  const [dummyDamageText, setDummyDamageText] = useState<string | null>(null);
 
   // Feature #6: 3-Wave Colosseum Survival Tower state
   const [colosseumWave, setColosseumWave] = useState<1 | 2 | 3>(1);
@@ -958,15 +981,29 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                       Hatch Sky Eggs, train companion levels, trigger 3-stage Evolutions, or equip K–8 Word Cards!
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setActiveModal(null);
-                      setTab('loadout');
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] text-white font-display font-black text-xs border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
-                  >
-                    🎒 Equip Word Cards (Arsenal) →
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Efficiency #6: One-Tap Smart Auto-Loadout Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        autoEquipBestLoadout(selectedPet.id);
+                        juice.fanfare();
+                        triggerToast(`⚡ Auto-Equipped best K–8 Word Tablets on ${selectedPet.name}!`);
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#f59e0b] text-[#1a162b] font-display font-black text-xs border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    >
+                      ⚡ Auto-Loadout
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveModal(null);
+                        setTab('loadout');
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] text-white font-display font-black text-xs border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    >
+                      🎒 Equip Word Cards (Arsenal) →
+                    </button>
+                  </div>
                 </div>
 
                 {/* 3-Tap Sky Egg Incubator */}
@@ -1129,10 +1166,30 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                               )}
                             </div>
                             <div className="text-[11px] font-bold text-[#5d4037] uppercase">
-                              {ELEMENTS[pet.element]?.name || pet.element} · Stage {petStage}/{maxStage}
+                              {ELEMENTS[pet.element]?.name || pet.element} · Stage {petStage}/{maxStage} · ❤️ Bond Lv.{petBonds[pet.id] || 3}
                             </div>
-                            <div className="text-[11px] font-extrabold text-[#1a162b] mt-1">
-                              HP {pet.stats.hp} · ATK {pet.stats.attack} · DEF {pet.stats.defense}
+                            <div className="flex items-center justify-between gap-2 mt-1">
+                              <span className="text-[11px] font-extrabold text-[#1a162b]">
+                                HP {pet.stats.hp} · ATK {pet.stats.attack} · DEF {pet.stats.defense}
+                              </span>
+                              {/* Feature #5: Assign Dual-Companion Support Tag-Team Partner */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSupportCreatureId(pet.id);
+                                  increasePetBond(pet.id, 1);
+                                  juice.ding(880, 110);
+                                  triggerToast(`🤝 ${pet.name} set as Tag-Team Support Partner!`);
+                                }}
+                                className={`px-2 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
+                                  supportCreatureId === pet.id
+                                    ? 'bg-indigo-700 text-[#fde047] border-[#1a162b]'
+                                    : 'bg-indigo-50 text-indigo-900 border-indigo-300'
+                                }`}
+                              >
+                                {supportCreatureId === pet.id ? '🤝 Support Active' : '+ Tag-Team'}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1562,24 +1619,72 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                     </div>
                   );
                 })}
+
+                {/* Feature #15: Daily Expedition Bounty Board */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fef3c7] to-[#fde68a] border-[3px] border-[#1a162b] space-y-2.5 shadow-[0_4px_0_#1a162b]">
+                  <div className="font-display font-black text-sm uppercase text-[#1a162b]">
+                    📌 Feature #15 · Daily Expedition Bounty Board (+🦴 Ancient Amber)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'bounty-amber', label: 'Excavate 1 Fossil Dig Site', amber: 3, coins: 60 },
+                      { id: 'bounty-adverb', label: 'Weave a 4-Word Sentence', amber: 4, coins: 75 },
+                      { id: 'bounty-bond', label: 'Train or Bond with a Companion', amber: 3, coins: 55 },
+                    ].map((b) => {
+                      const done = Boolean(bountiesClaimed[b.id]);
+                      return (
+                        <div
+                          key={b.id}
+                          className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 flex flex-col justify-between gap-2"
+                        >
+                          <div>
+                            <div className="font-display font-black text-xs text-[#1a162b]">
+                              {b.label}
+                            </div>
+                            <div className="text-[10px] font-bold text-amber-800">
+                              +{b.coins} 🪙 · +{b.amber} 🦴 Amber
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={done}
+                            onClick={() => {
+                              claimBounty(b.id);
+                              addAncientAmber(b.amber);
+                              addRewards({ coins: b.coins, tokens: 1, xp: 30 });
+                              triggerToast(`Claimed Bounty: +${b.coins} 🪙 & +${b.amber} 🦴 Amber!`);
+                            }}
+                            className={`w-full py-1.5 rounded-lg border-2 border-[#1a162b] font-display font-black text-[10px] uppercase cursor-pointer ${
+                              done
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-[#fde047] hover:bg-amber-300 text-[#1a162b]'
+                            }`}
+                          >
+                            {done ? '✓ Claimed' : 'Claim Bounty'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
             {/* ===============================================================
-                FEATURE #1: AETHERIA PALEONTOLOGY MUSEUM & FOSSIL WING
+                FEATURE #1 & #12: AETHERIA PALEONTOLOGY MUSEUM & FOSSIL AWAKENING
             ================================================================ */}
             {activeModal === 'museum' && (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-[#fef3c7] via-[#fde68a] to-[#fcd34d] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b]">
                   <div>
                     <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#78350f] text-[#fde047]">
-                      🏛️ Grand Paleontology Hall · 9 Realm Relics
+                      🏛️ Grand Paleontology Hall · 🦴 {ancientAmber} Ancient Amber
                     </span>
                     <h3 className="font-display font-black text-lg text-[#1a162b] mt-1">
-                      Excavated Stone Word Tablets &amp; Prehistoric Relics
+                      Excavated Stone Word Tablets &amp; Prehistoric Companion Awakening
                     </h3>
                     <p className="text-xs font-bold text-[#5d4037]">
-                      Every Stage X-4 Fossil Dig Site you excavate places its ancient Word Tablet on permanent display here!
+                      Display excavated tablets and revive ancient Prehistoric Companions for your Sanctuary squad!
                     </p>
                   </div>
                   <button
@@ -1588,9 +1693,10 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                     onClick={() => {
                       if (museumBonusClaimed) return;
                       setMuseumBonusClaimed(true);
+                      addAncientAmber(5);
                       addRewards({ coins: 180, tokens: 3, xp: 80 });
                       juice.fanfare();
-                      triggerToast('Claimed Curator Grant: +180 🪙 & +3 💎!');
+                      triggerToast('Claimed Curator Grant: +180 🪙, +3 💎 & +5 🦴 Amber!');
                     }}
                     className={`px-4 py-2.5 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs cursor-pointer ${
                       museumBonusClaimed
@@ -1609,6 +1715,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                     const isExcavated =
                       Boolean(digNode && nodeProgress[digNode.nodeId]?.cleared) ||
                       allWords.some((w) => w.id === tablet?.id);
+                    const isAwakened = Boolean(awakenedFossils[biome.element]);
 
                     return (
                       <div
@@ -1618,35 +1725,54 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                             juice.speakWord(`${tablet.word}. ${tablet.definition}`);
                           }
                         }}
-                        className={`p-3.5 rounded-2xl border-[3px] border-[#1a162b] transition cursor-pointer ${
+                        className={`p-3.5 rounded-2xl border-[3px] border-[#1a162b] flex flex-col justify-between transition cursor-pointer ${
                           isExcavated
                             ? 'bg-white shadow-[0_4px_0_#1a162b]'
                             : 'bg-stone-200/80 opacity-85'
                         }`}
                       >
-                        <div className="flex items-center justify-between text-[10px] font-black">
-                          <span className="uppercase text-[#78350f]">
-                            {ELEMENTS[biome.element]?.icon} {biome.name}
-                          </span>
-                          <span
-                            className={`px-1.5 py-0.5 rounded ${
-                              isExcavated
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-700'
-                                : 'bg-stone-300 text-stone-700'
-                            }`}
-                          >
-                            {isExcavated ? '★ Displayed' : `Stage ${biome.order}-4`}
-                          </span>
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-black">
+                            <span className="uppercase text-[#78350f]">
+                              {ELEMENTS[biome.element]?.icon} {biome.name}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded ${
+                                isExcavated
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-700'
+                                  : 'bg-stone-300 text-stone-700'
+                              }`}
+                            >
+                              {isExcavated ? '★ Displayed' : `Stage ${biome.order}-4`}
+                            </span>
+                          </div>
+                          <div className="font-display font-black text-base text-[#1a162b] mt-1.5">
+                            🦴 {tablet?.word || 'Ancient Tablet'}
+                          </div>
+                          <p className="text-[11px] font-semibold text-[#5d4037] mt-0.5">
+                            {tablet?.definition}
+                          </p>
+                          <div className="mt-1.5 text-[10px] font-black text-amber-800">
+                            🔬 {tablet?.morphologyNote}
+                          </div>
                         </div>
-                        <div className="font-display font-black text-base text-[#1a162b] mt-1.5">
-                          🦴 {tablet?.word || 'Ancient Tablet'}
-                        </div>
-                        <p className="text-[11px] font-semibold text-[#5d4037] mt-0.5">
-                          {tablet?.definition}
-                        </p>
-                        <div className="mt-2 text-[10px] font-black text-amber-800">
-                          🔬 {tablet?.morphologyNote}
-                        </div>
+
+                        {/* Feature #12: Awaken Prehistoric Companion Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const pet = awakenPrehistoricCompanion(biome.element);
+                            triggerToast(`🦖 Awakened Prehistoric Companion: ${pet.name}!`);
+                          }}
+                          className={`mt-2.5 w-full py-1.5 rounded-xl border-2 border-[#1a162b] font-display font-black text-[10px] uppercase cursor-pointer ${
+                            isAwakened
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-gradient-to-r from-[#fde047] to-[#f59e0b] text-[#1a162b]'
+                          }`}
+                        >
+                          {isAwakened ? '🦖 Fossil Companion Active (+Lv)' : '🦖 Awaken Fossil Companion'}
+                        </button>
                       </div>
                     );
                   })}
@@ -1735,6 +1861,44 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Feature #19: Mistake Review "Field Journal" Practice Deck */}
+                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="font-display font-black text-sm text-[#1a162b]">
+                      📓 Feature #19 · Mistake Review &amp; Field Journal Practice Deck
+                    </div>
+                    <span className="text-[10px] font-black text-emerald-700">
+                      +20 🪙 per Mastered Word
+                    </span>
+                  </div>
+                  {mistakeWords.length === 0 ? (
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-2.5 text-xs font-bold text-emerald-800">
+                      ✨ All Field Journal review words have been mastered!
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {mistakeWords.map((mw) => (
+                        <button
+                          key={mw}
+                          type="button"
+                          onClick={() => {
+                            juice.speakWord(mw);
+                            masterMistakeWord(mw);
+                            addRewards({ coins: 20, tokens: 0, xp: 15 });
+                            triggerToast(`Mastered "${mw}" in Field Journal! +20 🪙`);
+                          }}
+                          className="flex items-center gap-2 rounded-xl border-2 border-[#1a162b] bg-[#fff8e7] hover:bg-[#fde047] px-3 py-1.5 text-xs font-black text-[#1a162b] cursor-pointer"
+                        >
+                          <span>🔊 Practice &amp; Master: "{mw}"</span>
+                          <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] text-white">
+                            +20 🪙
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
@@ -1873,6 +2037,64 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                   </div>
                 </div>
 
+                {/* Feature #18: Dyslexia-Friendly Typography & High-Contrast Mode + Feature #20: Seasonal Sanctuary Themes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
+                    <div>
+                      <div className="font-display font-black text-sm text-[#1a162b]">
+                        📖 Dyslexia-Friendly Readability (#18)
+                      </div>
+                      <div className="text-[11px] font-semibold text-[#5d4037]">
+                        Wider letter spacing &amp; clear word intervals
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDyslexiaFriendly(!dyslexiaFriendly);
+                        juice.click();
+                      }}
+                      className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer ${
+                        dyslexiaFriendly ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
+                      }`}
+                    >
+                      {dyslexiaFriendly ? '✓ Active' : 'Enable'}
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-1.5">
+                    <div className="font-display font-black text-sm text-[#1a162b]">
+                      🍂 Seasonal Sanctuary Theme (#20)
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {(
+                        [
+                          { id: 'classic', label: '🌿 Summer' },
+                          { id: 'autumn', label: '🍁 Autumn' },
+                          { id: 'frostfall', label: '❄️ Frostfall' },
+                          { id: 'starlight', label: '✨ Starlight' },
+                        ] as const
+                      ).map((th) => (
+                        <button
+                          key={th.id}
+                          type="button"
+                          onClick={() => {
+                            setSanctuaryTheme(th.id);
+                            juice.click();
+                          }}
+                          className={`px-2 py-1 rounded-lg border border-[#1a162b] text-[10px] font-black cursor-pointer ${
+                            sanctuaryTheme === th.id
+                              ? 'bg-[#1a162b] text-[#fde047]'
+                              : 'bg-amber-50 text-[#1a162b]'
+                          }`}
+                        >
+                          {th.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
                   <div>
                     <div className="font-display font-black text-base">
@@ -1934,14 +2156,80 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
       >
         <defs>
           <linearGradient id="valleySky" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#d9f99d" />
-            <stop offset="45%" stopColor="#fef3c7" />
-            <stop offset="100%" stopColor="#f59e0b" />
+            <stop
+              offset="0%"
+              stopColor={
+                sanctuaryTheme === 'frostfall'
+                  ? '#bae6fd'
+                  : sanctuaryTheme === 'starlight'
+                  ? '#1e1b4b'
+                  : sanctuaryTheme === 'autumn'
+                  ? '#fed7aa'
+                  : '#d9f99d'
+              }
+            />
+            <stop
+              offset="45%"
+              stopColor={
+                sanctuaryTheme === 'frostfall'
+                  ? '#e0f2fe'
+                  : sanctuaryTheme === 'starlight'
+                  ? '#312e81'
+                  : sanctuaryTheme === 'autumn'
+                  ? '#fdba74'
+                  : '#fef3c7'
+              }
+            />
+            <stop
+              offset="100%"
+              stopColor={
+                sanctuaryTheme === 'frostfall'
+                  ? '#38bdf8'
+                  : sanctuaryTheme === 'starlight'
+                  ? '#581c87'
+                  : sanctuaryTheme === 'autumn'
+                  ? '#ea580c'
+                  : '#f59e0b'
+              }
+            />
           </linearGradient>
           <radialGradient id="sanctuaryTurf" cx="50%" cy="52%" r="48%">
-            <stop offset="0%" stopColor="#a3e635" />
-            <stop offset="65%" stopColor="#65a30d" />
-            <stop offset="100%" stopColor="#3f6212" />
+            <stop
+              offset="0%"
+              stopColor={
+                sanctuaryTheme === 'frostfall'
+                  ? '#e0f2fe'
+                  : sanctuaryTheme === 'starlight'
+                  ? '#a78bfa'
+                  : sanctuaryTheme === 'autumn'
+                  ? '#fbbf24'
+                  : '#a3e635'
+              }
+            />
+            <stop
+              offset="65%"
+              stopColor={
+                sanctuaryTheme === 'frostfall'
+                  ? '#7dd3fc'
+                  : sanctuaryTheme === 'starlight'
+                  ? '#6d28d9'
+                  : sanctuaryTheme === 'autumn'
+                  ? '#d97706'
+                  : '#65a30d'
+              }
+            />
+            <stop
+              offset="100%"
+              stopColor={
+                sanctuaryTheme === 'frostfall'
+                  ? '#0284c7'
+                  : sanctuaryTheme === 'starlight'
+                  ? '#3b0764'
+                  : sanctuaryTheme === 'autumn'
+                  ? '#78350f'
+                  : '#3f6212'
+              }
+            />
           </radialGradient>
         </defs>
 
@@ -2242,7 +2530,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
       </div>
 
       {/* =====================================================================
-          TOP-RIGHT HUD — MUSEUM (#1), REPORT CARD (#15), EDUCATOR (#14), QUESTS, LEXI-DEX, AUDIO & LOG OUT
+          EFFICIENCY #1: STREAMLINED TOP-RIGHT HUD + "🎒 EXPLORER PACK" DRAWER
       ====================================================================== */}
       <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -2256,44 +2544,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </div>
             <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
               Museum
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('profile')}
-            className="flex flex-col items-center group cursor-pointer"
-            title="Open Badges & K–8 Report Card"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#bae6fd] to-[#0284c7] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-              🏅
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Badges
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('settings')}
-            className="flex flex-col items-center group cursor-pointer"
-            title="Custom Spelling List & Grade Band"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#bbf7d0] to-[#16a34a] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-              📝
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Word List
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('quests')}
-            className="flex flex-col items-center group cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#fff8e7] to-[#ffe082] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-              📋
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Quests
             </span>
           </button>
 
@@ -2312,33 +2562,84 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </span>
           </button>
 
+          {/* Efficiency #1: Consolidated "🎒 Explorer Pack" Menu Button */}
           <button
-            onClick={toggleMute}
-            className="flex flex-col items-center group cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#cfd8dc] to-[#90a4ae] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-[#1a162b] group-hover:scale-105 transition-transform">
-              {isMuted ? <VolumeX className="w-5 h-5 text-[#d32f2f]" /> : <Volume2 className="w-5 h-5" />}
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              {isMuted ? 'Muted' : 'Audio'}
-            </span>
-          </button>
-
-          <button
+            type="button"
             onClick={() => {
-              juice.boing();
-              logout();
+              juice.click();
+              setShowExplorerPack((p) => !p);
             }}
             className="flex flex-col items-center group cursor-pointer"
+            title="Open Explorer Pack (Badges, Bounties, Word Studio, Themes & Audio)"
           >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#ef5350] to-[#c62828] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-white group-hover:scale-105 transition-transform">
-              <LogOut className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+              🎒
             </div>
             <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Log Out
+              Pack ▾
             </span>
           </button>
         </div>
+
+        {/* Collapsible Explorer Pack Drawer */}
+        {showExplorerPack && (
+          <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#1a162b]/95 p-2.5 text-white shadow-[0_6px_0_#000] space-y-1.5 w-52">
+            <button
+              type="button"
+              onClick={() => {
+                setShowExplorerPack(false);
+                setActiveModal('profile');
+              }}
+              className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
+            >
+              <span>🏅</span>
+              <span>Badges &amp; Field Journal</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowExplorerPack(false);
+                setActiveModal('quests');
+              }}
+              className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
+            >
+              <span>📋</span>
+              <span>Quests &amp; Daily Bounties</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowExplorerPack(false);
+                setActiveModal('settings');
+              }}
+              className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
+            >
+              <span>📝</span>
+              <span>Word Studio &amp; Themes</span>
+            </button>
+            <div className="flex items-center gap-1.5 pt-1 border-t border-white/15">
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-white/15 hover:bg-white/25 py-1.5 text-[10px] font-black cursor-pointer"
+              >
+                {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span>{isMuted ? 'Muted' : 'Sound'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  juice.boing();
+                  logout();
+                }}
+                className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-rose-600 hover:bg-rose-500 py-1.5 text-[10px] font-black cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Exit</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Feature #4: Live Realm Weather Forecast Pill in Sanctuary Hub */}
         <button
@@ -2354,8 +2655,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
       </div>
 
       {/* =====================================================================
-          CENTRAL COURTYARD NEXUS: EXPLORER TAMER & ACTIVE COMPANION
-          Standing at the Golden Sun-Dial Fountain in the Center of the Plaza!
+          CENTRAL COURTYARD NEXUS: EXPLORER TAMER, ACTIVE COMPANION & TRAINING DUMMY (#14)
       ====================================================================== */}
       <div
         onClick={() => setActiveModal('word-world')}
@@ -2383,6 +2683,33 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
           ★ Sanctuary Courtyard ({clearedAreasCount}/9 Areas)
         </div>
       </div>
+
+      {/* Feature #14: Interactive Courtyard Sentence Training Dummy */}
+      <button
+        type="button"
+        onClick={() => {
+          const sampleDmg = (selectedPet.stats.attack || 16) * 2 + 12;
+          setDummyDamageText(`💥 ${sampleDmg} DMG! "Blazing flame ignites fiercely!"`);
+          juice.hit();
+          juice.speakWord('Blazing flame ignites fiercely!');
+          setTimeout(() => setDummyDamageText(null), 2400);
+        }}
+        style={{ left: '41%', top: '57%' }}
+        className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
+        title="Feature #14: Click to test a 4-Word Sentence Strike on the Courtyard Dummy!"
+      >
+        {dummyDamageText && (
+          <div className="mb-1 whitespace-nowrap rounded-xl border-2 border-[#1a162b] bg-[#fde047] px-2.5 py-0.5 font-mono text-[10px] font-black text-[#1a162b] shadow animate-bounce">
+            {dummyDamageText}
+          </div>
+        )}
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] bg-amber-200 text-lg shadow-[0_3px_0_#1a162b] group-hover:scale-110 transition">
+          🎯
+        </div>
+        <span className="mt-0.5 rounded bg-[#1a162b]/90 px-1.5 py-0.2 font-display text-[8px] font-black uppercase text-amber-200">
+          Test Dummy
+        </span>
+      </button>
 
       {/* =====================================================================
           5 PRIMARY SANCTUARY LANDMARK BUILDINGS AROUND THE COURTYARD RING

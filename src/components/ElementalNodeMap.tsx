@@ -53,6 +53,9 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     recruitWildCompanion,
     activeWeather,
     cycleRealmWeather,
+    ancientAmber,
+    addAncientAmber,
+    addMistakeWord,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -122,12 +125,21 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
   // Treasure Chest state for 'chest' nodes (X-8)
   const [chestOpened, setChestOpened] = useState<boolean>(false);
 
-  // Feature #2, #3, #12 Sub-View Mode ('stage' | 'roaming' | 'quarry' | 'campfire')
+  // Efficiency #3 + Features #2, #3, #6, #7, #8, #10, #12 Consolidated Sub-View Mode
   const [expeditionSubView, setExpeditionSubView] = useState<
-    'stage' | 'roaming' | 'quarry' | 'campfire'
+    'stage' | 'roaming' | 'quarry' | 'campfire' | 'relics'
   >('stage');
   const [roamingSolved, setRoamingSolved] = useState<Record<string, boolean>>({});
   const [campfireSolved, setCampfireSolved] = useState<Record<string, boolean>>({});
+
+  // Feature #6: Secret Branching Side-Paths (X-5B & X-8B)
+  const [secretNodesClaimed, setSecretNodesClaimed] = useState<Record<string, boolean>>({});
+  // Feature #7: Wandering Caravan Word Merchant
+  const [merchantPurchased, setMerchantPurchased] = useState<Record<string, boolean>>({});
+  // Feature #8: Mystery Riddle Gate before Mid-Boss
+  const [riddleGateSolved, setRiddleGateSolved] = useState<Record<string, boolean>>({});
+  // Feature #10: Shades-of-Meaning Relic Vault Puzzle
+  const [relicVaultSolved, setRelicVaultSolved] = useState<Record<string, boolean>>({});
 
   // Feature #3: 12-Tile Deep-Strata Quarry state
   const [quarryLayers, setQuarryLayers] = useState<number[]>(() =>
@@ -228,6 +240,7 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
       setCorrectCount((c) => c + 1);
     } else {
       juice.boing();
+      addMistakeWord(currentQ.focusWord);
     }
   };
 
@@ -877,6 +890,43 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                   </div>
                 );
               })}
+
+              {/* Feature #6: Secret Branching Side-Path Nodes (X-5B & X-8B) + Feature #7 Merchant Pin */}
+              <button
+                type="button"
+                onClick={() => {
+                  juice.click();
+                  setExpeditionSubView('relics');
+                }}
+                style={{ left: '84%', top: '52%' }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
+                title="Secret Branch Node X-5B & Mystery Riddle Gate"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#fde047] bg-gradient-to-b from-purple-700 to-indigo-950 text-xl shadow-[0_4px_0_#1a162b] group-hover:scale-110 transition">
+                  🗝️
+                </div>
+                <span className="mt-1 rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[9px] font-black text-[#fde047] border border-[#fde047]/50">
+                  {selectedBiome.order}-5B Secret
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  juice.click();
+                  setExpeditionSubView('relics');
+                }}
+                style={{ left: '16%', top: '28%' }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
+                title="Wandering Word Merchant & Side-Vault X-8B"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#fde047] bg-gradient-to-b from-amber-500 to-orange-700 text-xl shadow-[0_4px_0_#1a162b] group-hover:scale-110 transition">
+                  🐫
+                </div>
+                <span className="mt-1 rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[9px] font-black text-amber-200 border border-amber-400/50">
+                  {selectedBiome.order}-8B Caravan
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -886,32 +936,41 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
             12-TILE DEEP QUARRY (#3) & CAMPFIRE CHRONICLES (#12)
         ==================================================================== */}
         <div className="lg:col-span-5 rounded-3xl border-[4px] border-[#1a162b] bg-white p-4 sm:p-5 shadow-[0_7px_0_#1a162b] space-y-4">
-          {/* Quick Realm Expedition Event Switcher Bar (#2, #3, #12) */}
-          <div className="grid grid-cols-4 gap-1.5 rounded-2xl border-2 border-[#1a162b] bg-[#1e293b] p-1.5">
-            {(
-              [
-                { id: 'stage', label: `📍 Stage ${selectedNode.code}` },
-                { id: 'roaming', label: '⚡ Roaming Beast' },
-                { id: 'quarry', label: '⛏️ 12-Tile Quarry' },
-                { id: 'campfire', label: '🔥 Campfire Story' },
-              ] as const
-            ).map((tabItem) => (
-              <button
-                key={tabItem.id}
-                type="button"
-                onClick={() => {
-                  juice.click();
-                  setExpeditionSubView(tabItem.id);
-                }}
-                className={`rounded-xl py-1.5 px-1 font-display text-[10px] font-black uppercase transition cursor-pointer truncate ${
-                  expeditionSubView === tabItem.id
-                    ? 'bg-[#fde047] text-[#1a162b] shadow'
-                    : 'text-amber-100 hover:bg-white/10'
-                }`}
-              >
-                {tabItem.label}
-              </button>
-            ))}
+          {/* Efficiency #3: Condensed 5-Pill Realm Activities Switcher + Universal Amber Badge (#10) */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="grid grid-cols-5 gap-1 flex-1 rounded-2xl border-2 border-[#1a162b] bg-[#1e293b] p-1">
+              {(
+                [
+                  { id: 'stage', label: `📍 ${selectedNode.code}` },
+                  { id: 'roaming', label: '⚡ Mythic' },
+                  { id: 'quarry', label: '⛏️ Quarry' },
+                  { id: 'campfire', label: '🔥 Story' },
+                  { id: 'relics', label: '🗝️ Vaults' },
+                ] as const
+              ).map((tabItem) => (
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  onClick={() => {
+                    juice.click();
+                    setExpeditionSubView(tabItem.id);
+                  }}
+                  className={`rounded-xl py-1.5 px-1 font-display text-[10px] font-black uppercase transition cursor-pointer truncate ${
+                    expeditionSubView === tabItem.id
+                      ? 'bg-[#fde047] text-[#1a162b] shadow'
+                      : 'text-amber-100 hover:bg-white/10'
+                  }`}
+                >
+                  {tabItem.label}
+                </button>
+              ))}
+            </div>
+            <span
+              className="shrink-0 rounded-xl border-2 border-[#1a162b] bg-amber-100 px-2.5 py-1.5 font-mono text-[10px] font-black text-[#78350f]"
+              title="Efficiency #10: Universal Ancient Amber Currency"
+            >
+              🦴 {ancientAmber}
+            </span>
           </div>
 
           {/* =================================================================
@@ -1147,6 +1206,121 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                   ✓ Context-Clue Story Solved! Earned +80 🪙 &amp; +1 💎!
                 </div>
               )}
+            </div>
+          )}
+
+          {/* =================================================================
+              SPECIAL EXPEDITION TAB 4: SECRET SIDE-PATHS (#6), WANDERING MERCHANT (#7),
+              MYSTERY RIDDLE GATE (#8) & RELIC INTENSITY VAULT (#10)
+          ================================================================== */}
+          {expeditionSubView === 'relics' && (
+            <div className="space-y-3">
+              {/* Feature #6: Secret Branching Side-Paths (X-5B & X-8B) */}
+              <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-purple-950 to-indigo-950 p-3.5 text-white space-y-2 shadow-[0_4px_0_#1a162b]">
+                <div className="flex items-center justify-between">
+                  <span className="font-display text-xs font-black uppercase text-[#fde047]">
+                    🗝️ Secret Side-Paths ({selectedBiome.order}-5B &amp; {selectedBiome.order}-8B)
+                  </span>
+                  <span className="font-mono text-[10px] text-purple-200">+3 🦴 Amber · +90 🪙</span>
+                </div>
+                <p className="text-[11px] font-semibold text-purple-100">
+                  Hidden crystal caverns branching off the main trail! Claim your realm side-cache:
+                </p>
+                {!secretNodesClaimed[selectedBiome.zoneId] ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSecretNodesClaimed((prev) => ({ ...prev, [selectedBiome.zoneId]: true }));
+                      addAncientAmber(3);
+                      addRewards({ coins: 90, tokens: 1, xp: 40 });
+                      juice.fanfare();
+                    }}
+                    className="w-full rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 py-2 font-display text-xs font-black uppercase text-[#1a162b] cursor-pointer"
+                  >
+                    ✨ Explore Secret Branch {selectedBiome.order}-5B (+3 🦴 Amber &amp; +90 🪙)
+                  </button>
+                ) : (
+                  <div className="rounded-xl bg-emerald-600 py-1.5 text-center font-display text-xs font-black">
+                    ✓ Secret Branch Cavern Cleared!
+                  </div>
+                )}
+              </div>
+
+              {/* Feature #7: Wandering Word Merchant Caravan */}
+              <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#fff8e7] p-3.5 space-y-2 shadow-[0_4px_0_#1a162b]">
+                <div className="flex items-center justify-between">
+                  <span className="font-display text-xs font-black uppercase text-[#78350f]">
+                    🐫 Wandering Trail Merchant — {selectedBiome.name}
+                  </span>
+                  <span className="rounded bg-amber-200 px-2 py-0.5 font-mono text-[10px] font-black text-[#1a162b]">
+                    Trail Special
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-[#5d4037]">
+                    Unlocks a realm-attuned Word Tablet &amp; +4 🦴 Ancient Amber!
+                  </p>
+                  <button
+                    type="button"
+                    disabled={Boolean(merchantPurchased[selectedBiome.zoneId])}
+                    onClick={() => {
+                      setMerchantPurchased((prev) => ({ ...prev, [selectedBiome.zoneId]: true }));
+                      addAncientAmber(4);
+                      addRewards({ coins: 40, tokens: 1, xp: 30 });
+                      juice.fanfare();
+                    }}
+                    className={`shrink-0 rounded-xl border-2 border-[#1a162b] px-3 py-2 font-display text-xs font-black cursor-pointer ${
+                      merchantPurchased[selectedBiome.zoneId]
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-gradient-to-b from-[#ffd54f] to-[#f59e0b] text-[#1a162b]'
+                    }`}
+                  >
+                    {merchantPurchased[selectedBiome.zoneId] ? '✓ Claimed' : 'Claim Bundle (+4 🦴)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Feature #8: Mystery Riddle Gate & Feature #10: Shades-of-Meaning Relic Vault */}
+              <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#fef3c7] to-[#fde68a] p-3.5 space-y-2.5 shadow-[0_4px_0_#1a162b]">
+                <div className="font-display text-xs font-black uppercase text-[#1a162b]">
+                  🗿 Sphinx Riddle Gate &amp; Shades-of-Meaning Vault (#8 &amp; #10)
+                </div>
+                <p className="text-xs font-bold text-[#5d4037]">
+                  Order the adjectives from <strong>Mildest → Strongest Intensity</strong> to open the Mid-Boss Gate:
+                </p>
+                {!relicVaultSolved[selectedBiome.zoneId] || !riddleGateSolved[selectedBiome.zoneId] ? (
+                  <div className="space-y-1.5">
+                    {[
+                      { label: '🌡️ Warm → Hot → Scorching (Correct Intensity Order!)', ok: true },
+                      { label: '🌡️ Scorching → Warm → Hot (Scrambled Order)', ok: false },
+                    ].map((opt, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          if (opt.ok) {
+                            setRelicVaultSolved((prev) => ({ ...prev, [selectedBiome.zoneId]: true }));
+                            setRiddleGateSolved((prev) => ({ ...prev, [selectedBiome.zoneId]: true }));
+                            addAncientAmber(3);
+                            addRewards({ coins: 75, tokens: 1, xp: 40 });
+                            juice.fanfare();
+                            juice.speakWord('Warm, Hot, Scorching! Vault unlocked.');
+                          } else {
+                            juice.boing();
+                          }
+                        }}
+                        className="w-full rounded-xl border-2 border-[#1a162b] bg-white hover:bg-[#fde047] px-3 py-2 text-left font-display text-xs font-black text-[#1a162b] cursor-pointer"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-emerald-600 p-2 text-center font-display text-xs font-black text-white">
+                    ✓ Sphinx Gate &amp; Intensity Vault Unlocked! (+75 🪙 &amp; +3 🦴 Amber)
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
