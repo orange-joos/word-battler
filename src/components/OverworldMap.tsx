@@ -6,11 +6,6 @@ import {
   Check,
   Sparkles,
   BookOpen,
-  Swords,
-  Compass,
-  Flame,
-  ShoppingBag,
-  Egg,
 } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
@@ -22,8 +17,9 @@ import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
 import { LexiDexModal } from './LexiDexModal';
 import { ElementalNodeMap } from './ElementalNodeMap';
-import { ElementType, GradeTier, Word } from '../types';
+import { ElementType, GradeTier, PartOfSpeech, Word } from '../types';
 import { getGradeTierMeta } from '../data/vocabDatabase';
+import { ELEMENTAL_ADVENTURE_BIOMES } from '../data/adventureNodesData';
 
 type HubModalType =
   | null
@@ -32,6 +28,7 @@ type HubModalType =
   | 'hatchery'
   | 'lexishop'
   | 'lexidex'
+  | 'museum'
   | 'quests'
   | 'settings'
   | 'profile';
@@ -252,7 +249,9 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     isMuted,
     toggleMute,
     zoneProgress,
+    nodeProgress,
     startBattleInZone,
+    startBattleAtNode,
     setTab,
     restartBattle,
     levelUpPet,
@@ -263,6 +262,12 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     setReturnToWordWorldMap,
     preferredGradeBand,
     setPreferredGradeBand,
+    activeWeather,
+    cycleRealmWeather,
+    petAccessories,
+    equipPetAccessory,
+    petSpecializations,
+    setPetSpecialization,
   } = useGame();
   const { currentUser, logout, setIsCustomizingAvatar, updateProfile, addRewards } = useAuth();
 
@@ -271,6 +276,21 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
   const [isModalFullScreen, setIsModalFullScreen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [evolvingCreatureId, setEvolvingCreatureId] = useState<string | null>(null);
+
+  // Feature #6: 3-Wave Colosseum Survival Tower state
+  const [colosseumWave, setColosseumWave] = useState<1 | 2 | 3>(1);
+
+  // Feature #9: Habitat Yield Claimed state
+  const [habitatClaimedToday, setHabitatClaimedToday] = useState<boolean>(false);
+
+  // Feature #1: Museum Wing Bonus Claimed state
+  const [museumBonusClaimed, setMuseumBonusClaimed] = useState<boolean>(false);
+
+  // Feature #14: Custom Spelling Word Importer state
+  const [customSpellingWord, setCustomSpellingWord] = useState<string>('');
+  const [customSpellingDef, setCustomSpellingDef] = useState<string>('');
+  const [customSpellingPos, setCustomSpellingPos] = useState<PartOfSpeech>('adjective');
+  const [customSpellingElem, setCustomSpellingElem] = useState<ElementType>('fire');
 
   // Arena Matchmaking Selection
   const [selectedArenaArea, setSelectedArenaArea] = useState<ElementalAdventureArea>(
@@ -679,12 +699,13 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             <h2 className="font-display font-black text-lg sm:text-2xl text-[#ffd54f] tracking-wide drop-shadow-[0_2px_0_#1a162b] flex items-center gap-2.5">
               {activeModal === 'word-world' &&
                 '🌍 1. Word World — 9 Elemental Winding Node Maps (Stages 1-1 to 9-10)'}
-              {activeModal === 'arena' && '⚔️ 2. Battle Arena — Matchmaking & Boss Lobby'}
-              {activeModal === 'hatchery' && '🥚 3. Pet Hatchery Sanctuary — Nests, Treats & Evolution'}
+              {activeModal === 'arena' && '⚔️ 2. Battle Arena — Matchmaking & 3-Wave Colosseum Tower'}
+              {activeModal === 'hatchery' && '🥚 3. Pet Hatchery Sanctuary — Habitats, Armor & Evolution'}
               {activeModal === 'lexishop' && '🏪 5. Lexi-Shop Bazaar — Shopkeeper Barnaby & Field Gear'}
+              {activeModal === 'museum' && '🦴 Aetheria Paleontology Museum & Excavated Fossil Wing'}
               {activeModal === 'quests' && '📋 Explorer Guild Quests & Rewards'}
-              {activeModal === 'settings' && '⚙️ Game Settings & Adaptive K–8 Grade Band'}
-              {activeModal === 'profile' && '🛡️ Official Aetheria Tamer License'}
+              {activeModal === 'settings' && '⚙️ Educator Studio, Custom Spelling List & Grade Band'}
+              {activeModal === 'profile' && '🛡️ Official Tamer License, Badges & Field Report Card'}
             </h2>
             <div className="flex items-center gap-2">
               <button
@@ -831,6 +852,69 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                   </div>
                 </div>
 
+                {/* Feature #6: 3-Round Survival Gauntlet ("The Colosseum Tower") */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#312e81] via-[#1e1b4b] to-[#0f172a] text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#fde047] text-[#1a162b]">
+                        🏰 Feature #6 · 3-Round Survival Gauntlet
+                      </span>
+                      <div className="font-display font-black text-base text-[#fde047] mt-1">
+                        The Colosseum Survival Tower — {selectedArenaArea.name}
+                      </div>
+                      <p className="text-xs font-semibold text-sky-200">
+                        Climb Wave 1 (Vanguard) → Wave 2 (Mid-Boss) → Wave 3 (Apex Guardian) for Tower Medals!
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {([1, 2, 3] as const).map((w) => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => {
+                            juice.click();
+                            setColosseumWave(w);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl border-2 border-[#1a162b] font-display font-black text-xs cursor-pointer ${
+                            colosseumWave === w
+                              ? 'bg-[#fde047] text-[#1a162b]'
+                              : 'bg-slate-800 text-slate-300'
+                          }`}
+                        >
+                          Wave {w}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-bold text-amber-200">
+                      Selected: Wave {colosseumWave} ({colosseumWave === 1 ? 'Vanguard Stage 1' : colosseumWave === 2 ? 'Mid-Boss Stage 2' : 'Apex Guardian Stage 3'})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveModal(null);
+                        const nodeCode =
+                          colosseumWave === 1
+                            ? `${selectedArenaArea.order}-1`
+                            : colosseumWave === 2
+                            ? `${selectedArenaArea.order}-5`
+                            : `${selectedArenaArea.order}-10`;
+                        startBattleAtNode(
+                          selectedArenaArea.zoneId,
+                          nodeCode,
+                          selectedArenaArea.bossId,
+                          `Tower Wave ${colosseumWave}: ${selectedArenaArea.bossName}`,
+                          colosseumWave
+                        );
+                      }}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-b from-[#fde047] to-[#f59e0b] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow cursor-pointer"
+                    >
+                      🏰 Enter Tower Wave {colosseumWave} →
+                    </button>
+                  </div>
+                </div>
+
                 {/* Launch Arena Buttons */}
                 <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
                   <button
@@ -963,6 +1047,39 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                   </div>
                 )}
 
+                {/* Feature #9: Interactive Habitat Biomes in the Pet Hatchery */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#e0f2fe] via-[#dcfce7] to-[#fef3c7] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#1a162b] text-[#fde047]">
+                      🏞️ Elemental Habitat Biomes · Passive Expedition Yield
+                    </span>
+                    <div className="font-display font-black text-base text-[#1a162b] mt-1">
+                      Magma Springs · Coral Lagoon · Emerald Canopy · Astral Roost
+                    </div>
+                    <p className="text-xs font-bold text-[#5d4037]">
+                      Your {selectablePets.length} companions are gathering Word Shards &amp; Lexi-Coins in their elemental habitats!
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={habitatClaimedToday}
+                    onClick={() => {
+                      if (habitatClaimedToday) return;
+                      setHabitatClaimedToday(true);
+                      addRewards({ coins: 85, tokens: 1, xp: 40 });
+                      juice.fanfare();
+                      triggerToast('Collected Habitat Yield: +85 🪙 & +1 💎!');
+                    }}
+                    className={`px-4 py-2.5 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs whitespace-nowrap cursor-pointer ${
+                      habitatClaimedToday
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_3px_0_#1a162b]'
+                    }`}
+                  >
+                    {habitatClaimedToday ? '✓ Habitat Collected' : '🧺 Collect Yield (+85 🪙 · +1 💎)'}
+                  </button>
+                </div>
+
                 {/* Companion Roster & Training Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   {selectablePets.map((pet) => {
@@ -1052,6 +1169,73 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                                 {treat.label}
                               </button>
                             ))}
+                          </div>
+
+                          {/* Feature #10 & #11: Companion Armor Slot & Stage-3 Branching Specialization */}
+                          <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[#e6d0a7]">
+                            <div className="flex items-center gap-1">
+                              {(
+                                [
+                                  { id: 'amber_fang', icon: '🦴', label: 'Fang' },
+                                  { id: 'iron_shell', icon: '🛡️', label: 'Shell' },
+                                  { id: 'zephyr_band', icon: '🪶', label: 'Band' },
+                                  { id: 'root_crown', icon: '👑', label: 'Crown' },
+                                ] as const
+                              ).map((acc) => {
+                                const isEq = (petAccessories[pet.id] || 'amber_fang') === acc.id;
+                                return (
+                                  <button
+                                    key={acc.id}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      equipPetAccessory(pet.id, acc.id);
+                                      triggerToast(`Equipped ${acc.icon} ${acc.label} on ${pet.name}!`);
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
+                                      isEq
+                                        ? 'bg-[#1a162b] text-[#fde047] border-[#1a162b]'
+                                        : 'bg-stone-100 text-stone-700 border-stone-400'
+                                    }`}
+                                    title={`Equip ${acc.label} Armor`}
+                                  >
+                                    {acc.icon} {acc.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {(
+                                [
+                                  { id: 'vanguard', label: '⚔️ Vanguard' },
+                                  { id: 'bastion', label: '🛡️ Bastion' },
+                                ] as const
+                              ).map((spec) => {
+                                const activeSpec = petSpecializations[pet.id] === spec.id;
+                                return (
+                                  <button
+                                    key={spec.id}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPetSpecialization(pet.id, spec.id);
+                                      triggerToast(
+                                        `${pet.name} specialized into ${spec.label} Path!`
+                                      );
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
+                                      activeSpec
+                                        ? 'bg-purple-800 text-white border-[#1a162b]'
+                                        : 'bg-purple-50 text-purple-900 border-purple-300'
+                                    }`}
+                                    title="Select Stage-3 Evolution Specialization Path"
+                                  >
+                                    {spec.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
 
                           <div className="flex items-center justify-between gap-2">
@@ -1381,27 +1565,178 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
               </div>
             )}
 
+            {/* ===============================================================
+                FEATURE #1: AETHERIA PALEONTOLOGY MUSEUM & FOSSIL WING
+            ================================================================ */}
+            {activeModal === 'museum' && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-[#fef3c7] via-[#fde68a] to-[#fcd34d] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b]">
+                  <div>
+                    <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#78350f] text-[#fde047]">
+                      🏛️ Grand Paleontology Hall · 9 Realm Relics
+                    </span>
+                    <h3 className="font-display font-black text-lg text-[#1a162b] mt-1">
+                      Excavated Stone Word Tablets &amp; Prehistoric Relics
+                    </h3>
+                    <p className="text-xs font-bold text-[#5d4037]">
+                      Every Stage X-4 Fossil Dig Site you excavate places its ancient Word Tablet on permanent display here!
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={museumBonusClaimed}
+                    onClick={() => {
+                      if (museumBonusClaimed) return;
+                      setMuseumBonusClaimed(true);
+                      addRewards({ coins: 180, tokens: 3, xp: 80 });
+                      juice.fanfare();
+                      triggerToast('Claimed Curator Grant: +180 🪙 & +3 💎!');
+                    }}
+                    className={`px-4 py-2.5 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs cursor-pointer ${
+                      museumBonusClaimed
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-[#1a162b] text-[#fde047] hover:bg-slate-800'
+                    }`}
+                  >
+                    {museumBonusClaimed ? '✓ Curator Grant Claimed' : '🏆 Claim Curator Grant (+180 🪙)'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {ELEMENTAL_ADVENTURE_BIOMES.map((biome) => {
+                    const digNode = biome.nodes.find((n) => n.type === 'digsite');
+                    const tablet = digNode?.digSiteTablet;
+                    const isExcavated =
+                      Boolean(digNode && nodeProgress[digNode.nodeId]?.cleared) ||
+                      allWords.some((w) => w.id === tablet?.id);
+
+                    return (
+                      <div
+                        key={biome.zoneId}
+                        onClick={() => {
+                          if (tablet) {
+                            juice.speakWord(`${tablet.word}. ${tablet.definition}`);
+                          }
+                        }}
+                        className={`p-3.5 rounded-2xl border-[3px] border-[#1a162b] transition cursor-pointer ${
+                          isExcavated
+                            ? 'bg-white shadow-[0_4px_0_#1a162b]'
+                            : 'bg-stone-200/80 opacity-85'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-black">
+                          <span className="uppercase text-[#78350f]">
+                            {ELEMENTS[biome.element]?.icon} {biome.name}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded ${
+                              isExcavated
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-700'
+                                : 'bg-stone-300 text-stone-700'
+                            }`}
+                          >
+                            {isExcavated ? '★ Displayed' : `Stage ${biome.order}-4`}
+                          </span>
+                        </div>
+                        <div className="font-display font-black text-base text-[#1a162b] mt-1.5">
+                          🦴 {tablet?.word || 'Ancient Tablet'}
+                        </div>
+                        <p className="text-[11px] font-semibold text-[#5d4037] mt-0.5">
+                          {tablet?.definition}
+                        </p>
+                        <div className="mt-2 text-[10px] font-black text-amber-800">
+                          🔬 {tablet?.morphologyNote}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {activeModal === 'profile' && (
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center gap-4">
-                  <CreatureSprite
-                    creatureId={selectedPet.forged?.sourceId || selectedPet.id}
-                    stage={selectedPet.stage || 1}
-                    element={selectedPet.element}
-                    size="md"
-                  />
-                  <div>
-                    <div className="text-xs font-black uppercase text-[#283593]">
-                      Aetheria Official Tamer License
-                    </div>
-                    <div className="font-display font-black text-xl">
-                      {currentUser?.displayName || 'Aris'} &amp; {selectedPet.name}
-                    </div>
-                    <div className="text-xs font-bold text-[#5d4037] mt-1">
-                      Elemental Areas Cleared: <strong>{clearedAreasCount} / 9</strong> · Vocabulary Catalog: <strong>{allWords.length} Words</strong>
+                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <CreatureSprite
+                      creatureId={selectedPet.forged?.sourceId || selectedPet.id}
+                      stage={selectedPet.stage || 1}
+                      element={selectedPet.element}
+                      size="md"
+                    />
+                    <div>
+                      <div className="text-xs font-black uppercase text-[#283593]">
+                        Aetheria Official Tamer License &amp; Literacy Report Card
+                      </div>
+                      <div className="font-display font-black text-xl">
+                        {currentUser?.displayName || 'Aris'} &amp; {selectedPet.name}
+                      </div>
+                      <div className="text-xs font-bold text-[#5d4037] mt-1">
+                        Elemental Areas Cleared: <strong>{clearedAreasCount} / 9</strong> · Vocabulary Catalog: <strong>{allWords.length} Word Tablets</strong>
+                      </div>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2 rounded-xl bg-[#1a162b] text-[#fde047] font-display font-black text-xs border-2 border-[#1a162b] cursor-pointer"
+                  >
+                    🖨️ Print Field Report
+                  </button>
                 </div>
+
+                {/* Feature #15: Explorer Achievement Badge Cabinet & K–8 Report Breakdown */}
+                <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-3">
+                  <div className="font-display font-black text-sm text-[#1a162b]">
+                    🏅 Explorer Achievement Badge Cabinet
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { icon: '🦴', title: 'Fossil Ranger', desc: 'Excavated Stone Tablets', unlocked: true },
+                      { icon: '🔨', title: 'Tablet Chisel Master', desc: 'Forged Morpheme Words', unlocked: allWords.length >= 45 },
+                      { icon: '🌍', title: 'Realm Trailblazer', desc: 'Cleared Elemental Realms', unlocked: clearedAreasCount >= 1 },
+                      { icon: '👑', title: 'Syntax Sovereign', desc: 'Mastered K–8 Vocabulary', unlocked: allWords.length >= 60 },
+                    ].map((badge) => (
+                      <div
+                        key={badge.title}
+                        className={`p-2.5 rounded-xl border-2 border-[#1a162b] text-center ${
+                          badge.unlocked ? 'bg-[#fde047]/40' : 'bg-stone-200 opacity-60'
+                        }`}
+                      >
+                        <div className="text-2xl">{badge.icon}</div>
+                        <div className="font-display font-black text-xs text-[#1a162b] mt-0.5">
+                          {badge.title}
+                        </div>
+                        <div className="text-[10px] font-bold text-[#5d4037]">{badge.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Parts of Speech Mastery Bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                    {(
+                      [
+                        { label: 'Adjectives', count: words.adjectives.length, color: 'bg-amber-200' },
+                        { label: 'Nouns', count: words.nouns.length, color: 'bg-sky-200' },
+                        { label: 'Verbs', count: (words.verbs ?? []).length, color: 'bg-rose-200' },
+                        { label: 'Adverbs', count: (words.adverbs ?? []).length, color: 'bg-purple-200' },
+                      ] as const
+                    ).map((stat) => (
+                      <div
+                        key={stat.label}
+                        className={`rounded-xl border-2 border-[#1a162b] ${stat.color} p-2 text-center`}
+                      >
+                        <div className="font-mono text-sm font-black text-[#1a162b]">
+                          {stat.count} Tablets
+                        </div>
+                        <div className="text-[10px] font-black uppercase text-[#1a162b]/80">
+                          {stat.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
@@ -1464,6 +1799,77 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                         <div className="text-[10px] font-bold text-[#5d4037]">{b.desc}</div>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Feature #14: Custom Spelling List & Vocabulary Importer (Parent / Teacher Mode) */}
+                <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-3">
+                  <div>
+                    <div className="font-display font-black text-base text-[#1a162b]">
+                      📝 Custom Spelling Word &amp; Tablet Importer (Parent / Teacher Studio)
+                    </div>
+                    <p className="text-xs font-semibold text-[#5d4037]">
+                      Type any weekly school vocabulary word below to chisel it into a playable Stone Word Tablet!
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      value={customSpellingWord}
+                      onChange={(e) => setCustomSpellingWord(e.target.value)}
+                      placeholder="Word (e.g. Luminous)"
+                      className="rounded-xl border-2 border-[#1a162b] bg-white px-3 py-2 text-xs font-bold text-[#1a162b]"
+                    />
+                    <input
+                      type="text"
+                      value={customSpellingDef}
+                      onChange={(e) => setCustomSpellingDef(e.target.value)}
+                      placeholder="Short definition..."
+                      className="rounded-xl border-2 border-[#1a162b] bg-white px-3 py-2 text-xs font-bold text-[#1a162b]"
+                    />
+                    <div className="flex gap-1.5">
+                      <select
+                        value={customSpellingPos}
+                        onChange={(e) => setCustomSpellingPos(e.target.value as PartOfSpeech)}
+                        className="flex-1 rounded-xl border-2 border-[#1a162b] bg-white px-2 py-2 text-xs font-black text-[#1a162b]"
+                      >
+                        <option value="adjective">Adjective</option>
+                        <option value="noun">Noun</option>
+                        <option value="verb">Verb</option>
+                        <option value="adverb">Adverb</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const clean = customSpellingWord.trim();
+                          if (!clean) {
+                            triggerToast('Enter a vocabulary word first!');
+                            return;
+                          }
+                          const newTablet: Word = {
+                            id: `custom_${clean.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`,
+                            word: clean,
+                            definition:
+                              customSpellingDef.trim() ||
+                              `Custom Explorer Word Tablet (${customSpellingPos}).`,
+                            example: `The explorer used the ${clean.toLowerCase()} tablet on the trail.`,
+                            partOfSpeech: customSpellingPos,
+                            element: customSpellingElem,
+                            gradeTier: '4',
+                            powerBonus: 5,
+                          };
+                          commitWord(newTablet);
+                          setCustomSpellingWord('');
+                          setCustomSpellingDef('');
+                          juice.fanfare();
+                          juice.speakWord(clean);
+                          triggerToast(`Chiseled Custom Word Tablet: "${clean}"!`);
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] border-2 border-[#1a162b] font-display font-black text-xs text-[#1a162b] cursor-pointer shrink-0"
+                      >
+                        + Add Tablet
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1836,10 +2242,49 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
       </div>
 
       {/* =====================================================================
-          TOP-RIGHT HUD — QUESTS, LEXI-DEX, AUDIO & LOG OUT
+          TOP-RIGHT HUD — MUSEUM (#1), REPORT CARD (#15), EDUCATOR (#14), QUESTS, LEXI-DEX, AUDIO & LOG OUT
       ====================================================================== */}
       <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            onClick={() => setActiveModal('museum')}
+            className="flex flex-col items-center group cursor-pointer"
+            title="Open Paleontology Museum & Fossil Wing"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#fde68a] to-[#d97706] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+              🦴
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              Museum
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveModal('profile')}
+            className="flex flex-col items-center group cursor-pointer"
+            title="Open Badges & K–8 Report Card"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#bae6fd] to-[#0284c7] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+              🏅
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              Badges
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveModal('settings')}
+            className="flex flex-col items-center group cursor-pointer"
+            title="Custom Spelling List & Grade Band"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#bbf7d0] to-[#16a34a] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+              📝
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              Word List
+            </span>
+          </button>
+
           <button
             onClick={() => setActiveModal('quests')}
             className="flex flex-col items-center group cursor-pointer"
@@ -1894,6 +2339,18 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </span>
           </button>
         </div>
+
+        {/* Feature #4: Live Realm Weather Forecast Pill in Sanctuary Hub */}
+        <button
+          type="button"
+          onClick={cycleRealmWeather}
+          className="flex items-center gap-1.5 rounded-full border-2 border-[#1a162b] bg-[#0f172a]/90 px-3 py-1 text-[10px] font-black text-cyan-200 shadow cursor-pointer"
+          title="Click to forecast next Elemental Tide Shift"
+        >
+          <span>{activeWeather.icon}</span>
+          <span>{activeWeather.name}:</span>
+          <span className="text-[#fde047]">{activeWeather.effectLabel}</span>
+        </button>
       </div>
 
       {/* =====================================================================
@@ -1956,68 +2413,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </button>
           );
         })}
-      </div>
-
-      {/* =====================================================================
-          BOTTOM 5-TAB PRIMARY NAVIGATION DOCK (MATCHES THE 5 WORLD MAP AREAS)
-      ====================================================================== */}
-      <div className="absolute bottom-3 inset-x-3 z-30 flex items-center justify-center pointer-events-none">
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-[#1a162b]/90 backdrop-blur-md px-3.5 py-2.5 rounded-3xl border-[4px] border-[#1a162b] shadow-[0_6px_0_#1a162b] pointer-events-auto">
-          <button
-            onClick={() => setActiveModal('word-world')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#9ccc65] via-[#66bb6a] to-[#2e7d32] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
-          >
-            <Compass className="w-5 h-5" />
-            <div className="text-left leading-tight">
-              <div className="text-[9px] font-black uppercase text-emerald-100">1. Adventure</div>
-              <div className="font-display font-black text-xs sm:text-sm">Word World (9)</div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('arena')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#ffd54f] via-[#ffb300] to-[#f57c00] hover:brightness-110 text-[#1a162b] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
-          >
-            <Swords className="w-5 h-5" />
-            <div className="text-left leading-tight">
-              <div className="text-[9px] font-black uppercase text-[#4e342e]">2. Battle Mode</div>
-              <div className="font-display font-black text-xs sm:text-sm">Battle Arena</div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('hatchery')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#4fc3f7] via-[#29b6f6] to-[#0288d1] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
-          >
-            <Egg className="w-5 h-5" />
-            <div className="text-left leading-tight">
-              <div className="text-[9px] font-black uppercase text-sky-100">3. Pets &amp; Gear</div>
-              <div className="font-display font-black text-xs sm:text-sm">Pet Hatchery</div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setTab('forge')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#ff8a65] via-[#f4511e] to-[#bf360c] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
-          >
-            <Flame className="w-5 h-5" />
-            <div className="text-left leading-tight">
-              <div className="text-[9px] font-black uppercase text-orange-100">4. Fusion Lab</div>
-              <div className="font-display font-black text-xs sm:text-sm">Word Forge</div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('lexishop')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#ce93d8] via-[#ab47bc] to-[#6a1b9a] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
-          >
-            <ShoppingBag className="w-5 h-5" />
-            <div className="text-left leading-tight">
-              <div className="text-[9px] font-black uppercase text-purple-100">5. Storefront</div>
-              <div className="font-display font-black text-xs sm:text-sm">Lexi-Shop</div>
-            </div>
-          </button>
-        </div>
       </div>
 
       {/* Toast Feedback Banner */}

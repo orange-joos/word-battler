@@ -66,6 +66,18 @@ interface GameContextType {
   setReturnToWordWorldMap: (val: boolean) => void;
   preferredGradeBand: 'all' | 'k-2' | '3-5' | '6-8';
   setPreferredGradeBand: (band: 'all' | 'k-2' | '3-5' | '6-8') => void;
+  activeWeather: {
+    id: string;
+    name: string;
+    element: ElementType;
+    icon: string;
+    effectLabel: string;
+  };
+  cycleRealmWeather: () => void;
+  petAccessories: Record<string, string>;
+  equipPetAccessory: (petId: string, accessoryId: string) => void;
+  petSpecializations: Record<string, 'vanguard' | 'bastion'>;
+  setPetSpecialization: (petId: string, branch: 'vanguard' | 'bastion') => void;
   resetAll: () => void;
 }
 
@@ -336,6 +348,133 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('wb_grade_band', band);
     } catch {}
   };
+
+  // Feature #4: Rotating Realm Weather & Elemental Tide Shifts
+  const REALM_WEATHERS: {
+    id: string;
+    name: string;
+    element: ElementType;
+    icon: string;
+    effectLabel: string;
+  }[] = [
+    {
+      id: 'solar-flare',
+      name: 'Solar Flare',
+      element: 'fire',
+      icon: '☀️',
+      effectLabel: 'Fire & Light Tablets +25% Power',
+    },
+    {
+      id: 'monsoon-tide',
+      name: 'Monsoon Tide',
+      element: 'water',
+      icon: '🌊',
+      effectLabel: 'Water & Grass Tablets +25% Power',
+    },
+    {
+      id: 'crystal-blizzard',
+      name: 'Crystal Blizzard',
+      element: 'ice',
+      icon: '🌨️',
+      effectLabel: 'Ice & Air Tablets +25% Power',
+    },
+    {
+      id: 'meteor-shower',
+      name: 'Meteor Shower',
+      element: 'earth',
+      icon: '☄️',
+      effectLabel: 'Earth & Shadow Tablets +25% Power',
+    },
+    {
+      id: 'ion-tempest',
+      name: 'Ion Tempest',
+      element: 'electric',
+      icon: '🌩️',
+      effectLabel: 'Electric & Air Tablets +25% Power',
+    },
+  ];
+  const [weatherIndex, setWeatherIndex] = useState<number>(0);
+  const activeWeather = REALM_WEATHERS[weatherIndex % REALM_WEATHERS.length];
+
+  const cycleRealmWeather = () => {
+    setWeatherIndex((prev) => (prev + 1) % REALM_WEATHERS.length);
+    juice.ding(740, 120);
+  };
+
+  // Feature #10: Companion Accessories & Battle Armor Slots
+  const [petAccessories, setPetAccessories] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('wb_pet_accessories');
+      return saved ? JSON.parse(saved) : { emberfox: 'amber_fang' };
+    } catch {
+      return { emberfox: 'amber_fang' };
+    }
+  });
+
+  const equipPetAccessory = (petId: string, accessoryId: string) => {
+    setPetAccessories((prev) => {
+      const next = { ...prev, [petId]: accessoryId };
+      try {
+        localStorage.setItem('wb_pet_accessories', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    // Also grant a small permanent stat boost when equipping new armor
+    setCreatures((prev) =>
+      prev.map((c) => {
+        if (c.id !== petId) return c;
+        return {
+          ...c,
+          stats: {
+            hp: c.stats.hp + (accessoryId === 'root_crown' ? 4 : 1),
+            attack: c.stats.attack + (accessoryId === 'amber_fang' ? 3 : 1),
+            defense: c.stats.defense + (accessoryId === 'iron_shell' ? 3 : 1),
+            speed: c.stats.speed + (accessoryId === 'zephyr_band' ? 3 : 1),
+          },
+        };
+      })
+    );
+    juice.ding(920, 130);
+  };
+
+  // Feature #11: Branching Stage-3 Evolution Paths (Vanguard Power vs. Bastion Wisdom)
+  const [petSpecializations, setPetSpecializations] = useState<
+    Record<string, 'vanguard' | 'bastion'>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('wb_pet_specs');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const setPetSpecialization = (petId: string, branch: 'vanguard' | 'bastion') => {
+    setPetSpecializations((prev) => {
+      const next = { ...prev, [petId]: branch };
+      try {
+        localStorage.setItem('wb_pet_specs', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setCreatures((prev) =>
+      prev.map((c) => {
+        if (c.id !== petId) return c;
+        return {
+          ...c,
+          title: branch === 'vanguard' ? 'Vanguard Strike Form' : 'Bastion Guardian Form',
+          stats: {
+            hp: c.stats.hp + (branch === 'bastion' ? 6 : 2),
+            attack: c.stats.attack + (branch === 'vanguard' ? 4 : 1),
+            defense: c.stats.defense + (branch === 'bastion' ? 4 : 1),
+            speed: c.stats.speed + (branch === 'vanguard' ? 3 : 1),
+          },
+        };
+      })
+    );
+    juice.fanfare();
+  };
+
   const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
   const [zoneProgress, setZoneProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
     try {
@@ -822,6 +961,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setReturnToWordWorldMap,
         preferredGradeBand,
         setPreferredGradeBand,
+        activeWeather,
+        cycleRealmWeather,
+        petAccessories,
+        equipPetAccessory,
+        petSpecializations,
+        setPetSpecialization,
         resetAll,
       }}
     >

@@ -51,6 +51,8 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     updatePetLoadout,
     levelUpPet,
     recruitWildCompanion,
+    activeWeather,
+    cycleRealmWeather,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -120,6 +122,21 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
   // Treasure Chest state for 'chest' nodes (X-8)
   const [chestOpened, setChestOpened] = useState<boolean>(false);
 
+  // Feature #2, #3, #12 Sub-View Mode ('stage' | 'roaming' | 'quarry' | 'campfire')
+  const [expeditionSubView, setExpeditionSubView] = useState<
+    'stage' | 'roaming' | 'quarry' | 'campfire'
+  >('stage');
+  const [roamingSolved, setRoamingSolved] = useState<Record<string, boolean>>({});
+  const [campfireSolved, setCampfireSolved] = useState<Record<string, boolean>>({});
+
+  // Feature #3: 12-Tile Deep-Strata Quarry state
+  const [quarryLayers, setQuarryLayers] = useState<number[]>(() =>
+    Array.from({ length: 12 }, (_, i) => (i % 3 === 0 ? 2 : 1))
+  );
+  const [quarryTool, setQuarryTool] = useState<'sonar' | 'pick' | 'chisel'>('pick');
+  const [sonarRevealed, setSonarRevealed] = useState<boolean>(false);
+  const [quarryClaimed, setQuarryClaimed] = useState<boolean>(false);
+
   useEffect(() => {
     setQuizIndex(0);
     setSelectedOption(null);
@@ -131,6 +148,7 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     setTabletUnearthed(alreadyCleared);
     setChestOpened(alreadyCleared);
     setRecruitBanner(null);
+    setExpeditionSubView('stage');
   }, [selectedNode.nodeId, nodeProgress]);
 
   const getBiomeStars = (biome: ElementalBiomeTheme) =>
@@ -298,6 +316,39 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     });
     levelUpPet(activePet.id, 1);
     juice.fanfare();
+  };
+
+  // Feature #3: Strike 12-Tile Deep-Strata Quarry
+  const handleStrikeQuarryTile = (idx: number) => {
+    if (quarryClaimed) return;
+    if (quarryTool === 'sonar') {
+      setSonarRevealed(true);
+      juice.ding(980, 140);
+      return;
+    }
+
+    const next = [...quarryLayers];
+    if (quarryTool === 'pick') {
+      // Cross pattern: center + horizontal neighbors
+      const targets = [idx, idx - 1, idx + 1, idx - 4, idx + 4].filter(
+        (t) => t >= 0 && t < 12
+      );
+      targets.forEach((t) => {
+        next[t] = Math.max(0, next[t] - 1);
+      });
+      juice.ding(620, 110);
+    } else {
+      next[idx] = Math.max(0, next[idx] - 2);
+      juice.ding(820, 90);
+    }
+
+    setQuarryLayers(next);
+    if (next.every((v) => v === 0)) {
+      setQuarryClaimed(true);
+      addRewards({ coins: 140, tokens: 3, xp: 75 });
+      levelUpPet(activePet.id, 1);
+      juice.fanfare();
+    }
   };
 
   const buildSmoothSCurvePath = (nodes: AdventureStageNode[]) => {
@@ -543,6 +594,17 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+            {/* Feature #4: Realm Weather & Elemental Tide Shift Pill */}
+            <button
+              type="button"
+              onClick={cycleRealmWeather}
+              title={`Active Tide: ${activeWeather.effectLabel} (Click to forecast next tide)`}
+              className="flex items-center gap-1 rounded-lg border-2 border-cyan-300 bg-cyan-950 hover:bg-cyan-900 px-2.5 py-0.5 text-[10px] font-black text-cyan-200 cursor-pointer"
+            >
+              <span>{activeWeather.icon}</span>
+              <span>{activeWeather.name}</span>
+            </button>
+
             {/* Improvement #3: 3 Realm Star Milestone Chests (10★, 20★, 30★) */}
             {([10, 20, 30] as const).map((ms) => {
               const key = `${selectedBiome.zoneId}:${ms}`;
@@ -820,9 +882,276 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
         </div>
 
         {/* ===================================================================
-            RIGHT 5 COLS: INTERACTIVE STAGE ENCOUNTER & 6-TILE FOSSIL DIG
+            RIGHT 5 COLS: INTERACTIVE STAGE ENCOUNTER, ROAMING MYTHIC (#2),
+            12-TILE DEEP QUARRY (#3) & CAMPFIRE CHRONICLES (#12)
         ==================================================================== */}
         <div className="lg:col-span-5 rounded-3xl border-[4px] border-[#1a162b] bg-white p-4 sm:p-5 shadow-[0_7px_0_#1a162b] space-y-4">
+          {/* Quick Realm Expedition Event Switcher Bar (#2, #3, #12) */}
+          <div className="grid grid-cols-4 gap-1.5 rounded-2xl border-2 border-[#1a162b] bg-[#1e293b] p-1.5">
+            {(
+              [
+                { id: 'stage', label: `📍 Stage ${selectedNode.code}` },
+                { id: 'roaming', label: '⚡ Roaming Beast' },
+                { id: 'quarry', label: '⛏️ 12-Tile Quarry' },
+                { id: 'campfire', label: '🔥 Campfire Story' },
+              ] as const
+            ).map((tabItem) => (
+              <button
+                key={tabItem.id}
+                type="button"
+                onClick={() => {
+                  juice.click();
+                  setExpeditionSubView(tabItem.id);
+                }}
+                className={`rounded-xl py-1.5 px-1 font-display text-[10px] font-black uppercase transition cursor-pointer truncate ${
+                  expeditionSubView === tabItem.id
+                    ? 'bg-[#fde047] text-[#1a162b] shadow'
+                    : 'text-amber-100 hover:bg-white/10'
+                }`}
+              >
+                {tabItem.label}
+              </button>
+            ))}
+          </div>
+
+          {/* =================================================================
+              SPECIAL EXPEDITION TAB 1: ROAMING MYTHIC BEAST ENCOUNTER (#2)
+          ================================================================== */}
+          {expeditionSubView === 'roaming' && (
+            <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#fef3c7] to-[#fde68a] p-4 space-y-3 shadow-[0_4px_0_#1a162b]">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-purple-900 px-3 py-0.5 font-display text-[10px] font-black uppercase text-[#fde047]">
+                  ⚡ Roaming Mythic Sighting in {selectedBiome.name}
+                </span>
+                <span className="font-mono text-xs font-black text-purple-950">
+                  +120 🪙 · +2 💎
+                </span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border-2 border-[#1a162b] bg-white p-3">
+                <CreatureSprite
+                  creatureId={selectedBiome.bossId}
+                  stage={3}
+                  element={selectedBiome.element}
+                  size="md"
+                />
+                <div>
+                  <div className="font-display text-base font-black text-[#1a162b]">
+                    Mythic {ELEMENTS[selectedBiome.element]?.name} Wanderer
+                  </div>
+                  <p className="text-xs font-bold text-[#5d4037]">
+                    Complete the 4-Tablet Sentence below to intercept and befriend this Roaming Mythic!
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border-2 border-[#1a162b] bg-white p-3 space-y-2">
+                <p className="font-display text-xs font-black text-[#1a162b]">
+                  “The <span className="underline text-amber-700">[Adjective]</span> guardian{' '}
+                  <span className="underline text-rose-700">[Verb]</span> across the{' '}
+                  {selectedBiome.name}!”
+                </p>
+                {!roamingSolved[selectedBiome.zoneId] ? (
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {[
+                      {
+                        label: `✨ "${selectedBiome.nodes[3]?.digSiteTablet?.word || 'Radiant'} — surges boldly!" (4-Tablet Ultimate)`,
+                        correct: true,
+                      },
+                      {
+                        label: '🪨 "...walks slowly." (Incomplete Fragment)',
+                        correct: false,
+                      },
+                    ].map((choice, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          if (choice.correct) {
+                            setRoamingSolved((prev) => ({
+                              ...prev,
+                              [selectedBiome.zoneId]: true,
+                            }));
+                            recruitWildCompanion(selectedBiome.zoneId);
+                            addRewards({ coins: 120, tokens: 2, xp: 65 });
+                            juice.fanfare();
+                          } else {
+                            juice.boing();
+                          }
+                        }}
+                        className="w-full rounded-xl border-2 border-[#1a162b] bg-[#fff8e7] hover:bg-[#fde047] px-3 py-2 text-left font-display text-xs font-black text-[#1a162b] cursor-pointer"
+                      >
+                        {choice.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-emerald-600 p-2.5 text-center font-display text-xs font-black text-white">
+                    ✓ Mythic Intercepted! Earned +120 🪙, +2 💎 &amp; Companion Boost!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* =================================================================
+              SPECIAL EXPEDITION TAB 2: 12-TILE DEEP-STRATA QUARRY (#3)
+          ================================================================== */}
+          {expeditionSubView === 'quarry' && (
+            <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#e0f2fe] to-[#bae6fd] p-4 space-y-3 shadow-[0_4px_0_#1a162b]">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-[#1a162b] px-3 py-0.5 font-display text-[10px] font-black uppercase text-[#fde047]">
+                  ⛏️ 12-Tile Deep-Strata Quarry
+                </span>
+                <span className="font-mono text-[11px] font-black text-[#0369a1]">
+                  {sonarRevealed ? '📡 Relics Located!' : 'Use Sonar to Scan'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { id: 'sonar', label: '📡 Sonar Ping' },
+                    { id: 'pick', label: '⛏️ Cross Pick' },
+                    { id: 'chisel', label: '🔨 Deep Chisel' },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setQuarryTool(t.id);
+                    }}
+                    className={`rounded-xl border-2 border-[#1a162b] py-1.5 font-display text-[11px] font-black cursor-pointer ${
+                      quarryTool === t.id
+                        ? 'bg-[#fde047] text-[#1a162b] shadow-[0_2px_0_#1a162b]'
+                        : 'bg-white text-[#1a162b]'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b] p-2.5">
+                {quarryLayers.map((layer, idx) => {
+                  const hasRelic = idx === 2 || idx === 5 || idx === 9;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleStrikeQuarryTile(idx)}
+                      className={`h-13 rounded-xl border-2 border-[#1a162b] flex flex-col items-center justify-center font-mono text-[10px] font-black cursor-pointer transition ${
+                        layer === 2
+                          ? 'bg-slate-600 text-amber-200 hover:brightness-110'
+                          : layer === 1
+                          ? 'bg-amber-700 text-white hover:brightness-110'
+                          : 'bg-emerald-500 text-white'
+                      }`}
+                    >
+                      {layer > 0 ? (
+                        <>
+                          <span>{layer === 2 ? '🪨 BASALT' : '🏜️ SHALE'}</span>
+                          {sonarRevealed && hasRelic && (
+                            <span className="text-[9px] text-[#fde047]">★ RELIC</span>
+                          )}
+                        </>
+                      ) : (
+                        <span>{hasRelic ? '💎 GEM!' : '✨ CLEAR'}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {quarryClaimed && (
+                <div className="rounded-xl bg-emerald-600 p-2 text-center font-display text-xs font-black text-white">
+                  🎉 Deep Quarry Cleared! Earned +140 🪙, +3 💎 &amp; +1 Companion Level!
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =================================================================
+              SPECIAL EXPEDITION TAB 3: CAMPFIRE CHRONICLES STORY (#12)
+          ================================================================== */}
+          {expeditionSubView === 'campfire' && (
+            <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#ffedd5] to-[#fed7aa] p-4 space-y-3 shadow-[0_4px_0_#1a162b]">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-[#9a3412] px-3 py-0.5 font-display text-[10px] font-black uppercase text-[#fde047]">
+                  🔥 Campfire Chronicles · Context-Clue Story
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    juice.speakWord(
+                      `Around the warm campfire in ${selectedBiome.name}, ${activePet.name} listened closely. Choose the word tablet that best fits the story's context clues!`
+                    )
+                  }
+                  className="rounded-lg border-2 border-[#1a162b] bg-white px-2 py-0.5 text-[10px] font-black text-[#1a162b] cursor-pointer"
+                >
+                  🔊 Read Story
+                </button>
+              </div>
+
+              <div className="rounded-xl border-2 border-[#1a162b] bg-white p-3 text-xs font-semibold text-[#1a162b] leading-relaxed">
+                “As twilight settled over <strong>{selectedBiome.name}</strong>,{' '}
+                <strong>{activePet.name}</strong> spotted an ancient stone bridge. Because the
+                bridge was built from solid granite, it remained{' '}
+                <span className="rounded bg-amber-200 px-1.5 py-0.5 font-black text-[#9a3412]">
+                  [ ? ]
+                </span>{' '}
+                even when the fiercest elemental storm swept through the canyon.”
+              </div>
+
+              {!campfireSolved[selectedBiome.zoneId] ? (
+                <div className="grid grid-cols-1 gap-1.5">
+                  {[
+                    {
+                      word: 'UNBREAKABLE (Prefix un- + break + -able)',
+                      correct: true,
+                    },
+                    {
+                      word: 'CARELESS (Root care + -less)',
+                      correct: false,
+                    },
+                    {
+                      word: 'WHISPERING (Participle verb)',
+                      correct: false,
+                    },
+                  ].map((opt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        if (opt.correct) {
+                          setCampfireSolved((prev) => ({
+                            ...prev,
+                            [selectedBiome.zoneId]: true,
+                          }));
+                          addRewards({ coins: 80, tokens: 1, xp: 45 });
+                          juice.fanfare();
+                          juice.speakWord('Unbreakable! Able to withstand any storm.');
+                        } else {
+                          juice.boing();
+                        }
+                      }}
+                      className="w-full rounded-xl border-2 border-[#1a162b] bg-[#fff8e7] hover:bg-[#fde047] px-3 py-2 text-left font-display text-xs font-black text-[#1a162b] cursor-pointer"
+                    >
+                      {opt.word}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl bg-emerald-600 p-2.5 text-center font-display text-xs font-black text-white">
+                  ✓ Context-Clue Story Solved! Earned +80 🪙 &amp; +1 💎!
+                </div>
+              )}
+            </div>
+          )}
+
+          {expeditionSubView === 'stage' && (
+            <>
           <div className="flex items-center justify-between gap-2 border-b-2 border-amber-200 pb-3">
             <div>
               <div className="flex items-center gap-2">
@@ -1253,6 +1582,8 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                 </div>
               )}
             </div>
+          )}
+            </>
           )}
         </div>
       </div>

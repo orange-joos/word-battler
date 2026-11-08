@@ -229,6 +229,9 @@ export const BattleView: React.FC = () => {
     activeEnemyStage,
     preferredGradeBand,
     setPreferredGradeBand,
+    activeWeather,
+    cycleRealmWeather,
+    petAccessories,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -239,6 +242,21 @@ export const BattleView: React.FC = () => {
   const [hoveredCmd, setHoveredCmd] = useState<string>('ultimate');
   const [projectileBurst, setProjectileBurst] = useState<boolean>(false);
   const [tagTeamComboActive, setTagTeamComboActive] = useState<boolean>(false);
+
+  // Feature #5: Synonym & Antonym Word Duel Counter-Clash state
+  const [showWordDuel, setShowWordDuel] = useState<boolean>(false);
+  const [duelIndex, setDuelIndex] = useState<number>(0);
+  const [duelBanner, setDuelBanner] = useState<string | null>(null);
+
+  // Feature #7: Elemental Terrain & Field Hazards state
+  const [activeTerrain, setActiveTerrain] = useState<{
+    name: string;
+    effect: string;
+    turnsLeft: number;
+  } | null>(null);
+
+  // Feature #13: Phonetics & Syllable Clapper Breakdown toggle
+  const [showSyllables, setShowSyllables] = useState<boolean>(false);
 
   const [playerAnim, setPlayerAnim] = useState<'idle' | 'lunge' | 'hit'>('idle');
   const [sidekickAnim, setSidekickAnim] = useState<'idle' | 'lunge'>('idle');
@@ -432,10 +450,21 @@ export const BattleView: React.FC = () => {
     if (selectedWords.length === 4) {
       setSidekickAnim('lunge');
       setTagTeamComboActive(true);
+      // Feature #7: Transform Battlefield into Elemental Terrain on 4-Word Ultimate
+      const elemName = ELEMENTS[player.element]?.name || 'Elemental';
+      setActiveTerrain({
+        name: `${ELEMENTS[player.element]?.icon || '✨'} ${elemName} Sanctum Turf`,
+        effect: `${elemName} Tablets +4 Power & +3 Regen`,
+        turnsLeft: 3,
+      });
       setTimeout(() => {
         setSidekickAnim('idle');
         setTagTeamComboActive(false);
       }, 900);
+    } else if (activeTerrain) {
+      setActiveTerrain((prev) =>
+        prev && prev.turnsLeft > 1 ? { ...prev, turnsLeft: prev.turnsLeft - 1 } : null
+      );
     }
     submitCombo(
       selectedWords[0].id,
@@ -445,6 +474,51 @@ export const BattleView: React.FC = () => {
     );
     setSelectedWordIds([]);
   };
+
+  // Feature #5: Synonym & Antonym Word Duel Prompts
+  const WORD_DUEL_CHALLENGES = [
+    {
+      bossMove: 'COLOSSAL CRUSH',
+      prompt: 'Pick the ANTONYM Tablet of "COLOSSAL" to deflect!',
+      options: ['MINUSCULE', 'GIGANTIC', 'FIERCE'],
+      correctIndex: 0,
+    },
+    {
+      bossMove: 'FRIGID GALE',
+      prompt: 'Pick the ANTONYM Tablet of "FRIGID" to deflect!',
+      options: ['ICY', 'SCORCHING', 'SILENT'],
+      correctIndex: 1,
+    },
+    {
+      bossMove: 'RAPID BARRAGE',
+      prompt: 'Pick the SYNONYM Tablet of "RAPID" to parry!',
+      options: ['SLUGGISH', 'SWIFT', 'HEAVY'],
+      correctIndex: 1,
+    },
+  ];
+  const currentDuel = WORD_DUEL_CHALLENGES[duelIndex % WORD_DUEL_CHALLENGES.length];
+
+  // Feature #8 & #10: Companion Passive Trait & Equipped Accessory Badge
+  const PASSIVE_TRAITS: Record<string, string> = {
+    fire: '🔥 Blaze Verb Mastery (+3 Verb Pwr)',
+    water: '💧 Tidal Bastion (+4 Noun Shield)',
+    grass: '🌿 Rootweaver (+3 Adj Pwr)',
+    electric: '⚡ Swift Syntax (+3 Adv Pwr)',
+    ice: '❄️ Permafrost Ward (+3 DEF)',
+    earth: '🪨 Granite Stance (+4 HP/Shield)',
+    air: '🌬️ Gale Tailwind (+4 SPD)',
+    shadow: '🌑 Umbra Echo (+3 Morpheme Pwr)',
+    light: '✨ Radiant Harmony (+3 All Pwr)',
+  };
+  const companionTrait = PASSIVE_TRAITS[player.element] || PASSIVE_TRAITS.fire;
+  const equippedAccId = petAccessories[player.id] || 'amber_fang';
+  const ACCESSORY_LABELS: Record<string, string> = {
+    amber_fang: '🦴 Amber Fang (+ATK)',
+    iron_shell: '🛡️ Iron Shell (+DEF)',
+    zephyr_band: '🪶 Zephyr Band (+SPD)',
+    root_crown: '👑 Root Crown (+HP)',
+  };
+  const equippedAccLabel = ACCESSORY_LABELS[equippedAccId] || ACCESSORY_LABELS.amber_fang;
 
   const displayEnemyName = activeEnemyName || enemy.name;
   const displayEnemyStage: 1 | 2 | 3 = activeEnemyStage || 3;
@@ -794,9 +868,19 @@ export const BattleView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Lower Wooden Sub-Sign with Round & Fast Mode Toggle */}
-              <div className="-mt-1 flex items-center gap-2 rounded-xl border-2 border-[#451a03] bg-[#78350f] px-3 py-0.5 text-[10px] font-black text-white shadow">
+              {/* Lower Wooden Sub-Sign with Round, Weather Tide Shift (#4) & Fast Mode Toggle */}
+              <div className="-mt-1 flex flex-wrap items-center justify-center gap-2 rounded-xl border-2 border-[#451a03] bg-[#78350f] px-3 py-0.5 text-[10px] font-black text-white shadow">
                 <span>⏱️ Round {roundNumber}</span>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={cycleRealmWeather}
+                  title={activeWeather.effectLabel}
+                  className="flex items-center gap-1 rounded bg-cyan-950/90 px-1.5 py-0.2 text-cyan-200 border border-cyan-400/40 cursor-pointer"
+                >
+                  <span>{activeWeather.icon}</span>
+                  <span>{activeWeather.name}</span>
+                </button>
                 <span>·</span>
                 <button
                   type="button"
@@ -966,7 +1050,7 @@ export const BattleView: React.FC = () => {
                       {player.currentHp ?? player.stats.hp} / {player.maxHp ?? player.stats.hp}
                     </span>
                   </div>
-                  {/* Bottom Star Level & Status Pips */}
+                  {/* Bottom Star Level & Status Pips + Passive Trait (#8) & Armor (#10) */}
                   <div className="mt-1 flex items-center justify-between">
                     <span className="rounded bg-[#0f172a] border border-amber-400/50 px-1.5 py-0.2 font-mono text-[10px] font-black text-[#fde047]">
                       ★ {fullPlayerCreature.level || 8}
@@ -981,6 +1065,14 @@ export const BattleView: React.FC = () => {
                         {playerElem.icon}
                       </span>
                     </div>
+                  </div>
+                  <div className="mt-1 pt-1 border-t border-white/15 flex items-center justify-between gap-1 text-[9px] font-black text-emerald-300">
+                    <span className="truncate" title={companionTrait}>
+                      {companionTrait}
+                    </span>
+                    <span className="shrink-0 rounded bg-amber-500/20 border border-amber-400/40 px-1 text-amber-200">
+                      {equippedAccLabel.split(' ')[0]}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1083,6 +1175,82 @@ export const BattleView: React.FC = () => {
                     <span className="font-display text-[11px] font-black text-[#1a162b] block truncate">
                       “{battleState.lastPlayerResolution.combo.phrase}”
                     </span>
+                  </div>
+                )}
+
+                {/* Feature #7: Active Elemental Terrain Badge */}
+                {activeTerrain && (
+                  <div className="mt-1.5 rounded-lg border-2 border-emerald-300 bg-emerald-950/90 px-2.5 py-1 text-center text-[10px] font-black text-emerald-200">
+                    <div>
+                      {activeTerrain.name} ({activeTerrain.turnsLeft}t)
+                    </div>
+                    <div className="text-[9px] text-[#fde047]">{activeTerrain.effect}</div>
+                  </div>
+                )}
+
+                {/* Feature #5: Synonym & Antonym Counter-Clash ("Word Duel") */}
+                <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setShowWordDuel((prev) => !prev);
+                      setDuelBanner(null);
+                    }}
+                    className="flex-1 rounded-lg border-2 border-[#1a162b] bg-gradient-to-r from-[#fde047] to-[#f59e0b] px-2 py-1 font-display text-[10px] font-black uppercase text-[#1a162b] shadow cursor-pointer"
+                  >
+                    ⚔️ {showWordDuel ? 'Hide Word Duel' : 'Word Duel Clash'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setShowSyllables((s) => !s);
+                    }}
+                    className={`rounded-lg border-2 border-[#1a162b] px-2 py-1 font-display text-[10px] font-black uppercase cursor-pointer ${
+                      showSyllables ? 'bg-sky-400 text-[#1a162b]' : 'bg-[#271306] text-amber-200'
+                    }`}
+                    title="Toggle Phonetics & Syllable Clapper Breakdown"
+                  >
+                    👏 Syllables
+                  </button>
+                </div>
+
+                {showWordDuel && (
+                  <div className="mt-1.5 rounded-xl border-2 border-[#fde047] bg-[#1e1b4b] p-2 text-white space-y-1.5">
+                    <div className="text-[10px] font-black text-[#fde047]">
+                      ⚡ {currentDuel.bossMove}: {currentDuel.prompt}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {currentDuel.options.map((opt, idx) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            if (idx === currentDuel.correctIndex) {
+                              juice.fanfare();
+                              juice.speakWord(opt);
+                              setProjectileBurst(true);
+                              setTimeout(() => setProjectileBurst(false), 600);
+                              addRewards({ coins: 20, tokens: 0, xp: 15 });
+                              setDuelBanner(`✨ Deflected with "${opt}"! +20 🪙!`);
+                              setDuelIndex((i) => i + 1);
+                            } else {
+                              juice.boing();
+                              setDuelBanner('Try again! Look for the exact match.');
+                            }
+                          }}
+                          className="rounded-lg border border-[#fde047] bg-indigo-900 hover:bg-[#fde047] hover:text-[#1a162b] py-1 font-display text-[10px] font-black cursor-pointer transition"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {duelBanner && (
+                      <div className="text-center font-display text-[10px] font-black text-emerald-300">
+                        {duelBanner}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1361,29 +1529,42 @@ export const BattleView: React.FC = () => {
                         : 'border-[#1a162b] hover:-translate-y-1 shadow-[0_4px_0_#1a162b]'
                     }`}
                   >
-                    {/* Top Folded Page Corner & Grade Tier */}
+                    {/* Top Folded Page Corner & Grade Tier + Slow Phonetics (#13) */}
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-mono text-[9px] font-black uppercase text-[#1a162b]/80">
                         {label}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          juice.speakWord(`${word.word}. ${word.definition}`);
-                        }}
-                        className="flex h-6 w-6 items-center justify-center rounded-lg border border-[#1a162b] bg-white/90 text-[#1a162b] hover:bg-[#fde047] cursor-pointer"
-                        title="Hear Word & Definition"
-                      >
-                        <Volume2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            juice.speakSlow(word.word);
+                          }}
+                          className="flex h-6 px-1 items-center justify-center rounded-lg border border-[#1a162b] bg-sky-100 text-[9px] font-black text-[#1a162b] hover:bg-[#fde047] cursor-pointer"
+                          title="Slow Phonetics Read-Aloud"
+                        >
+                          🐢
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            juice.speakWord(`${word.word}. ${word.definition}`);
+                          }}
+                          className="flex h-6 w-6 items-center justify-center rounded-lg border border-[#1a162b] bg-white/90 text-[#1a162b] hover:bg-[#fde047] cursor-pointer"
+                          title="Hear Word & Definition"
+                        >
+                          <Volume2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Central Word Tablet Icon Illustration */}
+                    {/* Central Word Tablet Icon Illustration + Syllable Clapper (#13) */}
                     <div className="my-1.5 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/75 py-2 text-center">
                       <span className="text-2xl drop-shadow">{elemInfo.icon}</span>
                       <span className="font-display text-sm font-black text-[#1a162b] truncate max-w-full px-1">
-                        {word.word}
+                        {showSyllables ? juice.splitIntoSyllables(word.word) : word.word}
                       </span>
                     </div>
 

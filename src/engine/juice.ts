@@ -54,6 +54,29 @@ class JuiceFX {
     this.speak(text);
   }
 
+  public speakSlow(text: string) {
+    if (this.isMuted || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.58;
+      utterance.pitch = 1.02;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // Speech synthesis error handling
+    }
+  }
+
+  public splitIntoSyllables(word: string): string {
+    const clean = word.trim().toLowerCase();
+    if (clean.length <= 4) return clean;
+    const parts = clean
+      .replace(/([aeiouy]+[^aeiouy]+)(?=[aeiouy])/g, '$1·')
+      .split('·')
+      .filter(Boolean);
+    return parts.length > 1 ? parts.join(' · ') : clean;
+  }
+
   public click() {
     this.ding(580, 60);
   }
