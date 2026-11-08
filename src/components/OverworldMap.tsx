@@ -1,1553 +1,1951 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Swords,
-  Sparkles,
-  BookOpen,
-  Trophy,
-  Star,
-  Shield,
-  Flame,
   Volume2,
   VolumeX,
-  Compass,
-  Palette,
-  Egg,
-  ShoppingBag,
-  Backpack,
-  CheckCircle2,
-  X,
-  HelpCircle,
   LogOut,
-  ChevronRight,
-  Zap,
-  Gift,
-  Mail,
-  Newspaper,
-  Calendar,
-  Settings,
-  Users,
-  MessageSquare,
-  FileText,
+  Check,
+  Sparkles,
+  BookOpen,
+  Swords,
+  Compass,
+  Flame,
+  ShoppingBag,
+  Egg,
 } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
-import { WORLD_TIERS, WorldTier } from '../data/worldTiers';
-import { juice } from '../engine/juice';
-import { EvolutionSequenceModal } from './EvolutionSequenceModal';
-import { canPetEvolve, getNextEvolutionStage, getCurrentStage } from '../data/evolutionData';
-import { Creature, TabType } from '../types';
 import { ELEMENTS } from '../data/elements';
-import { HUB_DESTINATIONS } from '../data/hubDestinations';
+import { getAllWordsList } from '../engine/forge';
+import { juice } from '../engine/juice';
+import { canPetEvolve, getEvolutionBranch } from '../data/evolutionData';
+import { EvolutionSequenceModal } from './EvolutionSequenceModal';
+import { CreatureSprite } from './CreatureSprite';
+import { LexiDexModal } from './LexiDexModal';
+import { ElementType, GradeTier, Word } from '../types';
+import { getGradeTierMeta } from '../data/vocabDatabase';
 
-interface OverworldMapProps {
-  onOpenGuide?: () => void;
-  onSelectZone?: (zoneId: string) => void;
-  initialPanel?: 'shop' | 'hatchery' | null;
-  activeTab?: TabType;
+type HubModalType =
+  | null
+  | 'word-world'
+  | 'arena'
+  | 'hatchery'
+  | 'lexishop'
+  | 'lexidex'
+  | 'quests'
+  | 'settings'
+  | 'profile';
+
+interface PrimaryHubNode {
+  id: 'word-world' | 'arena' | 'hatchery' | 'forge' | 'lexishop';
+  number: number;
+  label: string;
+  subtitle: string;
+  badge: string;
+  x: string;
+  y: string;
+  width: string;
+  actionType: 'modal' | 'tab';
+  modalTarget?: HubModalType;
+  tabTarget?: 'loadout' | 'forge' | 'battle' | 'shop';
 }
 
-export const OverworldMap: React.FC<OverworldMapProps> = ({ onOpenGuide, onSelectZone, initialPanel = null, activeTab = 'hub' }) => {
+/**
+ * Issue #11 + World Map Setup References (Bastion Sanctuary + Citadel Courtyard):
+ * 5 Landmark Structures arranged around the central circular courtyard & golden sun-dial nexus:
+ * 1. Word World Portal Monolith (Top-Center / 12 o'clock — 9 Elemental Adventure Realms)
+ * 2. Word Forge Crucible & Red Crystal (Upper-Left / 10 o'clock — Morphology & Affix Fusion)
+ * 3. Battle Arena Colosseum & Purple Banners (Lower-Left / 8 o'clock — Matchmaking & Boss Lobby)
+ * 4. Pet Hatchery Sanctuary & Rooftop Pool (Upper-Right / 2 o'clock — Pet Arsenal, Stats & Eggs)
+ * 5. Lexi-Shop Caravan & Timber Bazaar (Lower-Right / 4 o'clock — Storefront & Booster Packs)
+ */
+const PRIMARY_ISLAND_NODES: PrimaryHubNode[] = [
+  {
+    id: 'word-world',
+    number: 1,
+    label: 'Word World Portal',
+    subtitle: 'Adventure Mode · 9 Elemental Areas',
+    badge: '9 Realms',
+    x: '50%',
+    y: '27%',
+    width: '23%',
+    actionType: 'modal',
+    modalTarget: 'word-world',
+  },
+  {
+    id: 'forge',
+    number: 4,
+    label: 'Word Forge',
+    subtitle: 'Blacksmith Furnace & Red Crystal',
+    badge: 'Fusion Lab',
+    x: '24%',
+    y: '39%',
+    width: '21%',
+    actionType: 'tab',
+    tabTarget: 'forge',
+  },
+  {
+    id: 'arena',
+    number: 2,
+    label: 'Battle Arena',
+    subtitle: 'Bannered Colosseum & Boss Pit',
+    badge: 'Battle Mode',
+    x: '20%',
+    y: '64%',
+    width: '22%',
+    actionType: 'modal',
+    modalTarget: 'arena',
+  },
+  {
+    id: 'hatchery',
+    number: 3,
+    label: 'Pet Hatchery',
+    subtitle: 'Rooftop Pool & Scroll Sanctuary',
+    badge: 'Pets & Gear',
+    x: '76%',
+    y: '38%',
+    width: '22%',
+    actionType: 'modal',
+    modalTarget: 'hatchery',
+  },
+  {
+    id: 'lexishop',
+    number: 5,
+    label: 'Lexi-Shop Bazaar',
+    subtitle: 'Merchant Wagon & Timber Lodge',
+    badge: 'Storefront',
+    x: '80%',
+    y: '64%',
+    width: '21%',
+    actionType: 'modal',
+    modalTarget: 'lexishop',
+  },
+];
+
+interface ElementalAdventureArea {
+  zoneId: string;
+  order: number;
+  name: string;
+  element: ElementType;
+  gradeBand: string;
+  bossId: string;
+  bossName: string;
+  grammarFocus: string;
+  color: string;
+}
+
+/**
+ * 9 Linear / Node-Based Elemental Progression Areas inside Word World (Adventure Mode)
+ */
+const NINE_ELEMENTAL_AREAS: ElementalAdventureArea[] = [
+  {
+    zoneId: 'area-grass',
+    order: 1,
+    name: 'Emerald Grass Glade',
+    element: 'grass',
+    gradeBand: 'Kindergarten – Grade 1',
+    bossId: 'boss_galecrest',
+    bossName: 'Galecrest Wyvern',
+    grammarFocus: 'Core Nouns & Action Verbs',
+    color: '#4caf50',
+  },
+  {
+    zoneId: 'area-water',
+    order: 2,
+    name: 'Azure Water Lagoon',
+    element: 'water',
+    gradeBand: 'Grade 1 – Grade 2',
+    bossId: 'boss_leviathan',
+    bossName: 'Tidal Leviathan',
+    grammarFocus: 'Descriptive Adjectives & Shields',
+    color: '#0288d1',
+  },
+  {
+    zoneId: 'area-earth',
+    order: 3,
+    name: 'Sunfall Fossil Canyon',
+    element: 'earth',
+    gradeBand: 'Grade 2 – Grade 3',
+    bossId: 'boss_ruptor',
+    bossName: 'Ruptor the Break-Beast',
+    grammarFocus: 'Compound Words & Root Foundations',
+    color: '#8d6e63',
+  },
+  {
+    zoneId: 'area-fire',
+    order: 4,
+    name: 'Fireforge Magma Caldera',
+    element: 'fire',
+    gradeBand: 'Grade 3',
+    bossId: 'boss_pyrostorm',
+    bossName: 'Pyrostorm Chimera',
+    grammarFocus: 'Adverb + Verb Empowered Strikes',
+    color: '#e53935',
+  },
+  {
+    zoneId: 'area-ice',
+    order: 5,
+    name: 'Frostpeak Crystal Glacier',
+    element: 'ice',
+    gradeBand: 'Grade 3 – Grade 4',
+    bossId: 'boss_dishornet',
+    bossName: 'Dis-Hornet Swarm',
+    grammarFocus: 'Prefixes (un-, re-, pre-, dis-)',
+    color: '#00acc1',
+  },
+  {
+    zoneId: 'area-air',
+    order: 6,
+    name: 'Tempest Sky Spire',
+    element: 'air',
+    gradeBand: 'Grade 4 – Grade 5',
+    bossId: 'boss_zephyrlord',
+    bossName: 'Tempest Griffin',
+    grammarFocus: 'Suffixes (-ful, -less, -ly, -ness)',
+    color: '#26a69a',
+  },
+  {
+    zoneId: 'area-electric',
+    order: 7,
+    name: 'Volt-Rune Storm Citadel',
+    element: 'electric',
+    gradeBand: 'Grade 5',
+    bossId: 'boss_voltarchon',
+    bossName: 'Volt-Rune Dynamo',
+    grammarFocus: 'High-Voltage 4-Card Sentence Weaving',
+    color: '#ffb300',
+  },
+  {
+    zoneId: 'area-shadow',
+    order: 8,
+    name: 'Shadowcrypt Golem Ruins',
+    element: 'shadow',
+    gradeBand: 'Grades 5 – 7 Extender',
+    bossId: 'boss_umbralord',
+    bossName: 'Umbra Golem Monarch',
+    grammarFocus: 'Greek & Latin Morpheme Roots',
+    color: '#5e35b1',
+  },
+  {
+    zoneId: 'area-light',
+    order: 9,
+    name: 'Celestia Radiant Sanctum',
+    element: 'light',
+    gradeBand: 'Grades 6 – 8 High-Achiever',
+    bossId: 'boss_sovereign',
+    bossName: 'The Syntax Sovereign',
+    grammarFocus: 'Mastery of All 4 Parts of Speech',
+    color: '#fbc02d',
+  },
+];
+
+interface OverworldMapProps {
+  initialPanel?: 'shop' | 'hatchery' | null;
+}
+
+export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null }) => {
   const {
-    gameState,
-    startBattleInZone,
-    activeZoneId,
-    zoneProgress,
-    setTab,
     creatures,
+    words,
     playerId,
     setPlayerId,
     isMuted,
     toggleMute,
-    words,
+    zoneProgress,
+    startBattleInZone,
+    setTab,
+    restartBattle,
     levelUpPet,
-    trainPetWithCoins,
     evolvePet,
+    commitWord,
   } = useGame();
+  const { currentUser, logout, setIsCustomizingAvatar, updateProfile, addRewards } = useAuth();
 
-  const { currentUser, setIsCustomizingAvatar, logout, updateProfile } = useAuth();
+  const [selectedIslandId, setSelectedIslandId] = useState<PrimaryHubNode['id']>('word-world');
+  const [activeModal, setActiveModal] = useState<HubModalType>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [evolvingCreatureId, setEvolvingCreatureId] = useState<string | null>(null);
 
-  // Active Pet
-  const activePet = creatures.find((c) => c.id === playerId) || creatures[0];
-  const unlockedCreatures = creatures.filter((creature) => gameState.unlockedPetIds.includes(creature.id));
+  // Arena Matchmaking Selection
+  const [selectedArenaArea, setSelectedArenaArea] = useState<ElementalAdventureArea>(
+    NINE_ELEMENTAL_AREAS[0]
+  );
 
-  // Active interactive modals
-  const [activeModal, setActiveModal] = useState<
-    'story' | 'hatchery' | 'shop' | 'roster' | 'quests' | 'events' | 'mail' | 'settings' | null
-  >(initialPanel);
-
-  useEffect(() => {
-    setActiveModal(initialPanel);
-  }, [initialPanel]);
-
-  // Active pet undergoing evolution
-  const [evolvingCreature, setEvolvingCreature] = useState<Creature | null>(null);
-
-  const [selectedTier, setSelectedTier] = useState<WorldTier>(() => {
-    return WORLD_TIERS.find((t) => t.id === activeZoneId) || WORLD_TIERS[0];
+  // Interactive Claimable Quests State
+  const [claimedQuestIds, setClaimedQuestIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('wb_claimed_quests');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
-  const [hoveredSystem, setHoveredSystem] = useState<string | null>(null);
+  // Interactive 3-Tap Egg Incubator state
+  const [eggTapCount, setEggTapCount] = useState<number>(0);
+  const [hatchedReward, setHatchedReward] = useState<{
+    petId: string;
+    petName: string;
+    bonusWord?: Word;
+  } | null>(null);
 
-  // Companion speech quotes
-  const speechQuotes = [
-    `Let's Explore!`,
-    `Roots & affixes give us power!`,
-    `Shadowcrypt holds your Arsenal!`,
-    `Fireforge fuses Latin roots!`,
-    `Hatch Lexi-Eggs at Treetop!`,
-  ];
-  const [speechIdx, setSpeechIdx] = useState(0);
+  // 3-Card Booster Pack Opening state
+  const [openedBoosterCards, setOpenedBoosterCards] = useState<Word[] | null>(null);
+  const [flippedBoosterIndices, setFlippedBoosterIndices] = useState<number[]>([]);
 
-  const cycleSpeech = () => {
-    setSpeechIdx((prev) => (prev + 1) % speechQuotes.length);
-    playSfx(750);
+  useEffect(() => {
+    if (initialPanel === 'shop') {
+      setActiveModal('lexishop');
+    } else if (initialPanel === 'hatchery') {
+      setActiveModal('hatchery');
+    }
+  }, [initialPanel]);
+
+  const selectablePets = creatures.filter((c) => !c.id.startsWith('boss_'));
+  const selectedPet = selectablePets.find((c) => c.id === playerId) || selectablePets[0];
+  const allWords = getAllWordsList(words);
+
+  const clearedAreasCount = NINE_ELEMENTAL_AREAS.filter(
+    (a) => zoneProgress[a.zoneId]?.cleared
+  ).length;
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2800);
   };
 
-  const playSfx = (freq = 600) => {
-    if (isMuted) return;
-    try {
-      const AudioCtor =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtor) return;
-      const ac = new AudioCtor();
-      const osc = ac.createOscillator();
-      const gain = ac.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, ac.currentTime);
-      gain.gain.setValueAtTime(0.12, ac.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
-      osc.connect(gain);
-      gain.connect(ac.destination);
-      osc.start();
-      osc.stop(ac.currentTime + 0.12);
-    } catch {}
-  };
+  const handlePrimaryNodeClick = (node: PrimaryHubNode) => {
+    setSelectedIslandId(node.id);
+    juice.ding(680, 110);
 
-  const handlePronounce = (text: string) => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.9;
-        utterance.pitch = 1.05;
-        window.speechSynthesis.speak(utterance);
-      } catch {}
+    if (node.actionType === 'tab' && node.tabTarget) {
+      setTab(node.tabTarget);
+    } else if (node.actionType === 'modal' && node.modalTarget) {
+      setActiveModal(node.modalTarget);
     }
   };
 
-  const handleLaunchBattle = (tier: WorldTier) => {
+  const handleClaimQuest = (questId: string, coins: number, tokens: number) => {
+    if (claimedQuestIds.includes(questId)) return;
+    const next = [...claimedQuestIds, questId];
+    setClaimedQuestIds(next);
+    try {
+      localStorage.setItem('wb_claimed_quests', JSON.stringify(next));
+    } catch {}
+    addRewards({ coins, tokens, xp: 35 });
     juice.fanfare();
-    startBattleInZone(tier.id, tier.boss.id);
-    if (onSelectZone) onSelectZone(tier.id);
+    triggerToast(`Claimed Quest Reward: +${coins} 🪙 & +${tokens} 💎!`);
   };
 
-  const openHubDestination = (destinationId: (typeof HUB_DESTINATIONS)[number]['id']) => {
-    const destination = HUB_DESTINATIONS.find((item) => item.id === destinationId);
-    if (!destination) return;
-    playSfx(destination.id === 'battle' ? 850 : 700);
-    if (destination.id === 'hub') {
-      setActiveModal('story');
+  const handleTapIncubatorEgg = () => {
+    const tokens = currentUser?.fusionTokens ?? 14;
+    if (eggTapCount === 0 && tokens < 2) {
+      triggerToast('Need at least 2 Fusion Gems to warm a Sky Egg!');
       return;
     }
-    setTab(destination.id);
+
+    const nextTap = eggTapCount + 1;
+    setEggTapCount(nextTap);
+    juice.ding(520 + nextTap * 140, 120);
+
+    if (nextTap >= 3) {
+      if (currentUser) {
+        updateProfile({
+          fusionTokens: Math.max(0, tokens - 2),
+          lexiCoins: (currentUser.lexiCoins || 0) + 50,
+        });
+      }
+      const randomCompanion =
+        selectablePets[Math.floor(Math.random() * selectablePets.length)] || selectedPet;
+      levelUpPet(randomCompanion.id, 1);
+
+      const extenderPool = allWords.filter((w) => w.gradeTier === 'extender' || w.gradeTier === '5');
+      const bonusWord =
+        extenderPool.length > 0
+          ? extenderPool[Math.floor(Math.random() * extenderPool.length)]
+          : allWords[0];
+
+      setHatchedReward({
+        petId: randomCompanion.id,
+        petName: randomCompanion.name,
+        bonusWord,
+      });
+      juice.fanfare();
+      setEggTapCount(0);
+    }
   };
 
-  // Currencies & stats
-  const coins = currentUser?.lexiCoins ?? 45980;
-  const gems = currentUser?.fusionTokens ?? 1250;
-  const playerLevel = currentUser?.level || 42;
-  const playerName = currentUser?.displayName || 'Aris';
+  const handleBuyBoosterPack = (tierGroup: 'k-2' | '3-5' | 'extender', cost: number) => {
+    const coins = currentUser?.lexiCoins ?? 450;
+    if (coins < cost) {
+      triggerToast(`Not enough Lexi-Coins! Need ${cost} coins.`);
+      return;
+    }
 
-  // Date formatting for top calendar badge
-  const currentDate = new Date();
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthStr = monthNames[currentDate.getMonth()];
-  const dayStr = currentDate.getDate();
+    const validTiers: GradeTier[] =
+      tierGroup === 'k-2'
+        ? ['K', '1', '2']
+        : tierGroup === '3-5'
+        ? ['3', '4', '5']
+        : ['5', 'extender'];
 
-  return (
-    <div className="relative w-full h-full min-h-screen overflow-hidden bg-[#59b8fa] select-none flex flex-col font-sans">
-      
-      {/* ======================================================== */}
-      {/* 1. TOP HUD (EXACT MATCH TO REFERENCE PHOTO IMG_4204)     */}
-      {/* ======================================================== */}
-      <header className="absolute top-0 left-0 right-0 z-30 flex items-start justify-between p-2 sm:p-4 pointer-events-none">
-        
-        {/* Top-Left: Avatar Shield, HP, MP, Gold, Diamonds, Stamina */}
-        <div className="flex items-start gap-2 sm:gap-3 pointer-events-auto">
-          
-          {/* Avatar Shield Frame */}
-          <div className="flex flex-col items-center">
-            <button
-              type="button"
-              onClick={() => setIsCustomizingAvatar(true)}
-              title="Customize Explorer Avatar"
-              className="group relative flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl border-4 border-[#5a2e12] bg-gradient-to-b from-[#38bdf8] via-[#0284c7] to-[#0369a1] text-3xl sm:text-4xl shadow-[0_4px_0_#3d1e0a] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <span>{currentUser?.avatarConfig?.emoji || currentUser?.avatarEmoji || '🦊'}</span>
-              {currentUser?.avatarConfig?.headgearEmoji && (
-                <span className="absolute -top-3 -right-1 text-base sm:text-lg drop-shadow">
-                  {currentUser.avatarConfig.headgearEmoji}
-                </span>
-              )}
-              {/* Level Badge at bottom-left */}
-              <div className="absolute -bottom-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#5a2e12] bg-gradient-to-b from-amber-300 to-amber-500 font-serif text-[11px] font-black text-[#451e08] shadow">
-                {playerLevel}
-              </div>
-            </button>
-            {/* Wooden Name Banner */}
-            <div className="mt-1 rounded-md border-2 border-[#5a2e12] bg-gradient-to-b from-[#d97706] to-[#b45309] px-2 py-0.5 text-center shadow-xs">
-              <span className="font-serif text-xs font-black text-amber-100 tracking-wide">
-                {playerName}
-              </span>
-            </div>
-          </div>
+    const pool = allWords.filter((w) => validTiers.includes(w.gradeTier || '3'));
+    const chosen: Word[] = [];
+    const copy = [...(pool.length >= 3 ? pool : allWords)];
+    for (let i = 0; i < 3; i++) {
+      if (copy.length === 0) break;
+      const idx = Math.floor(Math.random() * copy.length);
+      const picked = copy.splice(idx, 1)[0];
+      const boostedWord: Word = {
+        ...picked,
+        powerBonus: (picked.powerBonus || 2) + (tierGroup === 'extender' ? 2 : 1),
+      };
+      commitWord(boostedWord);
+      chosen.push(boostedWord);
+    }
 
-          {/* Vitals & Currency Cluster */}
-          <div className="space-y-1 sm:space-y-1.5 pt-0.5">
-            {/* Row 1: HP Bar + Hearts */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 rounded-lg border-2 border-[#381a07] bg-[#5a2e12] px-2 py-0.5 text-[10px] sm:text-xs font-black text-white shadow-xs">
-                <span className="text-red-400 font-bold">HP</span>
-                <div className="h-3.5 w-24 sm:w-32 rounded-full border border-[#7f1d1d] bg-[#450a0a] overflow-hidden">
-                  <div className="h-full w-full bg-gradient-to-r from-red-600 via-rose-500 to-red-400" />
-                </div>
-                <span className="font-mono text-[9px] sm:text-[10px]">1250/1250</span>
-              </div>
+    if (currentUser) {
+      updateProfile({
+        lexiCoins: coins - cost,
+      });
+    }
 
-              <div className="hidden sm:flex items-center gap-1 rounded-lg border-2 border-[#381a07] bg-[#5a2e12] px-2 py-0.5 text-xs font-black text-white shadow-xs">
-                <span className="text-rose-400">❤️</span>
-                <span className="font-mono">45,980</span>
-              </div>
-            </div>
+    setOpenedBoosterCards(chosen);
+    setFlippedBoosterIndices([]);
+    juice.fanfare();
+  };
 
-            {/* Row 2: MP Bar + Diamonds */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 rounded-lg border-2 border-[#381a07] bg-[#5a2e12] px-2 py-0.5 text-[10px] sm:text-xs font-black text-white shadow-xs">
-                <span className="text-sky-400 font-bold">MP</span>
-                <div className="h-3.5 w-24 sm:w-32 rounded-full border border-[#0c4a6e] bg-[#082f49] overflow-hidden">
-                  <div className="h-full w-full bg-gradient-to-r from-sky-600 via-cyan-400 to-blue-400" />
-                </div>
-                <span className="font-mono text-[9px] sm:text-[10px]">800/800</span>
-              </div>
+  // Cel-Shaded JRPG Ribbon Signboard + Black-and-Gold Floor Rune Medallion
+  const renderIslandNameplate = (node: PrimaryHubNode, isSelected: boolean) => (
+    <div className="flex flex-col items-center -mt-2">
+      <div
+        className={`px-3 py-1 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs sm:text-sm tracking-wide transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          isSelected
+            ? 'bg-gradient-to-b from-[#ffe57f] via-[#ffd54f] to-[#ffb300] text-[#1a162b] scale-105 shadow-[0_4px_0_#1a162b,0_0_18px_rgba(255,213,79,0.95)]'
+            : 'bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] text-[#fef08a] shadow-[0_4px_0_#1a162b]'
+        }`}
+      >
+        {/* Black & Gold Circular Rune Medallion (Bastion Reference #1) */}
+        <span className="w-5 h-5 rounded-full bg-[#1a162b] border-2 border-[#facc15] text-[#facc15] text-[10px] font-black flex items-center justify-center">
+          {node.number}
+        </span>
+        <span>{node.label}</span>
+        <span
+          className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
+            isSelected ? 'bg-[#1a162b] text-[#ffd54f]' : 'bg-[#facc15] text-[#1a162b]'
+          }`}
+        >
+          {node.badge}
+        </span>
+      </div>
+      <span className="mt-0.5 px-2.5 py-0.2 rounded-full bg-[#1a162b]/90 text-amber-100 font-bold text-[10px] border border-amber-400/30 shadow">
+        {node.subtitle}
+      </span>
+    </div>
+  );
 
-              <div className="hidden sm:flex items-center gap-1 rounded-lg border-2 border-[#381a07] bg-[#5a2e12] px-2 py-0.5 text-xs font-black text-white shadow-xs">
-                <span className="text-cyan-400">💎</span>
-                <span className="font-mono">{gems.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Row 3: Gold Coins + Energy Bolts */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div
-                onClick={() => setActiveModal('shop')}
-                title="Lexi-Coins: Click to open Shop"
-                className="flex items-center gap-1 rounded-lg border-2 border-[#381a07] bg-[#5a2e12] px-2 py-0.5 text-[10px] sm:text-xs font-black text-amber-300 shadow-xs cursor-pointer hover:brightness-110"
-              >
-                <span>🪙</span>
-                <span className="font-mono text-white">{coins.toLocaleString()}</span>
-              </div>
-
-              <div className="flex items-center gap-1 rounded-lg border-2 border-[#381a07] bg-[#5a2e12] px-2 py-0.5 text-[10px] sm:text-xs font-black text-amber-400 shadow-xs">
-                <span>⚡</span>
-                <span className="font-mono text-white">15/20</span>
-                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse ml-0.5" />
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Top-Center: Game Title & Realm Subtitle Banner Plaque */}
-        <div className="hidden md:flex flex-col items-center pointer-events-auto">
-          {/* Hexagonal Blue/Gold Plaque */}
-          <div className="relative rounded-2xl border-4 border-[#3b82f6] bg-gradient-to-b from-[#1e40af] via-[#1d4ed8] to-[#172554] px-7 py-1.5 text-center shadow-[0_5px_0_#0f172a]">
-            <h1 className="font-serif text-lg sm:text-xl font-black tracking-wide text-amber-300 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-              Aetheria Quest · Word Battler
-            </h1>
-          </div>
-          {/* Subtitle Banner Ribbon */}
-          <div className="mt-1 rounded-full border-2 border-[#1e3a8a] bg-[#1e40af]/90 px-4 py-0.5 text-center shadow-xs">
-            <span className="font-sans text-[11px] font-black text-sky-200 uppercase tracking-wider">
-              World Map - Aetheria (Level 20-50 · Grades 3–5)
-            </span>
-          </div>
-        </div>
-
-        {/* Top-Right: Quests, Events, Mail, News, Calendar, Settings, Shop */}
-        <div className="flex flex-col items-end gap-2 pointer-events-auto">
-          
-          {/* Action Button Row */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            
-            {/* Quests (with red badge) */}
-            <button
-              type="button"
-              onClick={() => {
-                playSfx(700);
-                setActiveModal('quests');
-              }}
-              title="Daily Vocabulary Quests"
-              className="group flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-1.5 shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <div className="relative">
-                <FileText className="h-5 w-5 text-blue-700" />
-                <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white shadow">
-                  !
-                </span>
-              </div>
-              <span className="text-[9px] font-black text-[#5a2e12]">Quests</span>
-            </button>
-
-            {/* Events (Gift Box) */}
-            <button
-              type="button"
-              onClick={() => {
-                playSfx(750);
-                setActiveModal('events');
-              }}
-              title="Events & Daily Login Bonus"
-              className="flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-1.5 shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <Gift className="h-5 w-5 text-amber-600" />
-              <span className="text-[9px] font-black text-[#5a2e12]">Events</span>
-            </button>
-
-            {/* Mail */}
-            <button
-              type="button"
-              onClick={() => {
-                playSfx(650);
-                setActiveModal('mail');
-              }}
-              title="Scholar Mail & Notices"
-              className="group flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-1.5 shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <div className="relative">
-                <Mail className="h-5 w-5 text-amber-700" />
-                <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white shadow">
-                  !
-                </span>
-              </div>
-              <span className="text-[9px] font-black text-[#5a2e12]">Mail</span>
-            </button>
-
-            {/* News / Linguistic Guide */}
-            <button
-              type="button"
-              onClick={() => {
-                playSfx(600);
-                if (onOpenGuide) onOpenGuide();
-                else setActiveModal('story');
-              }}
-              title="Linguistic Rules & News"
-              className="hidden sm:flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-1.5 shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <Newspaper className="h-5 w-5 text-slate-700" />
-              <span className="text-[9px] font-black text-[#5a2e12]">News</span>
-            </button>
-
-            {/* Calendar Page */}
-            <div className="hidden sm:flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-white p-1 shadow-[0_3px_0_#381a07]">
-              <span className="rounded-t-md bg-red-600 px-2 text-[8px] font-black uppercase text-white">
-                {monthStr}
-              </span>
-              <span className="font-serif text-xs font-black text-slate-900 leading-tight">
-                {dayStr}
-              </span>
-            </div>
-
-            {/* Settings Gear */}
-            <button
-              type="button"
-              onClick={() => {
-                playSfx(550);
-                setActiveModal('settings');
-              }}
-              title="Settings & Audio"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-[#381a07] bg-slate-200 p-1 shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <Settings className="h-5 w-5 text-slate-700" />
-            </button>
-
-            {/* Shop Booth with Red Awning */}
-            <button
-              type="button"
-              onClick={() => {
-                playSfx(850);
-                setActiveModal('shop');
-              }}
-              title="The Lexi-Shop"
-              className="flex flex-col items-center justify-center rounded-xl border-2 border-[#381a07] bg-gradient-to-b from-red-500 to-amber-500 p-1 text-white shadow-[0_3px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-            >
-              <ShoppingBag className="h-5 w-5 text-amber-100" />
-              <span className="text-[9px] font-black uppercase">Shop</span>
-            </button>
-
-          </div>
-
-          {/* New Badge Pill (top-left beneath avatar on mobile/desktop) */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full border-2 border-[#381a07] bg-amber-400 px-2.5 py-0.5 text-[10px] font-black text-[#451e08] shadow-xs">
-            <span className="text-red-600">🎖️</span>
-            <span>New badge</span>
-            <span className="h-2 w-2 rounded-full bg-red-600 animate-ping" />
-          </div>
-
-        </div>
-
-      </header>
-
-      {/* ======================================================== */}
-      {/* 2. FULL-SCREEN ILLUSTRATED VECTOR WORLD MAP STAGE        */}
-      {/* ======================================================== */}
-      <main className="relative flex-1 w-full h-full overflow-hidden">
-        
-        {/* Sky Background with Gentle Drift Clouds & Sea Horizon */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#56b4f7] via-[#85cdfb] to-[#3ca7e7]">
-          
-          {/* Animated SVG Clouds */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40" xmlns="http://www.w3.org/2000/svg">
-            <g fill="#ffffff">
-              <path d="M 80 80 Q 110 50 150 70 Q 190 50 230 75 Q 260 65 290 85 Q 280 110 230 115 Q 160 120 100 110 Z" opacity="0.6" />
-              <path d="M 850 60 Q 880 30 920 50 Q 960 30 1000 55 Q 1030 45 1060 65 Q 1050 90 1000 95 Q 930 100 870 90 Z" opacity="0.5" />
-              <path d="M 500 120 Q 530 95 570 110 Q 610 95 640 120 Q 620 140 580 145 Z" opacity="0.4" />
-              <path d="M 1200 140 Q 1230 115 1270 130 Q 1310 115 1340 140 Q 1320 160 1280 165 Z" opacity="0.5" />
-            </g>
-          </svg>
-
-          {/* Sea / Ocean Layer at Bottom with Water Reflections */}
-          <div className="absolute bottom-0 left-0 right-0 h-44 bg-gradient-to-b from-[#3ba5e6] via-[#248ac9] to-[#12689c] opacity-80" />
-        </div>
-
-        {/* Interactive Full-Viewport SVG Map Canvas */}
-        <div className="relative w-full h-full min-h-[550px]">
-          
-          {/* SVG Vector Drawing of the Archipelago (Islands, Cliffs, Bridges, Structures) */}
-          <svg
-            viewBox="0 0 1440 900"
-            preserveAspectRatio="xMidYMid meet"
-            className="w-full h-full absolute inset-0 select-none"
-          >
+  // Isometric Architectural Landmarks for the 5 Hub Areas (Bastion Ref #1 + Citadel Ref #2)
+  const renderIslandArtwork = (id: PrimaryHubNode['id']) => {
+    const ink = '#1a162b';
+    switch (id) {
+      case 'word-world':
+        // 1. WORD WORLD PORTAL (12 o'clock) — Twin Rune-Carved Stone Monoliths + Glowing Blue Portal Vortex + Stepped Emerald Altar
+        return (
+          <svg viewBox="0 0 280 210" className="w-full h-auto drop-shadow-[0_12px_10px_rgba(15,23,42,0.65)] overflow-visible">
             <defs>
-              {/* Gradients for Islands & Cliffs */}
-              <linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7ad14b" />
-                <stop offset="100%" stopColor="#4f9e2b" />
-              </linearGradient>
-
-              <linearGradient id="cliffGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#8c5837" />
-                <stop offset="100%" stopColor="#482715" />
-              </linearGradient>
-
-              <linearGradient id="dunesGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#fed7aa" />
-                <stop offset="100%" stopColor="#f59e0b" />
-              </linearGradient>
-
-              <linearGradient id="pinkwoodGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#fbcfe8" />
-                <stop offset="100%" stopColor="#f472b6" />
-              </linearGradient>
-
-              <linearGradient id="frostpeakGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#e0f2fe" />
-                <stop offset="100%" stopColor="#7dd3fc" />
-              </linearGradient>
-
-              <linearGradient id="lavaGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#ef4444" />
-                <stop offset="50%" stopColor="#f97316" />
-                <stop offset="100%" stopColor="#eab308" />
-              </linearGradient>
-
-              <linearGradient id="shadowcryptGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#334155" />
-                <stop offset="100%" stopColor="#0f172a" />
-              </linearGradient>
-
-              <linearGradient id="seaWaterGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#38bdf8" />
-                <stop offset="100%" stopColor="#0284c7" />
-              </linearGradient>
-
-              {/* Wooden Bridge Planks Pattern */}
-              <pattern id="bridgePlank" width="12" height="6" patternUnits="userSpaceOnUse">
-                <rect width="10" height="5" fill="#a16207" stroke="#451a03" strokeWidth="1" />
-              </pattern>
+              <radialGradient id="portalVortex" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="35%" stopColor="#38bdf8" />
+                <stop offset="70%" stopColor="#0284c7" />
+                <stop offset="100%" stopColor="#1e3a8a" stopOpacity="0" />
+              </radialGradient>
             </defs>
+            {/* Stepped Circular Stone & Emerald Altar Base */}
+            <ellipse cx="140" cy="162" rx="112" ry="38" fill="#64748b" stroke={ink} strokeWidth="3.8" />
+            <ellipse cx="140" cy="154" rx="96" ry="31" fill="#94a3b8" stroke={ink} strokeWidth="3.2" />
+            <ellipse cx="140" cy="146" rx="76" ry="24" fill="#84cc16" stroke={ink} strokeWidth="3" />
+            {/* Stepped Stone Stairs Leading Up */}
+            <polygon points="112,166 168,166 178,194 102,194" fill="#cbd5e1" stroke={ink} strokeWidth="3" />
+            <line x1="108" y1="175" x2="172" y2="175" stroke={ink} strokeWidth="2.5" />
+            <line x1="105" y1="184" x2="175" y2="184" stroke={ink} strokeWidth="2.5" />
 
-            {/* ======================================================== */}
-            {/* WOODEN SUSPENSION BRIDGES CONNECTING THE ISLANDS         */}
-            {/* ======================================================== */}
-            <g id="bridges" stroke="#5c2e0b" strokeWidth="6" strokeLinecap="round">
-              {/* Bridge: Harmony Village ➜ Shadowcrypt */}
-              <path d="M 520 540 Q 450 565 380 575" fill="none" strokeDasharray="8 4" stroke="#a16207" strokeWidth="12" />
-              
-              {/* Bridge: Harmony Village ➜ Sunfall Dunes */}
-              <path d="M 680 430 Q 720 380 750 350" fill="none" strokeDasharray="8 4" stroke="#a16207" strokeWidth="12" />
+            {/* Left Carved Rune Monolith Pillar (Citadel Reference #2) */}
+            <polygon
+              points="58,150 48,48 76,20 98,52 94,150"
+              fill="#475569"
+              stroke={ink}
+              strokeWidth="3.8"
+              strokeLinejoin="round"
+            />
+            <path d="M56,64 L90,76 M54,96 L92,108 M60,126 L90,132" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" />
 
-              {/* Bridge: Sunfall Dunes ➜ Celestia */}
-              <path d="M 880 320 Q 940 300 990 280" fill="none" strokeDasharray="8 4" stroke="#a16207" strokeWidth="12" />
+            {/* Right Carved Rune Monolith Pillar */}
+            <polygon
+              points="186,150 182,52 204,20 232,48 222,150"
+              fill="#475569"
+              stroke={ink}
+              strokeWidth="3.8"
+              strokeLinejoin="round"
+            />
+            <path d="M224,64 L190,76 M226,96 L188,108 M220,126 L190,132" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" />
 
-              {/* Bridge: Harmony Village ➜ Fireforge */}
-              <path d="M 760 550 Q 820 575 870 590" fill="none" strokeDasharray="8 4" stroke="#a16207" strokeWidth="12" />
+            {/* Swirling Azure Portal Vortex Sphere in Center */}
+            <circle cx="140" cy="98" r="54" fill="url(#portalVortex)" />
+            <circle cx="140" cy="98" r="38" fill="none" stroke="#bae6fd" strokeWidth="3.5" strokeDasharray="10 6" />
+            <circle cx="140" cy="98" r="22" fill="#e0f2fe" stroke="#0284c7" strokeWidth="3" />
 
-              {/* Bridge: Far Left Altar ➜ Shadowcrypt */}
-              <path d="M 180 520 Q 230 550 280 560" fill="none" strokeDasharray="6 3" stroke="#a16207" strokeWidth="10" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 1: HARMONY VILLAGE / ROOT VILLAGE (CENTER)        */}
-            {/* ======================================================== */}
-            <g id="island-harmony-village" className="cursor-pointer group" onClick={() => setActiveModal('story')}>
-              {/* Earthen Cliff Underneath */}
-              <path d="M 460 520 C 460 620, 780 620, 800 520 L 780 470 C 700 450, 520 460, 460 520 Z" fill="url(#cliffGrad)" />
-              {/* Lush Meadow Grass Cap */}
-              <ellipse cx="630" cy="500" rx="170" ry="85" fill="url(#grassGrad)" stroke="#3f7e22" strokeWidth="4" />
-              
-              {/* Village Stream & Stepping Stones */}
-              <path d="M 570 460 Q 600 510 650 540" fill="none" stroke="#38bdf8" strokeWidth="8" strokeLinecap="round" />
-              
-              {/* Cozy Red & Blue Cottages */}
-              {/* Cottage 1 */}
-              <rect x="580" y="475" width="28" height="20" fill="#fef3c7" stroke="#451a03" strokeWidth="2" />
-              <polygon points="575,475 594,455 613,475" fill="#dc2626" stroke="#451a03" strokeWidth="2" />
-              {/* Cottage 2 */}
-              <rect x="620" y="485" width="26" height="18" fill="#fef3c7" stroke="#451a03" strokeWidth="2" />
-              <polygon points="615,485 633,465 651,485" fill="#2563eb" stroke="#451a03" strokeWidth="2" />
-              {/* Cottage 3 */}
-              <rect x="660" y="480" width="24" height="18" fill="#fef3c7" stroke="#451a03" strokeWidth="2" />
-              <polygon points="656,480 672,462 688,480" fill="#ea580c" stroke="#451a03" strokeWidth="2" />
-              
-              {/* Trees & Fences */}
-              <circle cx="530" cy="485" r="18" fill="#22c55e" stroke="#166534" strokeWidth="3" />
-              <circle cx="510" cy="505" r="16" fill="#15803d" stroke="#166534" strokeWidth="3" />
-              <circle cx="730" cy="495" r="18" fill="#22c55e" stroke="#166534" strokeWidth="3" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 2: SHADOWCRYPT (BOTTOM-LEFT / ARSENAL)            */}
-            {/* ======================================================== */}
-            <g id="island-shadowcrypt" className="cursor-pointer group" onClick={() => setTab('loadout')}>
-              {/* Dark Obsidian Cliff Base */}
-              <path d="M 230 580 C 230 720, 480 720, 500 580 L 480 540 C 400 520, 280 530, 230 580 Z" fill="url(#shadowcryptGrad)" />
-              {/* Top Stone Temple Plaza */}
-              <ellipse cx="370" cy="570" rx="130" ry="65" fill="#475569" stroke="#1e293b" strokeWidth="4" />
-              
-              {/* Glowing Rune Altar in Center */}
-              <ellipse cx="370" cy="570" rx="40" ry="20" fill="#0f172a" stroke="#06b6d4" strokeWidth="3" />
-              <path d="M 360 565 L 380 565 L 370 575 Z" fill="#22d3ee" className="animate-pulse" />
-
-              {/* Ancient Stone Columns & Arch */}
-              <rect x="290" y="525" width="16" height="42" fill="#334155" stroke="#0f172a" strokeWidth="2" />
-              <rect x="320" y="515" width="16" height="52" fill="#334155" stroke="#0f172a" strokeWidth="2" />
-              <rect x="420" y="515" width="16" height="52" fill="#334155" stroke="#0f172a" strokeWidth="2" />
-              <rect x="450" y="525" width="16" height="42" fill="#334155" stroke="#0f172a" strokeWidth="2" />
-              <rect x="316" y="510" width="124" height="10" fill="#1e293b" rx="2" />
-
-              {/* Cyan Glowing Glyph Pillars */}
-              <rect x="270" y="560" width="10" height="24" fill="#06b6d4" rx="2" className="animate-pulse" />
-              <rect x="470" y="560" width="10" height="24" fill="#06b6d4" rx="2" className="animate-pulse" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 3: PINKWOOD & FROSTPEAK (TOP-LEFT / PET ROSTER)   */}
-            {/* ======================================================== */}
-            <g id="island-pinkwood-frostpeak" className="cursor-pointer group" onClick={() => setActiveModal('roster')}>
-              {/* Cliff Platform */}
-              <path d="M 180 340 C 180 470, 520 470, 540 340 L 520 280 C 420 260, 240 260, 180 340 Z" fill="url(#cliffGrad)" />
-              
-              {/* Left Side: Pink Blossom Paradise */}
-              <ellipse cx="280" cy="330" rx="90" ry="50" fill="url(#pinkwoodGrad)" stroke="#db2777" strokeWidth="3" />
-              {/* Turquoise Pond */}
-              <ellipse cx="310" cy="340" rx="45" ry="22" fill="#38bdf8" stroke="#0284c7" strokeWidth="2" />
-              {/* Pink Blossom Trees */}
-              <circle cx="230" cy="310" r="22" fill="#f472b6" stroke="#9d174d" strokeWidth="3" />
-              <circle cx="260" cy="295" r="26" fill="#fb7185" stroke="#9d174d" strokeWidth="3" />
-              <circle cx="290" cy="310" r="20" fill="#f472b6" stroke="#9d174d" strokeWidth="3" />
-
-              {/* Right Side: Snow-Capped Jagged Frostpeak Mountains */}
-              <polygon points="400,320 440,210 480,320" fill="url(#frostpeakGrad)" stroke="#0369a1" strokeWidth="3" />
-              <polygon points="440,210 430,240 450,240" fill="#ffffff" />
-              <polygon points="440,320 480,230 520,320" fill="url(#frostpeakGrad)" stroke="#0369a1" strokeWidth="3" />
-              <polygon points="480,230 470,260 490,260" fill="#ffffff" />
-              <polygon points="360,325 395,240 430,325" fill="url(#frostpeakGrad)" stroke="#0369a1" strokeWidth="3" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 4: SUNFALL DUNES (UPPER-CENTER)                   */}
-            {/* ======================================================== */}
-            <g id="island-sunfall-dunes" className="cursor-pointer group">
-              <path d="M 640 320 C 640 400, 840 400, 850 320 L 840 280 C 780 260, 680 260, 640 320 Z" fill="#92400e" />
-              <ellipse cx="745" cy="305" rx="100" ry="45" fill="url(#dunesGrad)" stroke="#b45309" strokeWidth="3" />
-              
-              {/* Oasis Pond */}
-              <ellipse cx="740" cy="305" rx="35" ry="16" fill="#38bdf8" stroke="#0284c7" strokeWidth="2" />
-              {/* Palm Trees */}
-              <circle cx="690" cy="285" r="12" fill="#15803d" />
-              <circle cx="780" cy="285" r="14" fill="#15803d" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 5: CELESTIA (TOP-RIGHT / BATTLE ARENA)            */}
-            {/* ======================================================== */}
-            <g id="island-celestia" className="cursor-pointer group" onClick={() => setTab('battle')}>
-              {/* Floating Cloud & Marble Base */}
-              <path d="M 920 270 C 920 370, 1150 370, 1170 270 L 1150 220 C 1080 200, 960 210, 920 270 Z" fill="#78350f" />
-              <ellipse cx="1040" cy="255" rx="115" ry="55" fill="#f8fafc" stroke="#64748b" strokeWidth="3" />
-              
-              {/* Glowing Fountain of Power */}
-              <ellipse cx="1040" cy="255" rx="35" ry="18" fill="#38bdf8" stroke="#0284c7" strokeWidth="3" />
-              <path d="M 1040 255 L 1040 230" stroke="#67e8f9" strokeWidth="4" strokeLinecap="round" className="animate-pulse" />
-
-              {/* Marble Columns & Sacred Temple Arches */}
-              <rect x="970" y="225" width="10" height="30" fill="#e2e8f0" stroke="#475569" strokeWidth="1.5" />
-              <rect x="995" y="220" width="10" height="35" fill="#e2e8f0" stroke="#475569" strokeWidth="1.5" />
-              <rect x="1080" y="220" width="10" height="35" fill="#e2e8f0" stroke="#475569" strokeWidth="1.5" />
-              <rect x="1105" y="225" width="10" height="30" fill="#e2e8f0" stroke="#475569" strokeWidth="1.5" />
-              <polygon points="965,220 1040,195 1115,220" fill="#f1f5f9" stroke="#475569" strokeWidth="2" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 6: FIREFORGE (BOTTOM-RIGHT / WORD FORGE)          */}
-            {/* ======================================================== */}
-            <g id="island-fireforge" className="cursor-pointer group" onClick={() => setTab('forge')}>
-              {/* Jagged Dark Basalt Platform */}
-              <path d="M 820 620 C 820 740, 1080 740, 1100 620 L 1080 570 C 1000 540, 880 550, 820 620 Z" fill="#1c1917" />
-              <ellipse cx="950" cy="610" rx="125" ry="60" fill="#292524" stroke="#7f1d1d" strokeWidth="4" />
-
-              {/* Fiery Active Volcano Caldera */}
-              <polygon points="890,610 950,510 1010,610" fill="#1c1917" stroke="#78350f" strokeWidth="3" />
-              {/* Crater Lava Top */}
-              <ellipse cx="950" cy="515" rx="22" ry="10" fill="#f97316" className="animate-pulse" />
-              
-              {/* Magma Rivers Flowing Down */}
-              <path d="M 950 520 Q 940 560 920 610" fill="none" stroke="url(#lavaGrad)" strokeWidth="6" strokeLinecap="round" />
-              <path d="M 955 520 Q 970 560 985 610" fill="none" stroke="url(#lavaGrad)" strokeWidth="5" strokeLinecap="round" />
-              <path d="M 915 605 Q 950 630 1020 615" fill="none" stroke="url(#lavaGrad)" strokeWidth="7" strokeLinecap="round" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 7: TREETOP CANOPY (FAR-RIGHT / PET HATCHERY)      */}
-            {/* ======================================================== */}
-            <g id="island-treetop-canopy" className="cursor-pointer group" onClick={() => setActiveModal('hatchery')}>
-              {/* Earth Crust */}
-              <path d="M 1060 560 C 1060 700, 1340 700, 1360 560 L 1330 510 C 1240 480, 1120 490, 1060 560 Z" fill="url(#cliffGrad)" />
-              <ellipse cx="1200" cy="545" rx="130" ry="60" fill="url(#grassGrad)" stroke="#166534" strokeWidth="4" />
-              
-              {/* Giant Ancient Gnarled Tree Trunk */}
-              <path d="M 1160 540 Q 1190 420 1170 330 Q 1230 420 1240 540 Z" fill="#78350f" stroke="#451a03" strokeWidth="4" />
-              
-              {/* Massive Green Canopy */}
-              <circle cx="1140" cy="320" r="45" fill="#15803d" stroke="#14532d" strokeWidth="3" />
-              <circle cx="1200" cy="290" r="55" fill="#22c55e" stroke="#14532d" strokeWidth="3" />
-              <circle cx="1260" cy="330" r="45" fill="#16a34a" stroke="#14532d" strokeWidth="3" />
-
-              {/* Wooden Treehouses with Red & Orange Roofs */}
-              <rect x="1130" y="320" width="30" height="25" fill="#fef3c7" stroke="#451a03" strokeWidth="2" />
-              <polygon points="1125,320 1145,300 1165,320" fill="#dc2626" stroke="#451a03" strokeWidth="2" />
-
-              <rect x="1220" y="340" width="32" height="26" fill="#fef3c7" stroke="#451a03" strokeWidth="2" />
-              <polygon points="1215,340 1236,320 1257,340" fill="#ea580c" stroke="#451a03" strokeWidth="2" />
-
-              {/* Treehouse Entrance Hollow */}
-              <ellipse cx="1195" cy="500" rx="12" ry="18" fill="#292524" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 8: GALLEON'S REST (BOTTOM-CENTER / LEXI-SHOP)     */}
-            {/* ======================================================== */}
-            <g id="island-galleons-rest" className="cursor-pointer group" onClick={() => setActiveModal('shop')}>
-              {/* Sandbar Island in the Water */}
-              <ellipse cx="680" cy="740" rx="75" ry="32" fill="#fde047" stroke="#ca8a04" strokeWidth="3" />
-              {/* Water Ripples around Sandbar */}
-              <ellipse cx="680" cy="742" rx="88" ry="38" fill="none" stroke="#e0f2fe" strokeWidth="3" opacity="0.8" />
-
-              {/* Stranded Pirate Galleon Ship */}
-              {/* Hull */}
-              <path d="M 640 730 Q 680 755 730 730 L 735 715 Q 680 725 635 715 Z" fill="#92400e" stroke="#451a03" strokeWidth="3" />
-              {/* Main Mast & Sails */}
-              <line x1="680" y1="720" x2="680" y2="660" stroke="#451a03" strokeWidth="4" />
-              <path d="M 660 670 Q 685 660 705 675 L 700 705 Q 680 690 660 705 Z" fill="#fef08a" stroke="#ca8a04" strokeWidth="2" />
-              {/* Pirate Flag */}
-              <polygon points="680,660 700,667 680,674" fill="#dc2626" />
-              
-              {/* Palm Trees on Sandbar */}
-              <path d="M 630 735 Q 625 715 620 700" fill="none" stroke="#78350f" strokeWidth="3" />
-              <circle cx="620" cy="695" r="10" fill="#15803d" />
-              <path d="M 730 735 Q 735 715 740 700" fill="none" stroke="#78350f" strokeWidth="3" />
-              <circle cx="740" cy="695" r="10" fill="#15803d" />
-            </g>
-
-            {/* ======================================================== */}
-            {/* ISLAND 9: FAR-LEFT STONE STELE / SHRINE                  */}
-            {/* ======================================================== */}
-            <g id="island-shrine">
-              <ellipse cx="140" cy="510" rx="35" ry="18" fill="#475569" stroke="#1e293b" strokeWidth="2" />
-              <rect x="135" y="475" width="10" height="28" fill="#64748b" stroke="#0f172a" strokeWidth="1.5" />
-              <polygon points="140,465 148,475 132,475" fill="#facc15" />
-            </g>
-
+            {/* Floating Golden Crown Arch Above Portal */}
+            <polygon points="116,28 140,8 164,28 152,36 128,36" fill="#facc15" stroke={ink} strokeWidth="3" />
           </svg>
+        );
 
-          {/* ======================================================== */}
-          {/* INTERACTIVE WOODEN SIGNBOARDS & HOTSPOTS OVER ISLANDS    */}
-          {/* ======================================================== */}
+      case 'forge':
+        // 4. WORD FORGE (10 o'clock) — Multi-Chimney Stone Furnace + Anvil + Glowing Crimson Crystal Obelisk (Refs #1 & #2)
+        return (
+          <svg viewBox="0 0 260 200" className="w-full h-auto drop-shadow-[0_11px_9px_rgba(15,23,42,0.65)] overflow-visible">
+            {/* Isometric Cobblestone & Moss Terrace */}
+            <polygon points="18,136 130,84 242,136 130,188" fill="#65a30d" stroke={ink} strokeWidth="3.8" strokeLinejoin="round" />
+            <polygon points="44,134 130,94 216,134 130,174" fill="#78716c" stroke={ink} strokeWidth="3" />
 
-          {/* 3. Pinkwood & Frostpeak (Top-Left / Pet Roster) */}
-          <div
-            style={{ position: 'absolute', left: '20%', top: '38%' }}
-            onClick={() => {
-              playSfx(620);
-              setActiveModal('roster');
-            }}
-            className="group flex items-center gap-2 cursor-pointer transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition"
-          >
-            <div className="rounded-xl border-3 border-[#831843] bg-gradient-to-b from-[#f472b6] to-[#db2777] px-3 py-1 text-center shadow-[0_4px_0_#831843]">
-              <span className="font-serif text-xs sm:text-sm font-black text-white drop-shadow">
-                Pinkwood
-              </span>
-            </div>
+            {/* Multi-Chimney Stone Blacksmith Workshop (Bastion Ref #1 Top-Left) */}
+            <g stroke={ink} strokeWidth="3.5" strokeLinejoin="round">
+              {/* Main Stone & Timber Forge Building */}
+              <polygon points="74,136 74,64 136,42 184,64 184,136 136,156" fill="#57534e" />
+              <polygon points="136,42 184,64 184,136 136,156" fill="#44403c" />
+              {/* Slanted Timber Roof */}
+              <polygon points="68,66 136,36 190,62 136,86" fill="#b45309" />
+              {/* Twin Brick Chimneys Belching Warm Embers */}
+              <rect x="86" y="20" width="22" height="42" fill="#78716c" />
+              <rect x="82" y="14" width="30" height="8" fill="#a8a29e" />
+              <rect x="116" y="10" width="24" height="42" fill="#78716c" />
+              <rect x="112" y="4" width="32" height="8" fill="#a8a29e" />
+              {/* Glowing Orange Furnace Archway */}
+              <path d="M92,142 V104 Q112,88 132,104 V142 Z" fill="#ff6d00" />
+              <path d="M98,142 V112 Q112,100 126,112 V142 Z" fill="#fde047" />
+            </g>
 
-            <div className="rounded-xl border-3 border-[#0c4a6e] bg-gradient-to-b from-[#7dd3fc] to-[#0284c7] px-3 py-1 text-center shadow-[0_4px_0_#0c4a6e]">
-              <span className="font-serif text-xs sm:text-sm font-black text-white drop-shadow">
-                Frostpeak
-              </span>
-            </div>
-          </div>
+            {/* Blacksmith Iron Anvil on Front Terrace */}
+            <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
+              <rect x="144" y="136" width="28" height="12" fill="#334155" />
+              <polygon points="136,124 180,124 170,136 146,136" fill="#64748b" />
+            </g>
 
-          {/* 4. Sunfall Dunes (Upper-Center) */}
-          <div
-            style={{ position: 'absolute', left: '52%', top: '32%' }}
-            className="group flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2"
-          >
-            <div className="rounded-xl border-3 border-[#78350f] bg-gradient-to-b from-[#fde68a] to-[#d97706] px-3.5 py-1 text-center shadow-[0_4px_0_#78350f]">
-              <span className="font-serif text-xs sm:text-sm font-black text-[#451a03]">
-                Sunfall Dunes
-              </span>
-            </div>
-          </div>
+            {/* Glowing Red Forge Crystal Obelisk (Citadel Ref #2 Bottom-Left) */}
+            <g stroke={ink} strokeWidth="3.2" strokeLinejoin="round">
+              <ellipse cx="56" cy="148" rx="24" ry="10" fill="#475569" />
+              <polygon points="44,146 38,92 56,68 72,94 68,146" fill="#ef4444" />
+              <polygon points="56,68 72,94 68,146 56,146" fill="#b91c1c" />
+              <ellipse cx="56" cy="122" rx="22" ry="7" fill="none" stroke="#facc15" strokeWidth="3" />
+            </g>
+          </svg>
+        );
 
-          {HUB_DESTINATIONS.map((destination) => (
+      case 'arena':
+        // 2. BATTLE ARENA (8 o'clock) — Stepped Stone Colosseum Ring + Tall Royal Purple Banners + Crenellated Bastion (Refs #1 & #2)
+        return (
+          <svg viewBox="0 0 270 205" className="w-full h-auto drop-shadow-[0_11px_9px_rgba(15,23,42,0.65)] overflow-visible">
+            {/* Stepped Circular Stone Arena Base */}
+            <ellipse cx="135" cy="144" rx="108" ry="40" fill="#64748b" stroke={ink} strokeWidth="3.8" />
+            <ellipse cx="135" cy="136" rx="90" ry="32" fill="#cbd5e1" stroke={ink} strokeWidth="3.4" />
+            <ellipse cx="135" cy="130" rx="68" ry="23" fill="#475569" stroke="#facc15" strokeWidth="3.2" />
+
+            {/* Crenellated Stone Bastion Wall & Tall Purple Combat Banners (Citadel Ref #2 Right) */}
+            <g stroke={ink} strokeWidth="3.4" strokeLinejoin="round">
+              {/* Stone Pillars */}
+              <rect x="64" y="42" width="18" height="86" rx="3" fill="#94a3b8" />
+              <rect x="104" y="30" width="18" height="92" rx="3" fill="#94a3b8" />
+              <rect x="148" y="30" width="18" height="92" rx="3" fill="#94a3b8" />
+              <rect x="188" y="42" width="18" height="86" rx="3" fill="#94a3b8" />
+
+              {/* Hanging Royal Purple & Gold Pennant Banners */}
+              <polygon points="67,50 79,50 79,112 73,120 67,112" fill="#7e22ce" stroke="#facc15" strokeWidth="2" />
+              <polygon points="107,38 119,38 119,104 113,112 107,104" fill="#7e22ce" stroke="#facc15" strokeWidth="2" />
+              <polygon points="151,38 163,38 163,104 157,112 151,104" fill="#7e22ce" stroke="#facc15" strokeWidth="2" />
+              <polygon points="191,50 203,50 203,112 197,120 191,112" fill="#7e22ce" stroke="#facc15" strokeWidth="2" />
+            </g>
+
+            {/* Crossed Golden Greatswords & Flaming Braziers in the Arena Center */}
+            <g stroke={ink} strokeWidth="3.2" strokeLinejoin="round">
+              <circle cx="84" cy="134" r="10" fill="#f59e0b" />
+              <circle cx="186" cy="134" r="10" fill="#f59e0b" />
+              <polygon points="135,74 118,118 135,142 152,118" fill="#facc15" />
+              <circle cx="135" cy="114" r="8" fill="#ef4444" />
+            </g>
+          </svg>
+        );
+
+      case 'hatchery':
+        // 3. PET HATCHERY (2 o'clock) — Tiered Sanctuary Temple with Glowing Turquoise Rooftop Water Pool, Crimson Palm & Scroll Tower (Bastion Ref #1 Right)
+        return (
+          <svg viewBox="0 0 270 210" className="w-full h-auto drop-shadow-[0_11px_9px_rgba(15,23,42,0.65)] overflow-visible">
+            {/* Lush Mossy Sanctuary Terrace */}
+            <polygon points="20,142 135,90 250,142 135,194" fill="#84cc16" stroke={ink} strokeWidth="3.8" strokeLinejoin="round" />
+
+            {/* Tall Parchment Scroll Tower on Back-Left (Bastion Ref #1 1 o'clock) */}
+            <g stroke={ink} strokeWidth="3.4" strokeLinejoin="round">
+              <rect x="64" y="24" width="38" height="96" fill="#d6d3d1" />
+              <polygon points="58,26 83,8 108,26" fill="#0284c7" />
+              {/* Giant Unfurling Parchment Scroll */}
+              <rect x="88" y="42" width="26" height="52" rx="4" fill="#fef3c7" />
+              <line x1="84" y1="42" x2="118" y2="42" stroke="#78350f" strokeWidth="4" />
+            </g>
+
+            {/* Tiered Timber & Stone Temple with Glowing Turquoise Rooftop Pool (Bastion Ref #1 2 o'clock) */}
+            <g stroke={ink} strokeWidth="3.6" strokeLinejoin="round">
+              <polygon points="84,142 84,84 152,58 216,84 216,142 152,172" fill="#b45309" />
+              <polygon points="152,58 216,84 216,142 152,172" fill="#78350f" />
+              {/* Glowing Turquoise Rooftop Incubation Pool */}
+              <polygon points="92,84 152,60 208,84 152,108" fill="#fde68a" />
+              <polygon points="106,84 152,66 194,84 152,102" fill="#22d3ee" />
+              {/* Golden Companion Egg Nesting Beside Pool */}
+              <ellipse cx="152" cy="82" rx="13" ry="17" fill="#facc15" />
+            </g>
+
+            {/* Exotic Crimson-and-Violet Palm Tree Rising Above Pool */}
+            <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
+              <path d="M182,78 Q192,48 184,26" stroke="#78350f" strokeWidth="5" fill="none" />
+              <path d="M184,26 Q156,16 152,34 Q170,32 184,26 Z" fill="#e11d48" />
+              <path d="M184,26 Q212,14 216,32 Q198,32 184,26 Z" fill="#9333ea" />
+              <path d="M184,26 Q184,4 202,12 Q194,24 184,26 Z" fill="#f43f5e" />
+            </g>
+          </svg>
+        );
+
+      case 'lexishop':
+        // 5. LEXI-SHOP BAZAAR (4 o'clock) — Timber Merchant Lodge with Blue Lantern Flames + Green-Canopied Caravan Wagon (Refs #1 & #2)
+        return (
+          <svg viewBox="0 0 260 200" className="w-full h-auto drop-shadow-[0_11px_9px_rgba(15,23,42,0.65)] overflow-visible">
+            {/* Cobblestone & Grass Bazaar Terrace */}
+            <polygon points="18,136 130,84 242,136 130,188" fill="#84cc16" stroke={ink} strokeWidth="3.8" strokeLinejoin="round" />
+
+            {/* Cozy Timber & White Canvas Merchant Lodge (Bastion Ref #1 4 o'clock) */}
+            <g stroke={ink} strokeWidth="3.5" strokeLinejoin="round">
+              <polygon points="108,138 108,74 166,48 218,74 218,138 166,162" fill="#92400e" />
+              {/* Slanted White-and-Gold Canvas Awning Roof */}
+              <polygon points="100,82 164,44 224,74 164,112" fill="#fef3c7" />
+              <line x1="122" y1="69" x2="184" y2="100" stroke="#f59e0b" strokeWidth="4" />
+              <line x1="144" y1="56" x2="204" y2="87" stroke="#ef4444" strokeWidth="4" />
+              {/* Glowing Blue Magic Brazier on Rooftop */}
+              <circle cx="164" cy="36" r="10" fill="#38bdf8" />
+              <polygon points="156,36 164,16 172,36" fill="#bae6fd" />
+            </g>
+
+            {/* Green-Canopied Merchant Caravan Wagon on Front-Left (Citadel Ref #2 Bottom-Left) */}
+            <g stroke={ink} strokeWidth="3.2" strokeLinejoin="round">
+              <rect x="46" y="98" width="66" height="40" rx="10" fill="#65a30d" />
+              <path d="M46,112 H112 M68,98 V138 M90,98 V138" stroke="#365314" strokeWidth="2.8" />
+              {/* Wagon Wheels */}
+              <circle cx="62" cy="142" r="11" fill="#78350f" />
+              <circle cx="98" cy="142" r="11" fill="#78350f" />
+              {/* Treasure Chest */}
+              <rect x="118" y="132" width="24" height="18" rx="3" fill="#facc15" />
+            </g>
+          </svg>
+        );
+    }
+  };
+
+  const renderModalContent = () => {
+    if (!activeModal) return null;
+
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-[#1a162b]/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5"
+        onClick={() => setActiveModal(null)}
+      >
+        <div
+          className="relative w-full max-w-4xl bg-[#fff8e7] border-[5px] border-[#1a162b] rounded-3xl shadow-[0_12px_0_#1a162b,0_20px_50px_rgba(0,0,0,0.75)] overflow-hidden animate-in zoom-in-95 duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal Header — Monster-Tamer JRPG Banner */}
+          <div className="bg-gradient-to-r from-[#283593] via-[#3949ab] to-[#1a237e] px-6 py-4 flex items-center justify-between border-b-[4px] border-[#1a162b]">
+            <h2 className="font-display font-black text-xl sm:text-2xl text-[#ffd54f] tracking-wide drop-shadow-[0_2px_0_#1a162b] flex items-center gap-2.5">
+              {activeModal === 'word-world' && '🌍 1. Word World — 9 Elemental Adventure Realms'}
+              {activeModal === 'arena' && '⚔️ 2. Battle Arena — Matchmaking & Boss Lobby'}
+              {activeModal === 'hatchery' && '🥚 3. Pet Hatchery — Arsenal, Stats & Training'}
+              {activeModal === 'lexishop' && '🏪 5. Lexi-Shop — K–8 Booster Packs & Upgrades'}
+              {activeModal === 'quests' && '📋 Explorer Guild Quests & Rewards'}
+              {activeModal === 'settings' && '⚙️ Game Settings & Explorer Account'}
+              {activeModal === 'profile' && '🛡️ Official Aetheria Tamer License'}
+            </h2>
             <button
-              key={destination.id}
-              type="button"
-              onClick={() => openHubDestination(destination.id)}
-              aria-label={`${destination.label} at ${destination.islandName}`}
-              aria-current={activeTab === destination.id ? 'page' : undefined}
-              title={`Open ${destination.label}`}
-              style={{ left: `${destination.x}%`, top: `${destination.y}%` }}
-              className={`group absolute z-10 flex min-h-12 -translate-x-1/2 -translate-y-1/2 touch-manipulation flex-col items-center justify-center rounded-2xl border-2 border-white/90 bg-gradient-to-r ${destination.tone} px-3 py-1.5 text-center text-white shadow-[0_4px_0_rgba(71,35,20,0.7)] transition duration-150 hover:z-20 hover:scale-110 hover:brightness-110 focus-visible:z-20 focus-visible:outline focus-visible:outline-4 focus-visible:outline-amber-200 active:translate-y-0`}
+              onClick={() => setActiveModal(null)}
+              className="w-9 h-9 rounded-xl bg-[#e53935] hover:bg-[#f44336] text-white font-black border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] active:translate-y-0.5 flex items-center justify-center cursor-pointer"
             >
-              <span className="whitespace-nowrap font-serif text-[11px] font-black leading-tight drop-shadow sm:text-sm">
-                {destination.emoji} {destination.label}
-              </span>
-              <span className="mt-0.5 whitespace-nowrap text-[8px] font-extrabold leading-tight text-white/95 sm:text-[10px]">
-                {destination.islandName}
-              </span>
+              ✕
             </button>
-          ))}
-
-        </div>
-
-      </main>
-
-      {/* ======================================================== */}
-      {/* 3. BOTTOM HUD (EXACT MATCH TO REFERENCE PHOTO IMG_4204)  */}
-      {/* ======================================================== */}
-      <footer className="absolute bottom-0 left-0 right-0 z-30 flex flex-wrap items-end justify-between p-2 sm:p-4 pointer-events-none">
-        
-        {/* Bottom-Left: Daily Tasks, Backpack, Chat */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 pointer-events-auto">
-          
-          {/* Daily Tasks Button */}
-          <button
-            type="button"
-            onClick={() => {
-              playSfx(650);
-              setActiveModal('quests');
-            }}
-            title="Daily Quests Progress"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-2 shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <div className="relative">
-              <span className="text-xl sm:text-2xl">📋</span>
-              <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-black text-white">
-                ✓
-              </span>
-            </div>
-            <span className="text-[9px] sm:text-[10px] font-black text-[#5a2e12] leading-tight">
-              Daily Quests
-            </span>
-            <span className="text-[8px] font-bold text-[#8c4617]">(3/5)</span>
-          </button>
-
-          {/* Backpack (Arsenal / Inventory) */}
-          <button
-            type="button"
-            onClick={() => {
-              playSfx(580);
-              setTab('loadout');
-            }}
-            title="Open Backpack / Word Arsenal"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-[#b45309] to-[#78350f] p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <Backpack className="h-6 w-6 text-amber-200" />
-            <span className="text-[9px] sm:text-[10px] font-black">Inventory</span>
-          </button>
-
-          {/* Chat / Lore */}
-          <button
-            type="button"
-            onClick={cycleSpeech}
-            title="Companion Dialogue &amp; Lore"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-sky-400 to-blue-600 p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <MessageSquare className="h-6 w-6 text-white" />
-            <span className="text-[9px] sm:text-[10px] font-black">Chat</span>
-          </button>
-
-        </div>
-
-        {/* Bottom-Center: BIG GREEN PLAY/ENTER BUTTON + 4 GRAMMAR SPELL CARDS */}
-        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 pointer-events-auto mx-auto my-1 sm:my-0">
-          
-          {/* Big Green Play / Enter Button */}
-          <button
-            type="button"
-            onClick={() => {
-              juice.fanfare();
-              setActiveModal('story');
-            }}
-            className="group flex items-center justify-center gap-2 sm:gap-3 rounded-3xl border-4 border-[#14532d] bg-gradient-to-r from-[#84cc16] via-[#22c55e] to-[#15803d] px-6 sm:px-10 py-2.5 sm:py-3 text-base sm:text-xl font-black uppercase tracking-wider text-white shadow-[0_5px_0_#14532d] hover:scale-103 hover:brightness-110 active:translate-y-1 active:shadow-none transition cursor-pointer"
-          >
-            <span>Play/Enter</span>
-            <Star className="h-5 w-5 sm:h-6 sm:w-6 fill-amber-300 text-amber-200 group-hover:rotate-45 transition-transform" />
-          </button>
-
-          {/* The 4 Grammar Synergy Cards matching IMG_4204 */}
-          <div className="flex items-center gap-1 sm:gap-2">
-            
-            {/* 1. Adjective Attack */}
-            <div
-              title="Adjective Attack: Modifier adds physical burst damage"
-              className="flex flex-col items-center justify-center w-12 sm:w-14 h-14 sm:h-16 rounded-xl border-2 border-[#7f1d1d] bg-gradient-to-b from-red-500 to-rose-600 p-1 text-center shadow-xs"
-            >
-              <Swords className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-              <span className="text-[8px] sm:text-[9px] font-black text-white leading-tight mt-0.5">
-                Adjective
-              </span>
-              <span className="text-[7px] sm:text-[8px] font-bold text-red-200">Attack</span>
-            </div>
-
-            {/* 2. Noun Defense */}
-            <div
-              title="Noun Defense: Concrete nouns grant defensive fortitude"
-              className="flex flex-col items-center justify-center w-12 sm:w-14 h-14 sm:h-16 rounded-xl border-2 border-[#1e3a8a] bg-gradient-to-b from-blue-500 to-indigo-600 p-1 text-center shadow-xs"
-            >
-              <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-              <span className="text-[8px] sm:text-[9px] font-black text-white leading-tight mt-0.5">
-                Noun
-              </span>
-              <span className="text-[7px] sm:text-[8px] font-bold text-blue-200">Defense</span>
-            </div>
-
-            {/* 3. Adverb Multiplier */}
-            <div
-              title="Adverb Multiplier: Boosts speed and combo frequency"
-              className="flex flex-col items-center justify-center w-12 sm:w-14 h-14 sm:h-16 rounded-xl border-2 border-[#581c87] bg-gradient-to-b from-purple-500 to-violet-700 p-1 text-center shadow-xs"
-            >
-              <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-              <span className="text-[8px] sm:text-[9px] font-black text-white leading-tight mt-0.5">
-                Adverb
-              </span>
-              <span className="text-[7px] sm:text-[8px] font-bold text-purple-200">Multiplier</span>
-            </div>
-
-            {/* 4. Synergy Boost */}
-            <div
-              title="Synergy Boost: Root and affix fusions unleash elemental surge"
-              className="flex flex-col items-center justify-center w-12 sm:w-14 h-14 sm:h-16 rounded-xl border-2 border-[#b45309] bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 p-1 text-center shadow-[0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
-            >
-              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-              <span className="text-[8px] sm:text-[9px] font-black text-white leading-tight mt-0.5">
-                Synergy
-              </span>
-              <span className="text-[7px] sm:text-[8px] font-bold text-amber-200">Boost</span>
-            </div>
-
           </div>
 
-        </div>
-
-        {/* Bottom-Right: Profile, Mail, Settings, Social, Quest Log */}
-        <div className="flex items-center gap-1 sm:gap-2 pointer-events-auto">
-          
-          {/* Profile */}
-          <button
-            type="button"
-            onClick={() => setIsCustomizingAvatar(true)}
-            title="Edit Character &amp; Title"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-sky-400 to-blue-500 p-1.5 sm:p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <span className="text-lg sm:text-xl">👤</span>
-            <span className="text-[8px] sm:text-[9px] font-black">Profile</span>
-          </button>
-
-          {/* Settings */}
-          <button
-            type="button"
-            onClick={() => setActiveModal('settings')}
-            title="Game Settings &amp; Audio"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-slate-200 to-slate-400 p-1.5 sm:p-2 text-slate-800 shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <Settings className="h-5 w-5 text-slate-800" />
-            <span className="text-[8px] sm:text-[9px] font-black">Settings</span>
-          </button>
-
-          {/* Social */}
-          <button
-            type="button"
-            onClick={() => setActiveModal('roster')}
-            title="Classroom Explorers"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-amber-300 to-orange-400 p-1.5 sm:p-2 text-white shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <Users className="h-5 w-5 text-white" />
-            <span className="text-[8px] sm:text-[9px] font-black">Social</span>
-          </button>
-
-          {/* Quest Log */}
-          <button
-            type="button"
-            onClick={() => setActiveModal('story')}
-            title="Story Realms &amp; Quest Log"
-            className="flex flex-col items-center justify-center rounded-2xl border-3 border-[#381a07] bg-gradient-to-b from-amber-100 to-amber-200 p-1.5 sm:p-2 shadow-[0_4px_0_#381a07] hover:scale-105 active:translate-y-1 transition cursor-pointer"
-          >
-            <BookOpen className="h-5 w-5 text-amber-800" />
-            <span className="text-[8px] sm:text-[9px] font-black text-[#5a2e12]">Quest Log</span>
-          </button>
-
-        </div>
-
-      </footer>
-
-      {/* ======================================================== */}
-      {/* 4. SYSTEM MODALS (HATCHERY, SHOP, ROSTER, STORY, QUESTS) */}
-      {/* ======================================================== */}
-
-      {/* A. NINE ELEMENTAL WORD WORLD AREAS */}
-      {activeModal === 'story' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="relative w-full max-w-2xl rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-5 sm:p-7 shadow-[0_10px_0_#5a2e12] space-y-4 my-auto max-h-[92vh] overflow-y-auto">
-            
-            <div className="flex items-center justify-between border-b-3 border-amber-200 pb-3">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">🗺️</span>
-                <div>
-                  <h3 className="font-serif text-2xl sm:text-3xl font-black text-[#542d1d]">
-                Word World · Elemental Areas
-                  </h3>
-                  <p className="text-xs font-bold text-[#824c16]">
-                Explore nine regions, learn new words, and challenge the area guardians.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="rounded-xl border-2 border-[#5a2e12] p-1.5 text-slate-500 hover:text-black hover:bg-amber-100 transition cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* List of Tiers */}
-            <div className="space-y-3">
-              {WORLD_TIERS.map((tier, index) => {
-                const progress = zoneProgress[tier.id] || { stars: 0, cleared: false };
-                const previousTier = WORLD_TIERS[index - 1];
-                const isLocked = Boolean(previousTier && !zoneProgress[previousTier.id]?.cleared);
-
-                return (
-                  <div
-                    key={tier.id}
-                    className={`flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border-3 ${tier.borderColor} bg-white p-3.5 shadow-xs transition hover:shadow-md`}
-                  >
-                    <div className="flex items-center gap-3 text-center sm:text-left">
-                      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-[#5a2e12] bg-gradient-to-b ${tier.bgGradient} text-2xl shadow-xs`}>
-                        {tier.icon}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 justify-center sm:justify-start">
-                          <span className="rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black uppercase px-1.5 py-0.2">
-                            Area {tier.tierNumber} of {WORLD_TIERS.length}
-                          </span>
-                          <span className="text-[10px] font-black" style={{ color: ELEMENTS[tier.element].color }}>
-                            {ELEMENTS[tier.element].icon} {ELEMENTS[tier.element].name}
-                          </span>
-                        </div>
-                        <h4 className="font-serif text-base font-black text-[#542d1d]">
-                          {tier.name}
-                        </h4>
-                        <p className="text-xs text-slate-600 font-bold">
-                          {tier.subtitle} · {progress.cleared ? `Cleared · ${progress.stars} stars` : `Guardian: ${tier.boss.name} ${tier.boss.spriteEmoji}`}
-                        </p>
-                      </div>
+          {/* Modal Body */}
+          <div className="p-5 sm:p-6 max-h-[78vh] overflow-y-auto space-y-5 text-[#1a162b]">
+            {/* ===============================================================
+                1. WORD WORLD (ADVENTURE MODE): 9 ELEMENTAL AREAS PROGRESSION
+            ================================================================ */}
+            {activeModal === 'word-world' && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-[#e8eaf6] p-3.5 rounded-2xl border-[3px] border-[#1a162b]">
+                  <div>
+                    <div className="font-display font-black text-base text-[#1a162b]">
+                      Elemental Campaign Progression ({clearedAreasCount} / 9 Areas Cleared)
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedTier(tier);
-                          handlePronounce(tier.name);
-                        }}
-                        className="rounded-xl border-2 border-[#5a2e12] bg-amber-100 hover:bg-amber-200 px-3 py-2 text-xs font-black uppercase text-[#542d1d] shadow-xs cursor-pointer"
-                      >
-                        <BookOpen className="h-3.5 w-3.5 inline mr-1" />
-                        <span>Vocab</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isLocked}
-                        onClick={() => {
-                          setActiveModal(null);
-                          handleLaunchBattle(tier);
-                        }}
-                        title={isLocked ? `Clear ${previousTier?.name} to unlock this area` : `Battle in ${tier.name}`}
-                        className="flex items-center gap-1.5 rounded-xl border-2 border-[#5a2e12] bg-gradient-to-r from-red-500 to-orange-500 px-4 py-2 text-xs font-black uppercase text-white shadow-xs enabled:hover:brightness-110 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        <Swords className="h-4 w-4" />
-                        <span>{isLocked ? 'Locked' : 'Battle'}</span>
-                      </button>
-                    </div>
+                    <p className="text-xs font-bold text-[#3949ab]">
+                      Progress through all 9 Elemental Areas from Kindergarten roots to Grades 6–8 High-Achiever Extenders!
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Selected Tier Vocab Lesson Preview */}
-            {selectedTier && (
-              <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-serif text-base font-black text-emerald-950">
-                    💡 Area {selectedTier.tierNumber} Lesson: {selectedTier.theme}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => handlePronounce(selectedTier.vocabConcept)}
-                    className="flex items-center gap-1 rounded-lg bg-emerald-200 px-2 py-0.5 text-[11px] font-black text-emerald-900 cursor-pointer"
-                  >
-                    <Volume2 className="h-3 w-3" />
-                    <span>Listen</span>
-                  </button>
+                  <div className="flex items-center gap-2 bg-[#1a162b] text-[#ffd54f] px-3 py-1.5 rounded-xl font-display font-black text-xs">
+                    <span>Active Partner: {selectedPet.name}</span>
+                    <span>· Lv.{selectedPet.level || 8}</span>
+                  </div>
                 </div>
-                <p className="text-xs font-bold text-emerald-900">
-                  {selectedTier.vocabConcept}
-                </p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {selectedTier.keyRootsOrAffixes.map((root) => (
-                    <span
-                      key={root}
-                      className="rounded-lg border border-emerald-300 bg-white px-2 py-0.5 text-xs font-black text-emerald-950"
-                    >
-                      {root}
-                    </span>
-                  ))}
+
+                {/* 9-Node Elemental Progression Trail */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {NINE_ELEMENTAL_AREAS.map((area) => {
+                    const prog = zoneProgress[area.zoneId] || { stars: 0, cleared: false };
+                    const elemMeta = ELEMENTS[area.element] || ELEMENTS.fire;
+
+                    return (
+                      <div
+                        key={area.zoneId}
+                        className="flex flex-col justify-between rounded-2xl border-[3px] border-[#1a162b] bg-white p-3.5 shadow-[0_5px_0_#1a162b] hover:-translate-y-0.5 transition-transform"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span
+                              className="px-2 py-0.5 rounded-md border-2 border-[#1a162b] font-display font-black text-[10px] text-white uppercase"
+                              style={{ backgroundColor: area.color }}
+                            >
+                              Area {area.order} · {elemMeta.icon} {elemMeta.name}
+                            </span>
+                            <span className="font-mono text-xs font-black text-[#f57f17]">
+                              {'★'.repeat(prog.stars)}
+                              {'☆'.repeat(Math.max(0, 3 - prog.stars))}
+                            </span>
+                          </div>
+
+                          <div className="mt-2.5 flex items-center gap-3">
+                            <div className="w-14 h-14 rounded-2xl bg-[#f5ebd6] border-2 border-[#1a162b] flex items-center justify-center shrink-0">
+                              <CreatureSprite
+                                creatureId={area.bossId}
+                                stage={3}
+                                element={area.element}
+                                size="sm"
+                                animated={false}
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-display font-black text-base text-[#1a162b] truncate">
+                                {area.name}
+                              </div>
+                              <div className="text-[11px] font-extrabold text-[#d84315]">
+                                Boss: {area.bossName}
+                              </div>
+                              <div className="text-[10px] font-bold text-[#5d4037]">
+                                {area.gradeBand}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 rounded-xl bg-[#fff8e7] border border-[#e6d0a7] px-2.5 py-1.5 text-[11px] font-bold text-[#4e342e]">
+                            🎯 {area.grammarFocus}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setActiveModal(null);
+                            startBattleInZone(area.zoneId, area.bossId);
+                          }}
+                          className="mt-3 w-full py-2 rounded-xl bg-gradient-to-b from-[#66bb6a] to-[#2e7d32] hover:brightness-110 text-white font-display font-black text-xs uppercase tracking-wider border-2 border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                        >
+                          {prog.cleared ? 'Replay Area ★' : 'Enter Area Battle →'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-          </div>
-        </div>
-      )}
+            {/* ===============================================================
+                2. ARENA (BATTLE MODE): DEDICATED MATCHMAKING & BATTLE LOBBY
+            ================================================================ */}
+            {activeModal === 'arena' && (
+              <div className="space-y-5">
+                {/* Split Versus Matchmaking Card */}
+                <div className="grid grid-cols-1 md:grid-cols-11 items-center gap-4 rounded-3xl border-[4px] border-[#1a162b] bg-gradient-to-r from-[#e3f2fd] via-[#fff8e1] to-[#fce4ec] p-5 shadow-[0_6px_0_#1a162b]">
+                  {/* Player Side */}
+                  <div className="md:col-span-5 flex flex-col items-center text-center bg-white/90 p-4 rounded-2xl border-[3px] border-[#1a162b]">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#2e7d32] text-white">
+                      Your Active Challenger
+                    </span>
+                    <div className="my-2">
+                      <CreatureSprite
+                        creatureId={selectedPet.id}
+                        stage={selectedPet.stage || 1}
+                        element={selectedPet.element}
+                        size="lg"
+                      />
+                    </div>
+                    <div className="font-display font-black text-xl text-[#1a162b]">
+                      {selectedPet.name}
+                    </div>
+                    <div className="text-xs font-bold text-[#5d4037]">
+                      Lv.{selectedPet.level || 8} · {ELEMENTS[selectedPet.element]?.name} Affinity
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                      {selectablePets.map((pet) => (
+                        <button
+                          key={pet.id}
+                          onClick={() => {
+                            setPlayerId(pet.id);
+                            restartBattle(pet.id);
+                            juice.click();
+                          }}
+                          className={`px-2.5 py-1 rounded-lg border-2 border-[#1a162b] text-[10px] font-black cursor-pointer ${
+                            pet.id === selectedPet.id
+                              ? 'bg-[#ffd54f] text-[#1a162b]'
+                              : 'bg-[#f5f5f5] text-[#5d4037] hover:bg-[#ffe082]'
+                          }`}
+                        >
+                          {pet.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-      {/* B. PET HATCHERY MODAL (TREETOP CANOPY) */}
-      {activeModal === 'hatchery' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border-4 border-[#b57a1b] bg-[#fffcee] p-6 shadow-[0_8px_0_#b57a1b] text-center space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-black uppercase tracking-wider text-amber-800">
-                🥚 Treetop Canopy · Pet Hatchery
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-black font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
+                  {/* VS Badge */}
+                  <div className="md:col-span-1 flex justify-center">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-b from-[#ffd54f] to-[#ff6f00] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center font-display font-black text-xl text-[#1a162b]">
+                      VS
+                    </div>
+                  </div>
 
-            <div className="py-2">
-              <span className="text-7xl inline-block animate-bounce">🥚</span>
-              <h3 className="font-serif text-2xl font-black text-[#5a3b0a] mt-2">
-                Lexi-Egg Ready to Hatch!
-              </h3>
-              <p className="text-xs font-bold text-amber-900 mt-1">
-                Treetop Canopy nests allow you to hatch elemental pets, word cards &amp; rewards!
-              </p>
-            </div>
+                  {/* Opponent Side */}
+                  <div className="md:col-span-5 flex flex-col items-center text-center bg-white/90 p-4 rounded-2xl border-[3px] border-[#1a162b]">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#c62828] text-white">
+                      Arena Champion · {selectedArenaArea.gradeBand}
+                    </span>
+                    <div className="my-2">
+                      <CreatureSprite
+                        creatureId={selectedArenaArea.bossId}
+                        stage={3}
+                        element={selectedArenaArea.element}
+                        size="lg"
+                      />
+                    </div>
+                    <div className="font-display font-black text-xl text-[#1a162b]">
+                      {selectedArenaArea.bossName}
+                    </div>
+                    <div className="text-xs font-bold text-[#5d4037]">
+                      {selectedArenaArea.name} · {ELEMENTS[selectedArenaArea.element]?.name} Type
+                    </div>
+                    <div className="mt-2 text-[11px] font-extrabold text-[#283593]">
+                      Specialty: {selectedArenaArea.grammarFocus}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="rounded-2xl border-2 border-amber-300 bg-amber-100/70 p-3 text-xs font-black text-amber-950">
-              Reward: <strong>+150 Lexi-Coins</strong> &amp; <strong>+2 Fusion Tokens</strong>!
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                juice.fanfare();
-                updateProfile({
-                  lexiCoins: (currentUser?.lexiCoins ?? 450) + 150,
-                  fusionTokens: (currentUser?.fusionTokens ?? 14) + 2,
-                });
-                setActiveModal(null);
-              }}
-              className="w-full rounded-2xl border-3 border-[#5a2e12] bg-gradient-to-r from-amber-400 to-orange-400 py-3 text-sm font-black uppercase text-white shadow-[0_4px_0_#5a2e12] hover:brightness-105 active:translate-y-1 cursor-pointer"
-            >
-              ✨ Hatch Free Lexi-Egg Now!
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* C. THE LEXI-SHOP MODAL (GALLEON'S REST) */}
-      {activeModal === 'shop' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border-4 border-[#1b6b88] bg-[#f0fbff] p-6 shadow-[0_8px_0_#1b6b88] space-y-4">
-            
-            <div className="flex justify-between items-center border-b-2 border-sky-200 pb-2">
-              <div>
-                <h3 className="font-serif text-xl font-black text-[#13495d]">
-                  🛍️ Galleon's Rest · Lexi-Shop
-                </h3>
-                <p className="text-[11px] font-bold text-sky-800">
-                  Your Balance: {coins.toLocaleString()} 🪙
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-black font-bold text-lg cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between rounded-2xl border-2 border-sky-300 bg-white p-3 shadow-xs">
+                {/* Opponent Selector Strip */}
                 <div>
-                  <span className="font-black text-slate-800 block text-sm">✨ Mystery Word Booster</span>
-                  <span className="text-[10px] text-slate-500">Unlocks 2 random vocabulary cards</span>
+                  <div className="font-display font-black text-sm text-[#1a162b] mb-2">
+                    Select Arena Matchup Opponent:
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+                    {NINE_ELEMENTAL_AREAS.map((area) => {
+                      const active = selectedArenaArea.zoneId === area.zoneId;
+                      return (
+                        <button
+                          key={area.zoneId}
+                          onClick={() => {
+                            setSelectedArenaArea(area);
+                            juice.click();
+                          }}
+                          className={`p-2 rounded-xl border-2 border-[#1a162b] flex flex-col items-center text-center cursor-pointer transition-all ${
+                            active
+                              ? 'bg-[#ffd54f] scale-105 shadow-[0_3px_0_#1a162b]'
+                              : 'bg-white hover:bg-[#fff8e1]'
+                          }`}
+                        >
+                          <span className="text-base">{ELEMENTS[area.element]?.icon}</span>
+                          <span className="font-display font-black text-[10px] truncate w-full mt-0.5">
+                            {area.bossName.split(' ')[0]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if ((currentUser?.lexiCoins ?? 0) >= 100) {
-                      juice.ding(800, 100);
-                      updateProfile({ lexiCoins: (currentUser?.lexiCoins ?? 450) - 100 });
+
+                {/* Launch Arena Buttons */}
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      const randomArea =
+                        NINE_ELEMENTAL_AREAS[
+                          Math.floor(Math.random() * NINE_ELEMENTAL_AREAS.length)
+                        ];
                       setActiveModal(null);
-                    }
-                  }}
-                  className="rounded-xl bg-sky-500 px-3 py-2 font-black text-white hover:bg-sky-600 cursor-pointer shadow-xs"
-                >
-                  100 🪙
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between rounded-2xl border-2 border-sky-300 bg-white p-3 shadow-xs">
-                <div>
-                  <span className="font-black text-slate-800 block text-sm">🧪 Fusion Catalyst Vials</span>
-                  <span className="text-[10px] text-slate-500">+5 Fusion Tokens for the Forge</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if ((currentUser?.lexiCoins ?? 0) >= 150) {
-                      juice.ding(900, 100);
-                      updateProfile({
-                        lexiCoins: (currentUser?.lexiCoins ?? 450) - 150,
-                        fusionTokens: (currentUser?.fusionTokens ?? 14) + 5,
-                      });
-                      setActiveModal(null);
-                    }
-                  }}
-                  className="rounded-xl bg-purple-600 px-3 py-2 font-black text-white hover:bg-purple-700 cursor-pointer shadow-xs"
-                >
-                  150 🪙
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* D. PET ROSTER MODAL (PINKWOOD & FROSTPEAK - WITH EVOLUTION MECHANIC) */}
-      {activeModal === 'roster' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-xl rounded-3xl border-4 border-pink-500 bg-[#fff5f8] p-5 sm:p-6 shadow-[0_8px_0_#db2777] space-y-4 max-h-[92vh] overflow-y-auto">
-            
-            <div className="flex justify-between items-start border-b-2 border-pink-200 pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">🐾</span>
-                  <h3 className="font-serif text-xl sm:text-2xl font-black text-pink-950">
-                    Pinkwood &amp; Frostpeak · Pet Roster
-                  </h3>
-                </div>
-                <p className="text-xs font-bold text-pink-800 mt-0.5">
-                  Train companions to reach <strong>Level 10</strong> &amp; <strong>Level 20</strong> to trigger powerful Metamorphic Evolutions!
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="rounded-xl border-2 border-pink-400 p-1 text-slate-500 hover:text-black font-bold text-lg cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {unlockedCreatures.map((c) => {
-                const isActive = c.id === playerId;
-                const petLevel = c.level || 8;
-                const petStage = c.stage || 1;
-                const nextEvolution = getNextEvolutionStage(c);
-                const isReadyToEvolve = canPetEvolve(c);
-
-                return (
-                  <div
-                    key={c.id}
-                    className={`flex flex-col gap-3 rounded-2xl border-3 p-3.5 transition ${
-                      isActive
-                        ? 'border-pink-500 bg-white ring-3 ring-pink-300 shadow-sm'
-                        : 'border-[#5a2e12] bg-white/95 hover:bg-white'
-                    }`}
+                      startBattleInZone(randomArea.zoneId, randomArea.bossId);
+                    }}
+                    className="px-5 py-3 rounded-2xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] text-white font-display font-black text-sm border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer"
                   >
-                    {/* Top Row: Sprite, Name, Level, Element & Stage */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-[#5a2e12] bg-gradient-to-b from-amber-100 to-amber-200 text-3xl shadow-xs">
-                          <span>{c.spriteEmoji || ELEMENTS[c.element].icon}</span>
-                          <span className="absolute -bottom-2 -left-1 rounded-full border border-[#5a2e12] bg-amber-400 px-1 text-[9px] font-black text-[#5a2e12]">
-                            Lv.{petLevel}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <h4 className="font-serif text-base sm:text-lg font-black text-[#542d1d]">
-                              {c.name}
-                            </h4>
-                            <span className="rounded-full bg-pink-100 border border-pink-300 px-2 py-0.2 text-[9px] font-black uppercase text-pink-900">
-                              Stage {petStage}
-                            </span>
-                            <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.2 text-[9px] font-black uppercase text-amber-900">
-                              {c.element.toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="text-[11px] font-bold text-slate-500 block">
-                            {c.title || 'Companion Beast'}
-                          </span>
-                        </div>
-                      </div>
+                    🎲 Quick Random Matchmaking
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveModal(null);
+                      startBattleInZone(selectedArenaArea.zoneId, selectedArenaArea.bossId);
+                    }}
+                    className="px-7 py-3 rounded-2xl bg-gradient-to-b from-[#66bb6a] to-[#2e7d32] text-white font-display font-black text-base border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer"
+                  >
+                    ⚔️ Start Arena Battle!
+                  </button>
+                </div>
+              </div>
+            )}
 
-                      {/* Select / Active Lead button */}
-                      <button
-                        type="button"
+            {/* ===============================================================
+                3. PET HATCHERY: EGG INCUBATOR, ROSTER, STATS & TRAINING
+            ================================================================ */}
+            {activeModal === 'hatchery' && (
+              <div className="space-y-5">
+                {/* Top Action Bar: Open Full Word Loadout Arsenal */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#fff3e0] p-3.5 rounded-2xl border-[3px] border-[#1a162b]">
+                  <div>
+                    <div className="font-display font-black text-base text-[#1a162b]">
+                      Companion Sanctuary, Stat Training &amp; Egg Incubator
+                    </div>
+                    <p className="text-xs font-bold text-[#5d4037]">
+                      Hatch Sky Eggs, train companion levels, trigger 3-stage Evolutions, or equip K–8 Word Cards!
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveModal(null);
+                      setTab('loadout');
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] text-white font-display font-black text-xs border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    🎒 Equip Word Cards (Arsenal) →
+                  </button>
+                </div>
+
+                {/* 3-Tap Sky Egg Incubator */}
+                <div className="p-4 rounded-2xl bg-gradient-to-b from-[#e8f5e9] to-[#c8e6c9] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handleTapIncubatorEgg}
+                      className={`relative w-24 h-28 flex items-center justify-center cursor-pointer transition-transform shrink-0 ${
+                        eggTapCount === 1
+                          ? 'rotate-[-6deg] scale-105'
+                          : eggTapCount === 2
+                          ? 'rotate-[8deg] scale-110'
+                          : 'hover:scale-105'
+                      }`}
+                      title="Tap 3 times to hatch!"
+                    >
+                      <svg viewBox="0 0 120 140" className="w-full h-full overflow-visible drop-shadow">
+                        <ellipse cx="60" cy="122" rx="44" ry="12" fill="#8d6e63" stroke="#1a162b" strokeWidth="3.5" />
+                        <path
+                          d="M60 14 C30 14 22 62 22 92 C22 116 38 126 60 126 C82 126 98 116 98 92 C98 62 90 14 60 14 Z"
+                          fill="#ffd54f"
+                          stroke="#1a162b"
+                          strokeWidth="4"
+                        />
+                        <circle cx="45" cy="55" r="8" fill="#ffb300" />
+                        <circle cx="74" cy="48" r="6" fill="#ffb300" />
+                        <circle cx="65" cy="82" r="10" fill="#ffb300" />
+                        {eggTapCount >= 1 && (
+                          <path d="M42 66 L55 76 L48 88" stroke="#1a162b" strokeWidth="3.5" fill="none" />
+                        )}
+                        {eggTapCount >= 2 && (
+                          <path d="M78 54 L62 72 L74 84 L58 98" stroke="#1a162b" strokeWidth="4" fill="none" />
+                        )}
+                      </svg>
+                    </button>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#1b5e20] bg-[#a5d6a7] px-2.5 py-0.5 rounded-full border border-[#1a162b]">
+                        3-Tap Sky Incubator · 2 💎 Fusion Gems
+                      </span>
+                      <h3 className="font-display font-black text-lg text-[#1b5e20] mt-1">
+                        {eggTapCount === 0
+                          ? 'Tap the Golden Egg 3 Times to Hatch!'
+                          : `Cracking Egg... (${eggTapCount} / 3 Taps!)`}
+                      </h3>
+                      <p className="text-xs font-bold text-[#2e7d32]">
+                        Grants +1 Companion Level, +50 Lexi-Coins, and a High-Achiever Word!
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleTapIncubatorEgg}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#ffb300] text-[#1a162b] font-display font-black text-xs border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer whitespace-nowrap"
+                  >
+                    Tap Egg ({eggTapCount}/3)
+                  </button>
+                </div>
+
+                {hatchedReward && (
+                  <div className="p-3.5 rounded-2xl bg-[#fffdf7] border-[3px] border-[#1a162b] flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <CreatureSprite
+                        creatureId={hatchedReward.petId}
+                        stage={creatures.find((c) => c.id === hatchedReward.petId)?.stage || 1}
+                        element={creatures.find((c) => c.id === hatchedReward.petId)?.element || 'fire'}
+                        size="sm"
+                      />
+                      <div>
+                        <div className="font-display font-black text-sm text-[#1a162b]">
+                          ✨ {hatchedReward.petName} gained +1 Level!
+                        </div>
+                        {hatchedReward.bonusWord && (
+                          <div className="text-xs font-bold text-[#4e342e]">
+                            Bonus Word: <strong>"{hatchedReward.bonusWord.word}"</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Companion Roster & Training Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {selectablePets.map((pet) => {
+                    const isSelected = pet.id === playerId;
+                    const petLevel = pet.level ?? 8;
+                    const petStage = pet.stage ?? 1;
+                    const readyToEvolve = canPetEvolve(pet);
+                    const evoLine = getEvolutionBranch(pet);
+                    const maxStage = evoLine.length;
+
+                    return (
+                      <div
+                        key={pet.id}
                         onClick={() => {
-                          setPlayerId(c.id);
-                          playSfx(750);
+                          setPlayerId(pet.id);
+                          restartBattle(pet.id);
+                          juice.ding(740, 120);
+                          triggerToast(`${pet.name} is now your active companion!`);
                         }}
-                        className={`rounded-xl px-3 py-1.5 text-xs font-black uppercase transition cursor-pointer shadow-xs ${
-                          isActive
-                            ? 'bg-emerald-500 text-white border-2 border-emerald-600'
-                            : 'bg-amber-200 text-[#542d1d] hover:bg-amber-300 border-2 border-amber-300'
+                        className={`flex flex-col justify-between p-3.5 rounded-2xl border-[3px] transition-all text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-gradient-to-b from-[#fff8e1] to-[#ffecb3] border-[#1a162b] shadow-[0_5px_0_#1a162b]'
+                            : 'bg-white border-[#1a162b] hover:bg-[#fffdf7] shadow-[0_3px_0_#1a162b]'
                         }`}
                       >
-                        {isActive ? '✓ Active Lead' : 'Set Lead'}
-                      </button>
-                    </div>
-
-                    {/* Middle: Stats Matrix */}
-                    <div className="grid grid-cols-4 gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-2 text-center text-[10px] font-black text-slate-700">
-                      <div>❤️ HP: <span className="font-mono text-slate-900">{c.stats.hp}</span></div>
-                      <div>⚔️ ATK: <span className="font-mono text-slate-900">{c.stats.attack}</span></div>
-                      <div>🛡️ DEF: <span className="font-mono text-slate-900">{c.stats.defense}</span></div>
-                      <div>⚡ SPD: <span className="font-mono text-slate-900">{c.stats.speed}</span></div>
-                    </div>
-
-                    {/* Bottom: Evolution Readiness & Training Controls */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
-                      
-                      {/* Evolution Status Info */}
-                      <div className="text-xs font-bold">
-                        {isReadyToEvolve && nextEvolution ? (
-                          <div className="flex items-center gap-1.5 text-amber-600 font-black animate-pulse">
-                            <span>✨</span>
-                            <span>Ready to evolve into <strong>{nextEvolution.name}</strong> ({nextEvolution.spriteEmoji})!</span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-16 rounded-2xl bg-[#f5e6c8] border-[3px] border-[#1a162b] flex items-center justify-center relative shrink-0">
+                            <CreatureSprite
+                              creatureId={pet.forged?.sourceId || pet.id}
+                              stage={petStage}
+                              element={pet.element}
+                              size="sm"
+                            />
+                            <span className="absolute -bottom-1.5 -right-1.5 bg-[#1a162b] text-[#ffd54f] text-[10px] font-black px-1.5 py-0.5 rounded-md border border-[#ffd54f]">
+                              Lv.{petLevel}
+                            </span>
                           </div>
-                        ) : nextEvolution ? (
-                          <div className="text-slate-500 text-[11px]">
-                            <span>Evolves into <strong>{nextEvolution.name}</strong> ({nextEvolution.spriteEmoji}) at <strong>Lv.{nextEvolution.minLevel}</strong></span>
-                            <span className="ml-1 text-amber-700 font-extrabold">({Math.max(0, nextEvolution.minLevel - petLevel)} lvls left)</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="font-display font-black text-base text-[#1a162b] truncate">
+                                {pet.name}
+                              </div>
+                              {isSelected && (
+                                <span className="px-2 py-0.5 rounded-md bg-[#2e7d32] text-white text-[10px] font-black uppercase shrink-0">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-bold text-[#5d4037] uppercase">
+                              {ELEMENTS[pet.element]?.name || pet.element} · Stage {petStage}/{maxStage}
+                            </div>
+                            <div className="text-[11px] font-extrabold text-[#1a162b] mt-1">
+                              HP {pet.stats.hp} · ATK {pet.stats.attack} · DEF {pet.stats.defense}
+                            </div>
                           </div>
-                        ) : (
-                          <div className="text-emerald-700 text-[11px] font-black">
-                            👑 Fully Ascended Apex Form!
-                          </div>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* Interactive Buttons: Evolve or Train */}
-                      <div className="flex items-center gap-2">
-                        {/* Quick Level Up Training Button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            levelUpPet(c.id, 1);
-                            juice.ding(700, 100);
-                          }}
-                          title="Feed Vocabulary Treat (+1 Level)"
-                          className="rounded-xl border border-amber-300 bg-amber-100 hover:bg-amber-200 px-2.5 py-1.5 text-[11px] font-black text-amber-900 transition active:translate-y-0.5 cursor-pointer shadow-xs"
-                        >
-                          ⚡ Train (+1 Lv)
-                        </button>
-
-                        {/* Evolution Trigger Button */}
-                        {isReadyToEvolve && (
+                        <div className="mt-3 pt-2.5 border-t-2 border-[#e6d0a7] flex items-center justify-between gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              playSfx(950);
-                              setEvolvingCreature(c);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const coins = currentUser?.lexiCoins ?? 0;
+                              if (coins < 50) {
+                                triggerToast('Need 50 Lexi-Coins to train!');
+                                return;
+                              }
+                              updateProfile({ lexiCoins: coins - 50 });
+                              levelUpPet(pet.id, 1);
+                              triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
                             }}
-                            className="group flex items-center gap-1.5 rounded-xl border-2 border-amber-500 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 px-3.5 py-1.5 text-xs font-black uppercase tracking-wider text-slate-950 shadow-[0_3px_0_#b45309] hover:scale-105 active:translate-y-0.5 transition cursor-pointer animate-bounce"
+                            className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
                           >
-                            <Sparkles className="h-4 w-4 group-hover:rotate-45 transition-transform" />
-                            <span>✨ EVOLVE!</span>
+                            Train (+1 Lv · 50 🪙)
                           </button>
-                        )}
+
+                          {readyToEvolve ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                juice.fanfare();
+                                setEvolvingCreatureId(pet.id);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" /> Evolve!
+                            </button>
+                          ) : petStage < maxStage ? (
+                            <span className="text-[10px] font-black text-[#5d4037]">
+                              Evolves at Lv.{pet.evolvesAtLevel || 10}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-black text-[#e65100]">
+                              ★ Max Form
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ===============================================================
+                5. LEXI-SHOP: K-8 BOOSTER PACKS & EVOLUTION ELIXIRS
+            ================================================================ */}
+            {activeModal === 'lexishop' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-[#fff3e0] p-3.5 rounded-2xl border-[3px] border-[#1a162b]">
+                  <span className="font-bold text-sm">
+                    Your Purse:{' '}
+                    <strong className="text-[#e65100] font-black">
+                      {(currentUser?.lexiCoins ?? 450).toLocaleString()} Lexi-Coins
+                    </strong>
+                  </span>
+                  <span className="text-xs font-extrabold text-[#5d4037]">
+                    💎 {currentUser?.fusionTokens ?? 14} Fusion Gems
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-[#dcfce7] text-[#166534] border border-[#1a162b]">
+                        Grades K–2
+                      </span>
+                      <div className="font-display font-black text-base mt-2">
+                        🌱 Sprout Explorer Pack
+                      </div>
+                      <p className="text-xs text-[#5d4037] font-semibold mt-1">
+                        Unlocks or boosts 3 Kindergarten to 2nd Grade core words (+1 Power).
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleBuyBoosterPack('k-2', 75)}
+                      className="mt-3 w-full py-2 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#ffb300] border-2 border-[#1a162b] font-display font-black text-xs text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    >
+                      Open Pack · 75 🪙
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-[#dbeafe] text-[#1e40af] border border-[#1a162b]">
+                        Grades 3–5
+                      </span>
+                      <div className="font-display font-black text-base mt-2">
+                        ⚔️ Adventurer Rune Pack
+                      </div>
+                      <p className="text-xs text-[#5d4037] font-semibold mt-1">
+                        Unlocks or boosts 3 Upper-Elementary academic vocabulary cards (+1 Power).
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleBuyBoosterPack('3-5', 110)}
+                      className="mt-3 w-full py-2 rounded-xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] border-2 border-[#1a162b] font-display font-black text-xs text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    >
+                      Open Pack · 110 🪙
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-[#f3e8ff] text-[#6b21a8] border border-[#1a162b]">
+                        Grades 6–8 Extender
+                      </span>
+                      <div className="font-display font-black text-base mt-2">
+                        👑 High-Achiever Pack
+                      </div>
+                      <p className="text-xs text-[#5d4037] font-semibold mt-1">
+                        Unlocks or supercharges 3 Middle-School Extender Challenge cards (+2 Power)!
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleBuyBoosterPack('extender', 160)}
+                      className="mt-3 w-full py-2 rounded-xl bg-gradient-to-b from-[#ab47bc] to-[#6a1b9a] border-2 border-[#1a162b] font-display font-black text-xs text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    >
+                      Open Pack · 160 🪙
+                    </button>
+                  </div>
+                </div>
+
+                {openedBoosterCards && (
+                  <div className="p-4 rounded-2xl bg-[#1a162b] text-white border-[3px] border-[#ffd54f]">
+                    <div className="text-xs font-black uppercase tracking-wider text-[#ffd54f] mb-3 text-center">
+                      ✨ Click Cards to Flip &amp; Speak Aloud! ✨
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {openedBoosterCards.map((card, idx) => {
+                        const isFlipped = flippedBoosterIndices.includes(idx);
+                        const tierMeta = getGradeTierMeta(card.gradeTier);
+                        return (
+                          <div
+                            key={`${card.id}-${idx}`}
+                            onClick={() => {
+                              if (!isFlipped) {
+                                setFlippedBoosterIndices((prev) => [...prev, idx]);
+                              }
+                              juice.speakWord(card.word);
+                            }}
+                            className="p-3 rounded-xl bg-[#fff8e7] text-[#1a162b] border-2 border-[#ffd54f] cursor-pointer transition-transform hover:scale-105"
+                          >
+                            <div className="flex items-center justify-between text-[10px] font-black">
+                              <span className="uppercase text-[#5d4037]">{card.partOfSpeech}</span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded border ${tierMeta.badgeBg} ${tierMeta.badgeText} ${tierMeta.badgeBorder}`}
+                              >
+                                {tierMeta.shortLabel}
+                              </span>
+                            </div>
+                            <div className="font-display font-black text-lg text-[#1a162b] mt-1">
+                              {card.word}
+                            </div>
+                            <div className="text-[11px] font-semibold text-[#5d4037] mt-0.5">
+                              {card.definition}
+                            </div>
+                            <div className="mt-2 text-[11px] font-black text-[#2e7d32]">
+                              +{card.powerBonus || 2} Combat Power
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ===============================================================
+                INTERACTIVE CLAIMABLE QUESTS (Issue #5 Fix)
+            ================================================================ */}
+            {activeModal === 'quests' && (
+              <div className="space-y-3">
+                {[
+                  {
+                    id: 'quest-1',
+                    title: 'Explore Word World & Clear an Elemental Area',
+                    coins: 120,
+                    tokens: 2,
+                    ready: clearedAreasCount >= 1,
+                  },
+                  {
+                    id: 'quest-2',
+                    title: 'Unlock 50+ K–8 Vocabulary Words in Your Grimoire',
+                    coins: 150,
+                    tokens: 3,
+                    ready: allWords.length >= 50,
+                  },
+                  {
+                    id: 'quest-3',
+                    title: 'Train a Companion Pet to Level 9 or Higher',
+                    coins: 180,
+                    tokens: 3,
+                    ready: selectablePets.some((p) => (p.level || 8) >= 9),
+                  },
+                  {
+                    id: 'quest-4',
+                    title: 'Reach Level 10 Ready-to-Evolve Milestone',
+                    coins: 250,
+                    tokens: 5,
+                    ready: selectablePets.some((p) => (p.level || 8) >= 10),
+                  },
+                ].map((q) => {
+                  const isClaimed = claimedQuestIds.includes(q.id);
+                  return (
+                    <div
+                      key={q.id}
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center font-black border-2 border-[#1a162b] ${
+                            isClaimed
+                              ? 'bg-[#4caf50] text-white'
+                              : q.ready
+                              ? 'bg-[#ffd54f] text-[#1a162b]'
+                              : 'bg-[#e0e0e0] text-[#757575]'
+                          }`}
+                        >
+                          {isClaimed ? <Check className="w-4 h-4" /> : '★'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm text-[#1a162b]">{q.title}</div>
+                          <div className="text-xs font-extrabold text-[#e65100]">
+                            Reward: +{q.coins} 🪙 &amp; +{q.tokens} 💎
+                          </div>
+                        </div>
                       </div>
 
+                      {isClaimed ? (
+                        <span className="px-3 py-1.5 rounded-xl bg-[#e8f5e9] border-2 border-[#1a162b] font-black text-xs text-[#2e7d32]">
+                          ✓ Claimed
+                        </span>
+                      ) : q.ready ? (
+                        <button
+                          onClick={() => handleClaimQuest(q.id, q.coins, q.tokens)}
+                          className="px-4 py-1.5 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#ffb300] border-2 border-[#1a162b] font-display font-black text-xs text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer animate-pulse"
+                        >
+                          Claim Reward!
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-xl bg-stone-100 border-2 border-[#1a162b] font-bold text-xs text-stone-500">
+                          In Progress
+                        </span>
+                      )}
                     </div>
+                  );
+                })}
+              </div>
+            )}
 
+            {activeModal === 'profile' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center gap-4">
+                  <CreatureSprite
+                    creatureId={selectedPet.forged?.sourceId || selectedPet.id}
+                    stage={selectedPet.stage || 1}
+                    element={selectedPet.element}
+                    size="md"
+                  />
+                  <div>
+                    <div className="text-xs font-black uppercase text-[#283593]">
+                      Aetheria Official Tamer License
+                    </div>
+                    <div className="font-display font-black text-xl">
+                      {currentUser?.displayName || 'Aris'} &amp; {selectedPet.name}
+                    </div>
+                    <div className="text-xs font-bold text-[#5d4037] mt-1">
+                      Elemental Areas Cleared: <strong>{clearedAreasCount} / 9</strong> · Vocabulary Catalog: <strong>{allWords.length} Words</strong>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setActiveModal(null);
+                      setIsCustomizingAvatar(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#ffb300] border-[3px] border-[#1a162b] font-display font-black text-xs text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    Customize Explorer Avatar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveModal(null);
+                      setTab('loadout');
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] border-[3px] border-[#1a162b] font-display font-black text-xs text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    Open Word Arsenal
+                  </button>
+                </div>
+              </div>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveModal(null);
-                setTab('loadout');
-              }}
-              className="w-full rounded-2xl border-3 border-[#5a2e12] bg-emerald-600 hover:bg-emerald-700 py-2.5 text-xs font-black uppercase text-white shadow-xs cursor-pointer"
+            {activeModal === 'settings' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
+                  <div>
+                    <div className="font-display font-black text-base">
+                      Voice Read-Aloud &amp; Sound FX
+                    </div>
+                    <div className="text-xs font-semibold text-[#5d4037]">
+                      Toggle speech synthesis and RPG sound effects
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleMute}
+                    className="px-4 py-2 rounded-xl bg-[#ffd54f] border-2 border-[#1a162b] font-black text-xs cursor-pointer"
+                  >
+                    {isMuted ? '🔇 Muted' : '🔊 Sound On'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-[#ffebee] border-[3px] border-[#1a162b]">
+                  <div>
+                    <div className="font-display font-black text-base text-[#c62828]">
+                      Switch Explorer / Log Out
+                    </div>
+                    <div className="text-xs font-semibold text-[#b71c1c]">
+                      Return to the Explorer Login &amp; Sign-Up Portal
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveModal(null);
+                      logout();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#e53935] text-white border-2 border-[#1a162b] font-black text-xs cursor-pointer"
+                  >
+                    Log Out Now
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const evolvingPet = creatures.find((c) => c.id === evolvingCreatureId) || null;
+  const avatarSkin = '#fff8e7';
+  const avatarOutfit = currentUser?.avatarConfig?.colorTheme || '#3949ab';
+  const avatarEmoji = currentUser?.avatarConfig?.emoji || currentUser?.avatarEmoji || '🦊';
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden select-none bg-gradient-to-b from-[#fef3c7] via-[#fde68a] to-[#d97706]">
+      {/* =====================================================================
+          UNIFIED ISOMETRIC SKY-SANCTUARY & CITADEL COURTYARD HUB
+          Inspired by Reference #1 (Bastion Sky-Sanctuary) & Reference #2 (Citadel Courtyard)
+      ====================================================================== */}
+      <svg
+        viewBox="0 0 1600 950"
+        preserveAspectRatio="xMidYMid slice"
+        className="absolute inset-0 w-full h-full pointer-events-none"
+      >
+        <defs>
+          <linearGradient id="valleySky" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#d9f99d" />
+            <stop offset="45%" stopColor="#fef3c7" />
+            <stop offset="100%" stopColor="#f59e0b" />
+          </linearGradient>
+          <radialGradient id="sanctuaryTurf" cx="50%" cy="52%" r="48%">
+            <stop offset="0%" stopColor="#a3e635" />
+            <stop offset="65%" stopColor="#65a30d" />
+            <stop offset="100%" stopColor="#3f6212" />
+          </radialGradient>
+        </defs>
+
+        {/* Distant Sunlit Canyon, Forest Canopy & Cascading Waterfalls (Bastion Ref #1 Background) */}
+        <rect width="1600" height="950" fill="url(#valleySky)" />
+
+        {/* Top-Left Deep Forest Canopy & Misty Waterfall Cliff */}
+        <path
+          d="M0,0 L620,0 L420,380 L180,680 L0,760 Z"
+          fill="#365314"
+          opacity="0.55"
+        />
+        <path
+          d="M0,520 Q160,540 280,680 L280,950 L0,950 Z"
+          fill="#4d7c0f"
+          opacity="0.45"
+        />
+        {/* Cascading Misty Waterfalls on Bottom-Left */}
+        <path
+          d="M110,640 V950 M155,660 V950 M205,690 V950"
+          stroke="#e0f2fe"
+          strokeWidth="18"
+          opacity="0.55"
+          strokeLinecap="round"
+        />
+
+        {/* Right Golden Terraced Canyon Valley (Bastion Ref #1 Right Side) */}
+        <path
+          d="M1140,0 L1600,0 L1600,950 L980,950 L1220,520 Z"
+          fill="#d97706"
+          opacity="0.35"
+        />
+        <path
+          d="M1120,620 Q1360,590 1600,680 M1080,710 Q1340,680 1600,770 M1040,800 Q1320,770 1600,860"
+          stroke="#b45309"
+          strokeWidth="5"
+          fill="none"
+          opacity="0.45"
+        />
+
+        {/* ===================================================================
+            CANTILEVERED WOODEN AIRSHIP DOCKS & PIERS ON LOWER RIM (Bastion Ref #1)
+        ==================================================================== */}
+        <g stroke="#1a162b" strokeWidth="4" fill="#78350f" strokeLinejoin="round">
+          {/* Left Wooden Piers */}
+          <polygon points="360,670 460,640 490,695 385,730" />
+          <polygon points="480,725 565,690 595,755 505,795" />
+          <polygon points="620,765 690,745 675,855 600,840" />
+          {/* Right Wooden Piers */}
+          <polygon points="1240,670 1140,640 1110,695 1215,730" />
+          <polygon points="1120,725 1035,690 1005,755 1095,795" />
+          <polygon points="980,765 910,745 925,855 1000,840" />
+        </g>
+
+        {/* ===================================================================
+            GRAND FLOATING SKY-SANCTUARY CONTINENT & CLIFF UNDERSIDE
+        ==================================================================== */}
+        {/* Deep Jagged Stone Cliff Underside */}
+        <polygon
+          points="190,515 260,645 450,745 680,810 800,845 920,810 1150,745 1340,645 1410,515 800,620"
+          fill="#332922"
+          stroke="#1a162b"
+          strokeWidth="5"
+          strokeLinejoin="round"
+        />
+        <polygon
+          points="215,495 310,610 510,705 800,775 1090,705 1290,610 1385,495 800,560"
+          fill="#57473c"
+          stroke="#1a162b"
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
+
+        {/* Main Lush Isometric Sanctuary Lawn & Moss Continent */}
+        <polygon
+          points="800,150 1160,220 1410,485 1260,675 940,760 660,760 340,675 190,485 440,220"
+          fill="url(#sanctuaryTurf)"
+          stroke="#1a162b"
+          strokeWidth="5"
+          strokeLinejoin="round"
+        />
+
+        {/* ===================================================================
+            RADIAL STONE COURTYARD WALKWAYS & STEPPED PATHS (Citadel Ref #2)
+        ==================================================================== */}
+        <g stroke="#1a162b" strokeWidth="3.5" strokeLinejoin="round">
+          {/* Path to 12 o'clock Word World Portal */}
+          <polygon points="745,250 855,250 875,490 725,490" fill="#a3e635" />
+          {/* Stepped Stone Slabs along North Path */}
+          <rect x="760" y="310" width="80" height="14" rx="4" fill="#94a3b8" />
+          <rect x="755" y="340" width="90" height="14" rx="4" fill="#94a3b8" />
+          <rect x="750" y="370" width="100" height="14" rx="4" fill="#94a3b8" />
+
+          {/* Cobblestone Avenue to 10 o'clock Word Forge */}
+          <polygon points="390,375 445,335 760,515 710,560" fill="#94a3b8" />
+          {/* Cobblestone Avenue to 8 o'clock Battle Arena */}
+          <polygon points="340,615 390,665 755,585 715,535" fill="#94a3b8" />
+          {/* Cobblestone Avenue to 2 o'clock Pet Hatchery */}
+          <polygon points="1210,375 1155,335 840,515 890,560" fill="#94a3b8" />
+          {/* Cobblestone Avenue to 4 o'clock Lexi-Shop */}
+          <polygon points="1260,615 1210,665 845,585 885,535" fill="#94a3b8" />
+        </g>
+
+        {/* ===================================================================
+            CENTRAL CIRCULAR COURTYARD RING & GOLDEN SUN-DIAL FOUNTAIN
+            (Bastion Ref #1 Center Ring + Citadel Ref #2 Golden Sun-Dial)
+        ==================================================================== */}
+        <g stroke="#1a162b" strokeWidth="4">
+          {/* Outer Sandstone Courtyard Ring */}
+          <ellipse cx="800" cy="560" rx="215" ry="96" fill="#d6c59a" />
+          {/* Inner Emerald Lawn Ring */}
+          <ellipse cx="800" cy="560" rx="150" ry="66" fill="#84cc16" />
+          {/* Courtyard Segment Lines */}
+          <line x1="600" y1="530" x2="660" y2="540" stroke="#1a162b" strokeWidth="3" />
+          <line x1="1000" y1="530" x2="940" y2="540" stroke="#1a162b" strokeWidth="3" />
+          <line x1="690" y1="640" x2="725" y2="615" stroke="#1a162b" strokeWidth="3" />
+          <line x1="910" y1="640" x2="875" y2="615" stroke="#1a162b" strokeWidth="3" />
+
+          {/* Central Golden Sun-Dial & Azure Crystal Fountain */}
+          <ellipse cx="800" cy="560" rx="68" ry="30" fill="#f59e0b" />
+          <ellipse cx="800" cy="556" rx="52" ry="22" fill="#fde047" />
+          <ellipse cx="800" cy="554" rx="34" ry="14" fill="#38bdf8" />
+          <polygon points="800,518 784,552 800,564 816,552" fill="#22d3ee" stroke="#1a162b" strokeWidth="3" />
+        </g>
+
+        {/* ===================================================================
+            5 BLACK-AND-GOLD CIRCULAR FLOOR RUNE MEDALLIONS (Bastion Ref #1)
+        ==================================================================== */}
+        {[
+          { cx: 800, cy: 425 }, // 1. Word World North Rune
+          { cx: 615, cy: 465 }, // 4. Word Forge Upper-Left Rune
+          { cx: 560, cy: 590 }, // 2. Battle Arena Lower-Left Rune
+          { cx: 985, cy: 465 }, // 3. Pet Hatchery Upper-Right Rune
+          { cx: 1040, cy: 590 }, // 5. Lexi-Shop Lower-Right Rune
+        ].map((rune, i) => (
+          <g key={i}>
+            <ellipse
+              cx={rune.cx}
+              cy={rune.cy}
+              rx="32"
+              ry="15"
+              fill="#0f172a"
+              stroke="#fde047"
+              strokeWidth="4"
+            />
+            <ellipse
+              cx={rune.cx}
+              cy={rune.cy}
+              rx="18"
+              ry="8"
+              fill="#f59e0b"
+            />
+          </g>
+        ))}
+
+        {/* ===================================================================
+            6 O'CLOCK CHECKERBOARD STONE CAUSEWAY & TWIN DRAGON BANNERS (Ref #1)
+        ==================================================================== */}
+        <g stroke="#1a162b" strokeWidth="3.5" strokeLinejoin="round">
+          <polygon points="710,730 890,730 935,950 665,950" fill="#65a30d" />
+          {/* Checkerboard Diamond Tiles */}
+          {[755, 795, 835, 875, 915].map((yPos, rIdx) => (
+            <g key={rIdx}>
+              <polygon
+                points={`760,${yPos} 785,${yPos - 12} 810,${yPos} 785,${yPos + 12}`}
+                fill={rIdx % 2 === 0 ? '#d9f99d' : '#84cc16'}
+              />
+              <polygon
+                points={`815,${yPos} 840,${yPos - 12} 865,${yPos} 840,${yPos + 12}`}
+                fill={rIdx % 2 === 1 ? '#d9f99d' : '#84cc16'}
+              />
+            </g>
+          ))}
+          {/* Twin Carved Stone Guardian Pillars & Crimson Pennants */}
+          <rect x="682" y="745" width="34" height="75" rx="4" fill="#64748b" />
+          <polygon points="685,780 713,780 713,855 699,875 685,855" fill="#dc2626" stroke="#facc15" strokeWidth="2.5" />
+          <rect x="884" y="745" width="34" height="75" rx="4" fill="#64748b" />
+          <polygon points="887,780 915,780 915,855 901,875 887,855" fill="#dc2626" stroke="#facc15" strokeWidth="2.5" />
+        </g>
+      </svg>
+
+      {/* =====================================================================
+          TOP-LEFT HUD — LIVE CUSTOM AVATAR, HP, LEXI-DEX MASTERY & ACTIVE PET
+      ====================================================================== */}
+      <div className="absolute top-3 left-3 z-30 flex flex-col gap-2">
+        <div className="flex items-start gap-2.5 bg-[#1a162b]/85 backdrop-blur-md p-2.5 rounded-2xl border-[3px] border-[#1a162b] shadow-[0_5px_0_#1a162b]">
+          {/* Live Customized Explorer Portrait (Issue #4 Fix) */}
+          <div
+            onClick={() => setIsCustomizingAvatar(true)}
+            title="Click to customize Explorer"
+            className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-b from-[#ffe082] to-[#ffb300] p-1 border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer group shrink-0"
+          >
+            <div
+              className="w-full h-full rounded-xl flex items-center justify-center overflow-hidden border-2 border-[#1a162b] relative"
+              style={{ backgroundColor: avatarOutfit }}
             >
-              🎒 Open Arsenal to Equip Word Cards
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* E. QUESTS & DAILY TASKS MODAL */}
-      {activeModal === 'quests' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-6 shadow-[0_8px_0_#5a2e12] space-y-4">
-            
-            <div className="flex justify-between items-center border-b-2 border-amber-200 pb-2">
-              <div>
-                <h3 className="font-serif text-xl font-black text-[#542d1d]">
-                  📋 Daily Vocabulary Quests
-                </h3>
-                <p className="text-xs font-bold text-[#824c16]">
-                  Complete challenges to earn Lexi-Coins!
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-black font-bold text-lg cursor-pointer"
+              <div
+                className="w-11 h-11 rounded-full border-2 border-[#1a162b] flex items-center justify-center text-2xl shadow-inner"
+                style={{ backgroundColor: avatarSkin }}
               >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="rounded-2xl border-2 border-amber-300 bg-white p-3 space-y-1">
-                <div className="flex justify-between font-black text-amber-900">
-                  <span>✨ Adjective Ace</span>
-                  <span>+75 🪙</span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-bold">Unleash 2 Adjectives in battle or quizzes</p>
-                <div className="h-2 rounded-full bg-amber-100 overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-full" />
-                </div>
+                {avatarEmoji}
               </div>
-
-              <div className="rounded-2xl border-2 border-purple-300 bg-white p-3 space-y-1">
-                <div className="flex justify-between font-black text-purple-900">
-                  <span>🧬 Morphology Crafter</span>
-                  <span>+100 🪙</span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-bold">Fuse roots &amp; prefixes in the Word Forge</p>
-                <div className="h-2 rounded-full bg-purple-100 overflow-hidden">
-                  <div className="h-full bg-purple-500 w-full" />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border-2 border-rose-300 bg-white p-3 space-y-1">
-                <div className="flex justify-between font-black text-rose-900">
-                  <span>⚔️ Elemental Tactician</span>
-                  <span>+90 🪙</span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-bold">Win battles using element advantages</p>
-                <div className="h-2 rounded-full bg-rose-100 overflow-hidden">
-                  <div className="h-full bg-rose-500 w-3/4" />
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                juice.ding(900, 100);
-                updateProfile({ lexiCoins: (currentUser?.lexiCoins ?? 450) + 100 });
-                setActiveModal(null);
-              }}
-              className="w-full rounded-2xl border-3 border-[#5a2e12] bg-gradient-to-r from-amber-400 to-orange-400 py-2.5 text-xs font-black uppercase text-white shadow-xs cursor-pointer"
-            >
-              🎁 Claim All Ready Rewards (+100 🪙)
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* F. EVENTS MODAL */}
-      {activeModal === 'events' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-3xl border-4 border-[#b93815] bg-[#fff5ea] p-6 shadow-[0_8px_0_#b93815] text-center space-y-4">
-            <span className="text-6xl animate-bounce block">🔥</span>
-            <h3 className="font-serif text-2xl font-black text-[#5e2009]">5-Day Streak Active!</h3>
-            <p className="text-xs font-bold text-[#8f4320]">
-              Log in every school day to maintain your streak and earn free Lexi-Coins &amp; Fusion Tokens!
-            </p>
-            <div className="rounded-2xl border-2 border-orange-300 bg-orange-100 p-3 text-xs font-black text-orange-900">
-              Daily Bonus: <strong>+100 Lexi-Coins</strong> &amp; <strong>+3 Fusion Tokens</strong>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                juice.fanfare();
-                updateProfile({
-                  lexiCoins: (currentUser?.lexiCoins ?? 450) + 100,
-                  fusionTokens: (currentUser?.fusionTokens ?? 14) + 3,
-                });
-                setActiveModal(null);
-              }}
-              className="w-full rounded-2xl border-3 border-[#5a2e12] bg-gradient-to-r from-orange-500 to-red-500 py-3 text-sm font-black uppercase text-white shadow-[0_4px_0_#5a2e12] hover:brightness-105 active:translate-y-1 cursor-pointer"
-            >
-              🎁 Claim Streak Bonus!
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* G. SCHOLAR MAIL MODAL */}
-      {activeModal === 'mail' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-6 shadow-[0_8px_0_#5a2e12] space-y-4">
-            <div className="flex justify-between items-center border-b-2 border-amber-200 pb-2">
-              <h3 className="font-serif text-xl font-black text-[#542d1d]">📬 Scholar Mail</h3>
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-black font-bold text-lg cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-2 text-xs">
-              <div className="rounded-2xl border-2 border-amber-300 bg-white p-3 space-y-1">
-                <span className="font-black text-[#5a2e12] block">Welcome to the Lexi Archipelago!</span>
-                <p className="text-slate-600 font-bold">
-                  Explore each floating island to level up your vocabulary, forge word compounds, and conquer elemental bosses!
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* H. SETTINGS & LOGOUT MODAL */}
-      {activeModal === 'settings' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-3xl border-4 border-[#5a2e12] bg-[#fffaf2] p-6 shadow-[0_8px_0_#5a2e12] text-center space-y-4">
-            <h3 className="font-serif text-xl font-black text-[#542d1d]">Game Settings</h3>
-            
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={toggleMute}
-                className="w-full flex items-center justify-between rounded-2xl border-2 border-[#5a2e12] bg-white p-3 text-xs font-black text-[#542d1d] shadow-xs cursor-pointer hover:bg-amber-50"
-              >
-                <span>Sound Audio Effects:</span>
-                <span className={isMuted ? 'text-red-600' : 'text-emerald-600'}>
-                  {isMuted ? 'Muted 🔇' : 'Enabled 🔊'}
+              {currentUser?.avatarConfig?.headgearEmoji && (
+                <span className="absolute top-0 right-0.5 text-xs drop-shadow">
+                  {currentUser.avatarConfig.headgearEmoji}
                 </span>
-              </button>
+              )}
+            </div>
+            {/* Level Star Badge */}
+            <div className="absolute -bottom-1.5 -left-1.5 w-7 h-7 rounded-full bg-gradient-to-b from-[#ffee58] to-[#fbc02d] border-2 border-[#1a162b] flex items-center justify-center font-display font-black text-[11px] text-[#1a162b] shadow">
+              {currentUser?.level ?? 8}
+            </div>
+            {/* Name Plate */}
+            <div className="absolute -bottom-2 right-0 left-5 bg-[#ffb300] border-2 border-[#1a162b] rounded-md px-1.5 py-0.2 text-center">
+              <span className="font-display font-black text-[10px] text-[#1a162b] truncate block">
+                {currentUser?.displayName || 'Explorer'}
+              </span>
+            </div>
+          </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveModal(null);
-                  setIsCustomizingAvatar(true);
-                }}
-                className="w-full flex items-center justify-between rounded-2xl border-2 border-[#5a2e12] bg-white p-3 text-xs font-black text-[#542d1d] shadow-xs cursor-pointer hover:bg-amber-50"
-              >
-                <span>Explorer Customizer:</span>
-                <span>🎨 Edit Avatar</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveModal(null);
-                  logout();
-                }}
-                className="w-full rounded-2xl border-3 border-red-500 bg-red-50 hover:bg-red-100 py-3 text-xs font-black uppercase text-red-700 shadow-xs cursor-pointer"
-              >
-                🚪 Log Out / Switch Explorer
-              </button>
+          {/* HP & Real Campaign / Lexi-Dex Mastery Bars */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-black text-[11px] text-[#ffca28] w-8">
+                HP
+              </span>
+              <div className="relative w-28 sm:w-36 h-4.5 rounded-full bg-[#0d0b18] border-2 border-[#1a162b] overflow-hidden">
+                <div className="h-full w-full bg-gradient-to-r from-[#d32f2f] via-[#f44336] to-[#ff7961] rounded-full" />
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white tabular-nums drop-shadow-[0_1px_1px_#000]">
+                  {selectedPet.stats.hp} / {selectedPet.stats.hp}
+                </span>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveModal(null)}
-              className="text-xs font-bold text-slate-500 underline cursor-pointer"
-            >
-              Close
-            </button>
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-black text-[10px] text-[#4fc3f7] w-8">
+                DEX
+              </span>
+              <div className="relative w-28 sm:w-36 h-4.5 rounded-full bg-[#0d0b18] border-2 border-[#1a162b] overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#0288d1] via-[#29b6f6] to-[#81d4fa] rounded-full"
+                  style={{ width: `${Math.min(100, Math.round((allWords.length / 95) * 100))}%` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white tabular-nums drop-shadow-[0_1px_1px_#000]">
+                  {allWords.length} Words
+                </span>
+              </div>
+            </div>
+
+            {/* Coins & Gems */}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <div className="flex items-center gap-1 bg-[#263238] border-2 border-[#1a162b] rounded-full px-2.5 py-0.5 text-white font-black text-[11px] tabular-nums">
+                <span>🪙</span>
+                <span>{(currentUser?.lexiCoins ?? 450).toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-[#263238] border-2 border-[#1a162b] rounded-full px-2.5 py-0.5 text-white font-black text-[11px] tabular-nums">
+                <span>💎</span>
+                <span>{(currentUser?.fusionTokens ?? 14).toLocaleString()}</span>
+              </div>
+            </div>
           </div>
+        </div>
+
+        {/* Active Companion Selector Pill */}
+        <button
+          onClick={() => setActiveModal('hatchery')}
+          className="flex items-center gap-2 bg-[#fff8e7] hover:bg-[#ffe082] border-[3px] border-[#1a162b] rounded-2xl px-3 py-1 shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105 w-fit"
+        >
+          <CreatureSprite
+            creatureId={selectedPet.forged?.sourceId || selectedPet.id}
+            stage={selectedPet.stage || 1}
+            element={selectedPet.element}
+            size="xs"
+            animated={false}
+          />
+          <div className="text-left leading-tight">
+            <div className="text-[9px] font-black uppercase text-[#5d4037]">
+              Partner · Lv.{selectedPet.level || 8}
+            </div>
+            <div className="font-display font-black text-xs text-[#1a162b]">
+              {selectedPet.name} ▾
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* =====================================================================
+          TOP-CENTER FACETED CRYSTAL CREST ("Aetheria Sanctuary")
+      ====================================================================== */}
+      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none">
+        <div className="relative px-7 sm:px-10 py-1.5 rounded-2xl bg-gradient-to-b from-[#334155] via-[#1e293b] to-[#0f172a] border-[4px] border-[#facc15] shadow-[0_5px_0_#1a162b] flex items-center gap-3">
+          <div className="w-3 h-3 rotate-45 bg-[#38bdf8] border-2 border-[#1a162b]" />
+          <h1 className="font-display font-black text-base sm:text-xl md:text-2xl text-[#fde047] tracking-wide drop-shadow-[0_2px_0_#1a162b] whitespace-nowrap">
+            Aetheria Sky-Sanctuary
+          </h1>
+          <div className="w-3 h-3 rotate-45 bg-[#38bdf8] border-2 border-[#1a162b]" />
+        </div>
+      </div>
+
+      {/* =====================================================================
+          TOP-RIGHT HUD — QUESTS, LEXI-DEX, AUDIO & LOG OUT
+      ====================================================================== */}
+      <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveModal('quests')}
+            className="flex flex-col items-center group cursor-pointer"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#fff8e7] to-[#ffe082] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+              📋
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              Quests
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveModal('lexidex')}
+            className="flex flex-col items-center group cursor-pointer"
+          >
+            <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-b from-[#ce93d8] to-[#8e24aa] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-white group-hover:scale-105 transition-transform">
+              <BookOpen className="w-5 h-5" />
+              <span className="absolute -top-1 -right-1 px-1 rounded bg-[#ffd600] text-[#1a162b] font-black text-[8px] border border-[#1a162b]">
+                K–8
+              </span>
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              Lexi-Dex
+            </span>
+          </button>
+
+          <button
+            onClick={toggleMute}
+            className="flex flex-col items-center group cursor-pointer"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#cfd8dc] to-[#90a4ae] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-[#1a162b] group-hover:scale-105 transition-transform">
+              {isMuted ? <VolumeX className="w-5 h-5 text-[#d32f2f]" /> : <Volume2 className="w-5 h-5" />}
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              {isMuted ? 'Muted' : 'Audio'}
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              juice.boing();
+              logout();
+            }}
+            className="flex flex-col items-center group cursor-pointer"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#ef5350] to-[#c62828] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-white group-hover:scale-105 transition-transform">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
+              Log Out
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          CENTRAL COURTYARD NEXUS: EXPLORER TAMER & ACTIVE COMPANION
+          Standing at the Golden Sun-Dial Fountain in the Center of the Plaza!
+      ====================================================================== */}
+      <div
+        onClick={() => setActiveModal('word-world')}
+        title="Click to Enter Word World (9 Elemental Areas)"
+        style={{ left: '50%', top: '56%' }}
+        className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
+      >
+        <div className="flex items-end gap-1.5">
+          {/* Explorer Tamer Character */}
+          <div
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] text-xl shadow-[0_4px_0_#1a162b]"
+            style={{ backgroundColor: avatarOutfit }}
+          >
+            {avatarEmoji}
+          </div>
+          {/* Active Companion Sprite */}
+          <CreatureSprite
+            creatureId={selectedPet.forged?.sourceId || selectedPet.id}
+            stage={selectedPet.stage || 1}
+            element={selectedPet.element}
+            size="sm"
+          />
+        </div>
+        <div className="mt-1 rounded-full border-2 border-[#facc15] bg-[#0f172a]/90 px-3 py-0.5 font-display text-[10px] font-black text-[#fde047] shadow">
+          ★ Sanctuary Courtyard ({clearedAreasCount}/9 Areas)
+        </div>
+      </div>
+
+      {/* =====================================================================
+          5 PRIMARY SANCTUARY LANDMARK BUILDINGS AROUND THE COURTYARD RING
+      ====================================================================== */}
+      <div className="relative w-full h-full z-10">
+        {PRIMARY_ISLAND_NODES.map((node) => {
+          const isSelected = selectedIslandId === node.id;
+
+          return (
+            <button
+              key={node.id}
+              onClick={() => handlePrimaryNodeClick(node)}
+              onMouseEnter={() => setSelectedIslandId(node.id)}
+              style={{
+                left: node.x,
+                top: node.y,
+                width: node.width,
+              }}
+              className={`group absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center focus:outline-none cursor-pointer transition-all duration-200 ${
+                isSelected ? 'scale-105 z-20' : 'hover:scale-105 z-10'
+              }`}
+            >
+              {/* Isometric Architectural Landmark */}
+              <div className="w-full pointer-events-none">{renderIslandArtwork(node.id)}</div>
+
+              {/* Cel-Shaded Signboard Ribbon */}
+              {renderIslandNameplate(node, isSelected)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* =====================================================================
+          BOTTOM 5-TAB PRIMARY NAVIGATION DOCK (MATCHES THE 5 WORLD MAP AREAS)
+      ====================================================================== */}
+      <div className="absolute bottom-3 inset-x-3 z-30 flex items-center justify-center pointer-events-none">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-[#1a162b]/90 backdrop-blur-md px-3.5 py-2.5 rounded-3xl border-[4px] border-[#1a162b] shadow-[0_6px_0_#1a162b] pointer-events-auto">
+          <button
+            onClick={() => setActiveModal('word-world')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#9ccc65] via-[#66bb6a] to-[#2e7d32] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
+          >
+            <Compass className="w-5 h-5" />
+            <div className="text-left leading-tight">
+              <div className="text-[9px] font-black uppercase text-emerald-100">1. Adventure</div>
+              <div className="font-display font-black text-xs sm:text-sm">Word World (9)</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveModal('arena')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#ffd54f] via-[#ffb300] to-[#f57c00] hover:brightness-110 text-[#1a162b] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
+          >
+            <Swords className="w-5 h-5" />
+            <div className="text-left leading-tight">
+              <div className="text-[9px] font-black uppercase text-[#4e342e]">2. Battle Mode</div>
+              <div className="font-display font-black text-xs sm:text-sm">Battle Arena</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveModal('hatchery')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#4fc3f7] via-[#29b6f6] to-[#0288d1] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
+          >
+            <Egg className="w-5 h-5" />
+            <div className="text-left leading-tight">
+              <div className="text-[9px] font-black uppercase text-sky-100">3. Pets &amp; Gear</div>
+              <div className="font-display font-black text-xs sm:text-sm">Pet Hatchery</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setTab('forge')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#ff8a65] via-[#f4511e] to-[#bf360c] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
+          >
+            <Flame className="w-5 h-5" />
+            <div className="text-left leading-tight">
+              <div className="text-[9px] font-black uppercase text-orange-100">4. Fusion Lab</div>
+              <div className="font-display font-black text-xs sm:text-sm">Word Forge</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveModal('lexishop')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#ce93d8] via-[#ab47bc] to-[#6a1b9a] hover:brightness-110 text-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105"
+          >
+            <ShoppingBag className="w-5 h-5" />
+            <div className="text-left leading-tight">
+              <div className="text-[9px] font-black uppercase text-purple-100">5. Storefront</div>
+              <div className="font-display font-black text-xs sm:text-sm">Lexi-Shop</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Toast Feedback Banner */}
+      {toastMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#1a162b] text-[#ffd54f] font-display font-black text-sm px-5 py-2.5 rounded-2xl border-[3px] border-[#ffd54f] shadow-2xl animate-bounce">
+          {toastMessage}
         </div>
       )}
 
-      {/* I. EVOLUTION SEQUENCE THEATER MODAL */}
-      {evolvingCreature && (
+      {/* Hub Modals */}
+      {activeModal === 'lexidex' ? (
+        <LexiDexModal isOpen={true} onClose={() => setActiveModal(null)} />
+      ) : (
+        renderModalContent()
+      )}
+
+      {/* Evolution Sequence Modal */}
+      {evolvingPet && (
         <EvolutionSequenceModal
-          creature={evolvingCreature}
-          onComplete={(evolved) => {
-            evolvePet(evolved.id);
-            setEvolvingCreature(null);
+          creature={evolvingPet}
+          onComplete={() => {
+            evolvePet(evolvingPet.id);
+            setEvolvingCreatureId(null);
+            triggerToast(`🎉 ${evolvingPet.name} evolved to Stage ${(evolvingPet.stage || 1) + 1}!`);
           }}
-          onClose={() => setEvolvingCreature(null)}
+          onClose={() => setEvolvingCreatureId(null)}
         />
       )}
-
     </div>
   );
 };

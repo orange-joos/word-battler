@@ -1,135 +1,86 @@
-# Word Battler: 4x4 Action Matrix Combat System
+# Chronicles of Aetheria — 15-Point Monster-Tamer & JRPG Art & UI Overhaul
 
-A major linguistic combat evolution for elementary school students (Grades 3–5) that expands turn-based battle into a full **4x4 Action Matrix**. Students can choose between four strategic move categories (**Attack**, **Defend**, **Buff**, **Debuff**), each executable with any of the four parts of speech (**Verb**, **Noun**, **Adjective**, **Adverb**) as either single-word maneuvers or 2-word grammatical combos.
+This plan delivers **15 cohesive Art and UI upgrades** that transform the Overworld Map, Creature Sprites, Battle Arena, and Cards into a vibrant, cel-shaded **Monster-Tamer JRPG aesthetic** inspired by *Pokémon*, *Digimon*, *Amazing Island*, *Fossil Fighters*, *Final Fantasy*, and your uploaded reference artwork (`IMG_4196.PNG` & `IMG_4204.JPG`)—focused strictly on **visual art and UI design** without adding distracting extra mechanics.
+
+---
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following design decisions were confirmed during Phase 1 clarification:
-> - **Move Construction Format**: Supports both **1-word actions** (e.g. *ignite* for Direct Strike) and **2-word combos** (e.g. *fiercely ignite* combining Momentum + Direct Strike).
-> - **Category Selector UI**: Four accessible category tabs above the sentence builder:
->   - ⚔️ **Attack** (Offensive strikes, armor piercing, critical hits)
->   - 🛡️ **Defend** (Fortified shields, damage reduction, evasion, counter-stances)
->   - ✨ **Buff** (Stat increases, health regeneration, empower charges, catalyst summons)
->   - 🌀 **Debuff** (Status afflictions, turn constraints, smoke obstructions, interference)
-> - **Dual Output**: Delivery of a standalone vanilla ES6 module (`js/combat.js`) with comprehensive JSDoc annotations alongside the fully integrated live web application engine (`src/engine/combat.ts`).
+> All 15 items below are scoped strictly to **Art, Isometric Zone Illustration, Creature Visuals, and JRPG UI Styling** based on your answers:
+> - **Confirmed Decision 1 (Rollout)**: Deliver all 15 Art & UI edits in one unified build.
+> - **Confirmed Decision 2 (Overworld Map Style)**: Cel-shaded isometric block dioramas with thick outlines (`#1e1b2e`), stepped 3D cliff faces, and vibrant cartoony landmarks.
+> - **Confirmed Decision 3 (Scope Boundary)**: Keep all 15 upgrades focused strictly on **Art and UI** (no new mini-games or extra gameplay bloat).
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Transforms every word into a multi-dimensional tactical card. Rather than restricting parts of speech to rigid slots, students can select their desired combat goal (e.g., Attack vs. Defend vs. Buff vs. Debuff) and leverage any part of speech to produce distinct linguistic effects.
-- **Pedagogical Value**: Teaches students how word classes function dynamically:
-  - **Verbs** convey direct action, counter-reactions, and empowerments.
-  - **Nouns** manifest tangible physical objects, barriers, obstructions, and catalysts.
-  - **Adjectives** define intrinsic elemental qualities, barrier strength, and stat conditions.
-  - **Adverbs** dictate pacing, momentum, evasion, and interference.
-- **Elementary Scaffolding**: If an ungrammatical combination is attempted, constructive encouraging feedback explains the grammatical rule and suggests a better combination.
+- **What It Does**: Replaces the current flat vector shapes with chunky, cel-shaded **3D isometric block dioramas**, bold comic-inked monster illustrations, trading-card style word frames, and *Pokémon* / *Final Fantasy* / *Digimon* inspired HUD plates.
+- **Target Audience / Persona**: K–8 Explorers who love colorful monster-collector RPGs with expressive cartoon art and tactile game interfaces.
+- **Key Value**: Makes every screen—especially the Full-Screen Overworld Map—feel like a living, hand-crafted monster-tamer video game.
 
 ---
 
-## 2. The 4x4 Action Matrix Specifications
+## 2. The 15 Art & UI Edits
 
-| Category | Verb (Action) | Noun (Thing / Object) | Adjective (Description) | Adverb (How / Pacing) |
-| :--- | :--- | :--- | :--- | :--- |
-| **1. ATTACK** | **Direct Strike**: Heavy base damage (`+8` damage). | **Object Impact**: Medium damage + Armor Piercing (ignores 50% enemy shield). | **Descriptive Assault**: Elemental synergy (+6 matching bonus) + elemental burn/frost DOT. | **Momentum Strike**: Critical hit chance (35% chance of 1.75x crit damage). |
-| **2. DEFEND** | **Counter-Stance**: Minor shield + reflects 40% of enemy attack damage. | **Fortification**: High flat shield gain (`12 + defense`). | **Barrier Quality**: Adds damage reduction barrier (30% incoming damage mitigated). | **Evasive Maneuver**: 40% chance to completely evade the next enemy strike. |
-| **3. BUFF** | **Empower Action**: Powers up pet's next offensive turn by +50%. | **Catalyst Summon**: Temporary elemental weapon infusion (+5 bonus). | **Attribute Boost**: +4 Attack or +4 Defense for 3 turns. | **Temporal Boost**: Multi-turn health regeneration (+6 HP/turn for 3 turns). |
-| **4. DEBUFF** | **Constraint**: Restrains enemy motion, delaying or skipping opponent turn. | **Obstruction**: Conjures a smoke screen or barrier, blocking enemy next move slot. | **Condition Affliction**: Afflicts Frostbite/Burn (-3 DEF and 5 DOT for 3 turns). | **Interference**: Lowers enemy speed (-4) and reduces accuracy by 30%. |
+### Part I: Cel-Shaded Isometric Overworld Dioramas (Edits 1–9)
+1. **Isometric Block Terrain Engine (`OverworldMap.tsx`)**:
+   - Every zone is built on a chunky 3D isometric slab with stepped terracotta/stone cliff walls, bright turf top-surfaces, thick `#1e1b2e` ink outlines, and crisp cel-shaded highlight/shadow planes.
+2. **Sunfall Dunes — *Fossil Fighters* Dino-Skull & Paw-Print Beach Diorama**:
+   - Stepped golden sand block with a turquoise shoreline wave cut-out, a giant half-buried **prehistoric dinosaur skull and ribcage bones**, rock outcrops, and giant monster paw-prints stamped into the sand (directly inspired by the top-left diorama in `IMG_4196.PNG`).
+3. **Harmony Village — *Final Fantasy* Red-Spire Star Keep & Cobblestone Hamlet**:
+   - Combines the grand multi-tower **Red-Spire Star Castle** (from the center of `IMG_4196.PNG`) with surrounding cozy red-roofed village cottages, cobblestone plazas, and your animated Hero + Companion sprite.
+4. **Frostpeak — *Digimon* Crystal Glacier & Ice-Block Basin**:
+   - Stepped periwinkle ice walls enclosing a towering twin-peaked snow mountain, a glowing frost cavern entrance, and floating geometric icebergs.
+5. **Treetop Canopy — *Amazing Island* Cloud-Top Beanstalk & Sky Cottages**:
+   - A giant spiraling green vine-tree rising from a mossy block into a massive, fluffy cel-shaded cloud island crowned with whimsical crooked-roof sky houses and a glowing nest incubator.
+6. **Shadowcrypt — Ancient Stone Golem Temple & Waterfall Ruins**:
+   - Carved monolithic stone golem-head sanctuary with glowing cyan/violet runes, stepped ruin pillars, and a cascading jungle waterfall.
+7. **Fireforge — Cel-Shaded Magma Caldera & Obsidian Cliffs**:
+   - Chunky volcanic cone with bubbling golden-orange lava rivers snaking across cracked magma terraces and tropical rim palms.
+8. **Celestia & Galleon's Rest — Floating Sky Colonnade & Shipwreck Cove**:
+   - **Celestia**: Floating marble colonnade pedestal with a glowing golden sun-ring floor and crystal fountain.
+   - **Galleon's Rest**: Tilted cartoon timber galleon resting on a sandy palm islet with billowing canvas sails.
+9. **Isometric Turf Pathways, Arched Bridges & Cartoon Sky-and-Sea Backdrop**:
+   - Connects the floating isometric blocks with stepped green turf walkways and arched wooden plank bridges over a vivid cerulean ocean and fluffy cartoon cloudscape.
 
-### 2-Word Combinations (Modifier + Head)
-When students combine two words (e.g. *Adverb + Verb* in Attack, or *Adjective + Noun* in Defend):
-- The **Head Word** sets the primary category effect.
-- The **Modifier Word** layers on its unique tactical trait (e.g., *fiercely [Adverb: Crit]* + *ignite [Verb: Direct Strike]* = a Direct Strike with critical strike chance).
+### Part II: Monster-Tamer & JRPG HUD Overhaul (Edits 10–12)
+10. **JRPG Hero & Companion Status Frame (Top-Left HUD)**:
+    - Inspired by `IMG_4204.JPG` and *Pokémon* / *Final Fantasy* status bars: a cel-shaded portrait box with a golden Level Star badge, glossy 3D-beveled `HP` (crimson) and `MP` (azure) bars, numeric counters (`tabular-nums`), and an adjacent **Active Companion Portrait Pill** that reflects your selected pet in real time.
+11. **Faceted Crystal Title Crest & Map Nameplate Ribbons (Top-Center & Map Labels)**:
+    - Top-center **Aetheria Quest** blue-steel & gold diamond banner with faceted crystal rivets, paired with clean, high-contrast parchment/wood signboards pinned neatly beneath each island so every zone name is 100% legible without covering the artwork.
+12. **Cartoony Bottom Command Dock & Illustrated Grammar Medallions (Bottom HUD)**:
+    - Mirrors `IMG_4204.JPG` with chunky cel-shaded utility icons (`Backpack`, `Roster`, `Lexi-Dex`), a glossy green beveled **`Play / Enter ★`** action button, and the 4 square **Elemental Grammar Medallions** (`Adjective Attack`, `Noun Defense`, `Adverb Multiplier`, `Synergy Boost`) with illustrated sword/shield/arrow/star crests.
+
+### Part III: Creature Art, Battle Arena & TCG Word Cards (Edits 13–15)
+13. **Bold Cel-Shaded Monster & Boss Rig Restyle (`CreatureSprite.tsx`)**:
+    - Upgrades all 7 playable pet lines (across all 3 evolution stages) and all 5 Realm Bosses with thick comic ink outlines (`#1a162b`), expressive *Pokémon/Digimon*-style anime eyes with dual catchlights, primal horn/crest details (*Fossil Fighters* / *Amazing Island*), and vibrant cel-shaded two-tone body shading.
+14. **Pokémon / Final Fantasy Battle HUD & Isometric Combat Platforms (`BattleView.tsx`)**:
+    - Adds angled JRPG status plates with animated HP/Shield bars, elemental badge icons, cel-shaded isometric terrain pedestals beneath both combatants, and comic-style action callout banners when executing combos or **Syntax Surge Ultimates**.
+15. **Monster-Tamer TCG Word Card Frames & JRPG Dialogue Panels (`LoadoutView.tsx`, `WordForgeView.tsx`, `LexiDexModal.tsx`)**:
+    - Styles every vocabulary word card like a collectible **Monster-Tamer Trading Card** with a color-coded Part-of-Speech header bar, Grade Tier emblem (`K` to `6–8`), elemental crest, and crisp beveled card borders across the Battle Tray, Arsenal, Word Forge, Shop Booster Packs, and Lexi-Dex.
 
 ---
 
-## 3. User Experience & Visual Design
-
-### Key User Flows
-
-1. **Category Selection**:
-   - Student taps one of the 4 category tabs: `Attack`, `Defend`, `Buff`, `Debuff`.
-   - The arena accent and slot prompt adapt instantly to highlight the tactical goal.
-2. **Word Slotting & Inspector**:
-   - The word pool displays all 4 parts of speech with category recommendation tags.
-   - Tapping any word card updates the Word Inspector Banner with its definition, audio speech pronunciation, and how it behaves in the active category!
-   - Tapping an empty slot or word card populates Slot 1 or Slot 2.
-3. **Turn Execution & Event Animation**:
-   - Tapping the execution button emits structured events (`DAMAGE`, `SHIELD`, `BUFF`, `DEBUFF`, `EVADE`, `SPEAK`, `REFLECT`).
-   - The UI displays colorful status badges (e.g. `Regen`, `Reflect`, `Shield`, `Empowered`, `Burn`).
-   - Web Audio synth triggers unique acoustic cues (swords clash, shield resonant tone, buff chime, debuff hex chord, evasion whoosh).
-
----
-
-## 4. Technical Architecture & File Layout
+## 3. Visual Architecture & UI Layout Diagram
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                              App.tsx                                   │
-│            ┌─────────────────────────┴────────────────────────┐        │
-│            ▼                                                  ▼        │
-│    BattleView.tsx                                    WordForgeView.tsx │
-│    ├── CategoryTabs (Attack, Defend, Buff, Debuff)   └── Dual Slots    │
-│    ├── StatusEffectsHUD (Regen, Shields, Buffs)                        │
-│    ├── WordInspectorBanner (Definition + 4x4 Role)                     │
-│    └── SentenceBuilderBar (1-Word / 2-Word Actions)                    │
-└────────────────────────────────────┬───────────────────────────────────┘
-                                     ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Engine & Shared Schemas                         │
-│  - js/combat.js (Clean standalone ES6 module with JSDoc for schools)  │
-│  - src/engine/combat.ts (TypeScript engine powering the React web app) │
-│  - src/engine/juice.ts (Web Audio synth & Web Speech TTS)              │
-└────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ [Hero Portrait Lv.★] HP [██████████]  │   ◆ AETHERIA QUEST ◆   │ [Quests][Shop]  │
+│ [Active Pet Mini]    MP [██████████]  │  World Map - Aetheria  │ [Lexi-Dex][Exit]│
+├───────────────────────────────────────┴────────────────────────┴─────────────────┤
+│                                                                                  │
+│     [Sunfall Dunes]         [Frostpeak]            [Treetop Canopy]              │
+│    (Dino Skull Block)    (Ice Glacier Basin)     (Cloud Beanstalk)               │
+│            \                     │                       /                       │
+│        [Pinkwood] ─────── [Harmony Village] ────── [Celestia]                    │
+│     (Cherry Blossom)     (Red-Spire Star Keep)   (Golden Sanctum)                │
+│            │                     │                       │                       │
+│      [Shadowcrypt]        [Galleon's Rest]          [Fireforge]                  │
+│     (Golem Temple)       (Shipwreck Islet)       (Magma Caldera)                 │
+│                                                                                  │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ [Backpack] [Roster]  [ ★ PLAY / ENTER ]  [Adj ⚔️][Noun 🛡️][Adv ⬆️][Syn ✨] [Dex] │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Structured Event Schema
-
-```javascript
-/**
- * @typedef {Object} CombatEvent
- * @property {'SPEAK'|'DAMAGE'|'SHIELD'|'BUFF'|'DEBUFF'|'EVADE'|'REFLECT'|'FIZZLE'|'VICTORY'|'DEFEAT'} type
- * @property {string} [attackerId]
- * @property {string} [targetId]
- * @property {number} [amount]
- * @property {string} [stat]
- * @property {number} [duration]
- * @property {string} [effect]
- * @property {string} [phrase]
- * @property {string} [reason]
- */
-```
-
----
-
-## 5. Execution Steps
-
-1. **Standalone ES6 Module (`js/combat.js`)**:
-   - Write clean, standalone vanilla JavaScript with full JSDoc typing.
-   - Implement the 4x4 Action Matrix matrix evaluator `resolveActionMatrix(attacker, defender, category, word1, word2, catalog)`.
-   - Implement `createBattle` factory and event emitter.
-2. **React Engine Integration (`src/engine/combat.ts` & `src/types.ts`)**:
-   - Update TypeScript domain types with Status Effects (`buffs`, `debuffs`, `regeneration`, `evasion`, `reflect`, `empower`).
-   - Wire the 4x4 Matrix into the battle simulation engine.
-3. **Battle Arena UI Upgrade (`src/components/BattleView.tsx`)**:
-   - Implement the 4 category tabs (`Attack`, `Defend`, `Buff`, `Debuff`).
-   - Support flexible 1-word or 2-word slotting with category hints.
-   - Display active status effect badges on pet cards.
-   - Update Word Inspector to explain each word's specific 4x4 function.
-4. **Audio Updates (`src/engine/juice.ts`)**:
-   - Add sound effects for evasion, buffs, debuffs, and shield reflections.
-5. **Framer Motion Combat Animations (`src/components/BattleView.tsx` & `src/components/FloatingCombatOverlay.tsx`)**:
-   - Installed `framer-motion` package.
-   - Built `<FloatingCombatOverlay popups={popups} />` rendering kinetic floating combat text types:
-     - 💥 Damage (`-X` in vibrant rose) & Critical Hits (`💥 CRIT! -X` in gold serif)
-     - 🛡️ Shield gains (`+X SHIELD` in amethyst)
-     - 🌿 Healing ticks (`+X HP` in emerald)
-     - ⚡ Buff triggers (`⚡ EMPOWERED`, `⚔️ +4 ATK`, `🌿 REGEN`)
-     - 🛑 Debuff afflictions (`🛑 CONSTRAINED`, `🌀 -4 SPEED / ACC`, `❄️ AFFLICTED`)
-     - 💨 Evasion alerts (`💨 EVASION READY`, `💨 DODGED!`)
-   - Upgraded Fighter Arena cards to `<motion.article>` with responsive impact shakes (`animate={{ x: [-10, 10, -8, 8, -4, 4, 0] }}`) and shield fortification pulses (`scale: [1, 1.04, 1]` with vibrant purple glow).
-   - Upgraded combat execution button to `<motion.button>` with tactile hover/press physics.
-6. **Verification**:
-   - Ran `lint_applet` and `compile_applet` (100% pass).
-   - Validated zero runtime errors across Chrome dev server.

@@ -16,6 +16,8 @@ const OPPOSITE_ELEMENT: Record<ElementType, ElementType> = {
   light: 'light',
   earth: 'earth',
   air: 'air',
+  nature: 'nature',
+  cosmic: 'cosmic',
 };
 
 const AFFIXATION_BONUS = 1;
@@ -366,6 +368,18 @@ export function createForge(options: {
     fuse,
     listAffixes: () => affixes.map((a) => ({ ...a })),
   };
+}
+
+export function forgeCombine(
+  left: ForgeToken | null,
+  right: ForgeToken | null,
+  options: {
+    creatures: Creature[];
+    words: CatalogWords;
+    affixes?: Affix[];
+  }
+): ForgeResult {
+  return createForge(options).fuse(left, right);
 }
 
 export function addForgedWord(catalog: CatalogWords, entry: Word): CatalogWords {

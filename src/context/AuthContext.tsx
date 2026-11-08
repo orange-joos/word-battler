@@ -11,6 +11,13 @@ interface AuthContextType {
   guestLogin: () => void;
   logout: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  addRewards: (rewards: {
+    coins?: number;
+    tokens?: number;
+    xp?: number;
+    wonBattle?: boolean;
+    forgedItem?: boolean;
+  }) => void;
   updateAvatar: (avatarConfig: AvatarConfig, newDisplayName?: string) => void;
 }
 
@@ -214,6 +221,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAllUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
   };
 
+  const addRewards = (rewards: {
+    coins?: number;
+    tokens?: number;
+    xp?: number;
+    wonBattle?: boolean;
+    forgedItem?: boolean;
+  }) => {
+    if (!currentUser) return;
+    const updated: UserProfile = {
+      ...currentUser,
+      lexiCoins: Math.max(0, (currentUser.lexiCoins || 0) + (rewards.coins || 0)),
+      fusionTokens: Math.max(0, (currentUser.fusionTokens || 0) + (rewards.tokens || 0)),
+      level: rewards.xp ? (currentUser.level || 1) + (rewards.xp >= 45 ? 1 : 0) : currentUser.level,
+      streak: rewards.wonBattle ? (currentUser.streak || 0) + 1 : currentUser.streak,
+    };
+    setCurrentUser(updated);
+    setAllUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+  };
+
   const updateAvatar = (avatarConfig: AvatarConfig, newDisplayName?: string) => {
     if (!currentUser) return;
     const updated: UserProfile = {
@@ -239,6 +265,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         guestLogin,
         logout,
         updateProfile,
+        addRewards,
         updateAvatar,
       }}
     >

@@ -92,6 +92,122 @@ export const PRESET_EVOLUTIONS: Record<string, EvolutionStage[]> = {
       statBoosts: { hp: 36, attack: 11, defense: 11, speed: 8 },
     },
   ],
+  voltowl: [
+    {
+      stage: 1,
+      name: 'Voltowl',
+      spriteEmoji: '🦉⚡',
+      minLevel: 1,
+      title: 'Stormfeather Owlet',
+      description: 'A wise storm-feathered owlet hatched in the Treetop Canopy.',
+      statBoosts: { hp: 0, attack: 0, defense: 0, speed: 0 },
+    },
+    {
+      stage: 2,
+      name: 'Tempestrix',
+      spriteEmoji: '🦅⚡',
+      minLevel: 10,
+      title: 'Thundercrest Falcon',
+      description: 'Dives from stormclouds at supersonic speed, crackling with high-voltage syntax.',
+      statBoosts: { hp: 20, attack: 9, defense: 5, speed: 8 },
+    },
+    {
+      stage: 3,
+      name: 'Astral Roc',
+      spriteEmoji: '⚡🦅✨',
+      minLevel: 20,
+      title: 'Sky-Sovereign Archon',
+      description: 'A colossal thunderbird whose wings summon lightning storms across all of Aetheria.',
+      statBoosts: { hp: 30, attack: 13, defense: 8, speed: 11 },
+    },
+  ],
+  terraturtle: [
+    {
+      stage: 1,
+      name: 'Terraturtle',
+      spriteEmoji: '🐢🪨',
+      minLevel: 1,
+      title: 'Crystal-Shell Tortoise',
+      description: 'An ancient tortoise carrying emerald crystals and mountain stone on its shell.',
+      statBoosts: { hp: 0, attack: 0, defense: 0, speed: 0 },
+    },
+    {
+      stage: 2,
+      name: 'Bastionback',
+      spriteEmoji: '🐢⛰️',
+      minLevel: 10,
+      title: 'Fortress Behemoth',
+      description: 'Its shell has grown into a granite citadel that shields the entire squad.',
+      statBoosts: { hp: 28, attack: 6, defense: 12, speed: 3 },
+    },
+    {
+      stage: 3,
+      name: 'Continentia Titan',
+      spriteEmoji: '🐢🌍',
+      minLevel: 20,
+      title: 'World-Shell Guardian',
+      description: 'Carries an entire floating island ecosystem upon its diamond-armored carapace.',
+      statBoosts: { hp: 40, attack: 10, defense: 16, speed: 5 },
+    },
+  ],
+  zephyrkit: [
+    {
+      stage: 1,
+      name: 'Zephyrkit',
+      spriteEmoji: '🦊🌬️',
+      minLevel: 1,
+      title: 'Cloud-Runner Kit',
+      description: 'A sky-dancing cloud kit with feathered ears that rides gentle updrafts.',
+      statBoosts: { hp: 0, attack: 0, defense: 0, speed: 0 },
+    },
+    {
+      stage: 2,
+      name: 'Galeweaver',
+      spriteEmoji: '🦊🌪️',
+      minLevel: 10,
+      title: 'Cyclone Strider',
+      description: 'Spins fleet-footed whirlwinds around opponents, boosting team evasion.',
+      statBoosts: { hp: 20, attack: 7, defense: 6, speed: 9 },
+    },
+    {
+      stage: 3,
+      name: 'Celestia Seraphox',
+      spriteEmoji: '🦊🪽',
+      minLevel: 20,
+      title: 'Six-Winged Sky Avatar',
+      description: 'Soars effortlessly through the stratosphere, weaving hurricane-force sentences.',
+      statBoosts: { hp: 30, attack: 11, defense: 9, speed: 12 },
+    },
+  ],
+  glimmerfae: [
+    {
+      stage: 1,
+      name: 'Glimmerfae',
+      spriteEmoji: '🦋✨',
+      minLevel: 1,
+      title: 'Starlight Sprite',
+      description: 'A radiant celestial sprite born from Celestia’s fountain.',
+      statBoosts: { hp: 0, attack: 0, defense: 0, speed: 0 },
+    },
+    {
+      stage: 2,
+      name: 'Luminarch',
+      spriteEmoji: '🦋🌟',
+      minLevel: 10,
+      title: 'Prism-Wing Valkyrie',
+      description: 'Refracts pure sunlight through stained-glass wings to empower every word card.',
+      statBoosts: { hp: 22, attack: 9, defense: 7, speed: 7 },
+    },
+    {
+      stage: 3,
+      name: 'Aetheraphim',
+      spriteEmoji: '👑✨',
+      minLevel: 20,
+      title: 'Grand Luminary of Aetheria',
+      description: 'Shines like a miniature sun, illuminating the deepest morphological mysteries.',
+      statBoosts: { hp: 34, attack: 14, defense: 10, speed: 10 },
+    },
+  ],
 };
 
 /**
@@ -140,7 +256,7 @@ export function getEvolutionBranch(creature: Creature): EvolutionStage[] {
   if (creature.evolutionBranch && creature.evolutionBranch.length > 0) {
     return creature.evolutionBranch;
   }
-  const cleanId = creature.id.toLowerCase();
+  const cleanId = (creature.forged?.sourceId || creature.id).toLowerCase();
   if (PRESET_EVOLUTIONS[cleanId]) {
     return PRESET_EVOLUTIONS[cleanId];
   }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { Creature, Word, CatalogWords, BattleState, TabType, PartOfSpeech, PetLoadout, ElementType, GameScreen, GameState } from '../types';
+import { Creature, Word, CatalogWords, BattleState, TabType, PartOfSpeech, PetLoadout, ElementType, GameScreen, GameState, GradeTier } from '../types';
 import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData';
 import { ELEMENTS } from '../data/elements';
 import { createBattle } from '../engine/combat';
@@ -7,6 +7,7 @@ import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/for
 import { juice } from '../engine/juice';
 import { applyEvolution } from '../data/evolutionData';
 import { createStarterCreature } from '../data/starterPets';
+import { buildMergedVocabularyCatalog } from '../data/vocabDatabase';
 import { useAuth } from './AuthContext';
 
 interface GameContextType {
@@ -22,7 +23,12 @@ interface GameContextType {
   isMuted: boolean;
   toggleMute: () => void;
   battleState: BattleState;
-  submitCombo: (word1Id: string, word2Id: string | null) => void;
+  submitCombo: (
+    word1Id: string,
+    word2Id?: string | null,
+    word3Id?: string | null,
+    word4Id?: string | null
+  ) => void;
   restartBattle: (newPlayerId?: string) => void;
   commitWord: (word: Word) => void;
   commitCreature: (creature: Creature) => void;
@@ -30,7 +36,7 @@ interface GameContextType {
   goToLoadout: () => void;
   useCreatureInBattle: (id: string) => void;
   updatePetLoadout: (petId: string, slot: PartOfSpeech, wordId: string | null) => void;
-  autoEquipBestLoadout: (petId: string) => void;
+  autoEquipBestLoadout: (petId: string, preferredTier?: GradeTier | 'all') => void;
   levelUpPet: (petId: string, levels?: number) => void;
   trainPetWithCoins: (petId: string, coinCost?: number) => { success: boolean; error?: string };
   evolvePet: (petId: string) => { success: boolean; evolvedCreature: Creature };
@@ -60,7 +66,6 @@ function initializeWords(): CatalogWords {
           : undefined,
     });
 
-    // Merge verbs
     const baseVerbs = INITIAL_WORDS.verbs || [];
     const savedVerbs = Array.isArray(parsed.verbs) ? parsed.verbs.map(normalizeWord) : [];
     const mergedVerbs = [...baseVerbs];
@@ -70,7 +75,6 @@ function initializeWords(): CatalogWords {
       }
     }
 
-    // Merge adverbs
     const baseAdverbs = INITIAL_WORDS.adverbs || [];
     const savedAdverbs = Array.isArray(parsed.adverbs) ? parsed.adverbs.map(normalizeWord) : [];
     const mergedAdverbs = [...baseAdverbs];
@@ -80,7 +84,6 @@ function initializeWords(): CatalogWords {
       }
     }
 
-    // Merge adjectives
     const baseAdj = INITIAL_WORDS.adjectives || [];
     const savedAdj = Array.isArray(parsed.adjectives) ? parsed.adjectives.map(normalizeWord) : [];
     const mergedAdj = [...baseAdj];
@@ -90,7 +93,6 @@ function initializeWords(): CatalogWords {
       }
     }
 
-    // Merge nouns
     const baseNouns = INITIAL_WORDS.nouns || [];
     const savedNouns = Array.isArray(parsed.nouns) ? parsed.nouns.map(normalizeWord) : [];
     const mergedNouns = [...baseNouns];
@@ -100,12 +102,12 @@ function initializeWords(): CatalogWords {
       }
     }
 
-    return {
+    return buildMergedVocabularyCatalog({
       adjectives: mergedAdj,
       nouns: mergedNouns,
       verbs: mergedVerbs,
       adverbs: mergedAdverbs,
-    };
+    });
   } catch {
     return INITIAL_WORDS;
   }
@@ -114,7 +116,7 @@ function initializeWords(): CatalogWords {
 function normalizeElement(element: string): ElementType {
   if (element === 'nature') return 'grass';
   if (element === 'cosmic') return 'light';
-  return element in ELEMENTS ? element as ElementType : 'fire';
+  return element in ELEMENTS ? (element as ElementType) : 'fire';
 }
 
 function initializeCreatures(): Creature[] {
@@ -123,7 +125,20 @@ function initializeCreatures(): Creature[] {
     if (!saved) return INITIAL_CREATURES;
     const parsed: Creature[] = JSON.parse(saved);
 
-    // Ensure all creatures have full parts of speech allowed and valid loadout + elementAffinity
+    const allElements: ElementType[] = [
+      'fire',
+      'water',
+      'ice',
+      'grass',
+      'electric',
+      'shadow',
+      'light',
+      'earth',
+      'air',
+      'nature',
+      'cosmic',
+    ];
+
     const updated: Creature[] = parsed.map((c) => {
       const existingTypes = new Set(c.allowedWordTypes || []);
       existingTypes.add('adjective');
@@ -133,25 +148,25 @@ function initializeCreatures(): Creature[] {
 
       const initialMatch = INITIAL_CREATURES.find((init) => init.id === c.id);
       const element = normalizeElement(c.element);
-      const elementAffinity = c.id === 'boss_sovereign' && element === 'light'
-        ? 'light'
-        : normalizeElement(c.elementAffinity || initialMatch?.elementAffinity || element);
-      const loadout: PetLoadout = c.loadout && typeof c.loadout === 'object'
-        ? {
-            verb: c.loadout.verb ?? (initialMatch?.loadout?.verb || null),
-            noun: c.loadout.noun ?? (initialMatch?.loadout?.noun || null),
-            adjective: c.loadout.adjective ?? (initialMatch?.loadout?.adjective || null),
-            adverb: c.loadout.adverb ?? (initialMatch?.loadout?.adverb || null),
-          }
-        : (initialMatch?.loadout || { verb: null, noun: null, adjective: null, adverb: null });
+      const elementAffinity =
+        c.id === 'boss_sovereign' && element === 'light'
+          ? 'light'
+          : normalizeElement(c.elementAffinity || initialMatch?.elementAffinity || element);
+      const loadout: PetLoadout =
+        c.loadout && typeof c.loadout === 'object'
+          ? {
+              verb: c.loadout.verb ?? (initialMatch?.loadout?.verb || null),
+              noun: c.loadout.noun ?? (initialMatch?.loadout?.noun || null),
+              adjective: c.loadout.adjective ?? (initialMatch?.loadout?.adjective || null),
+              adverb: c.loadout.adverb ?? (initialMatch?.loadout?.adverb || null),
+            }
+          : initialMatch?.loadout || { verb: null, noun: null, adjective: null, adverb: null };
 
       return {
         ...c,
         element,
         elementAffinity,
-        allowedElements: c.id === 'boss_sovereign'
-          ? [...(initialMatch?.allowedElements || [])]
-          : (c.allowedElements?.length ? c.allowedElements : initialMatch?.allowedElements || [element]).map(normalizeElement),
+        allowedElements: allElements,
         level: c.level || initialMatch?.level || 8,
         exp: c.exp ?? (initialMatch?.exp ?? 100),
         maxExp: c.maxExp || initialMatch?.maxExp || 160,
@@ -164,7 +179,6 @@ function initializeCreatures(): Creature[] {
       };
     });
 
-    // Make sure initial starter creatures exist
     for (const initC of INITIAL_CREATURES) {
       if (!updated.some((c) => c.id === initC.id)) {
         updated.push(initC);
@@ -207,17 +221,31 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tab, setTab] = useState<TabType>('hub');
   const [creatures, setCreatures] = useState<Creature[]>(initializeCreatures);
   const [words, setWords] = useState<CatalogWords>(initializeWords);
-  const [playerId, setPlayerId] = useState<string>('emberfox');
+  const [playerId, setPlayerIdState] = useState<string>(() => {
+    try {
+      return localStorage.getItem('wb_active_player_id') || 'emberfox';
+    } catch {
+      return 'emberfox';
+    }
+  });
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const setActiveScreen = (activeScreen: GameScreen) => {
     setGameState((previous) => ({ ...previous, activeScreen }));
   };
 
+  const setPlayerId = (id: string) => {
+    setPlayerIdState(id);
+    try {
+      localStorage.setItem('wb_active_player_id', id);
+    } catch {}
+  };
+
   const selectStarterPet = (element: ElementType) => {
-    const starterPet = creatures.find(
-      (creature) => creature.element === element && !creature.id.startsWith('boss_')
-    ) || createStarterCreature(element, getAllWordsList(words));
+    const starterPet =
+      creatures.find(
+        (creature) => creature.element === element && !creature.id.startsWith('boss_')
+      ) || createStarterCreature(element, getAllWordsList(words));
 
     if (!creatures.some((creature) => creature.id === starterPet.id)) {
       setCreatures((previous) => [...previous, starterPet]);
@@ -227,7 +255,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setGameState((previous) => ({
       ...previous,
       activeScreen: 'tutorial',
-      unlockedPetIds: [starterPet.id],
+      unlockedPetIds: Array.from(new Set([...previous.unlockedPetIds, starterPet.id])),
     }));
   };
 
@@ -252,7 +280,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, [gameState]);
 
-  // Sync with localStorage
   useEffect(() => {
     try {
       localStorage.setItem('wb_creatures', JSON.stringify(creatures));
@@ -271,14 +298,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     juice.setMuted(next);
   };
 
-  const [activeZoneId, setActiveZoneId] = useState<string>('root-village');
-  const [enemyId, setEnemyId] = useState<string>('boss_ruptor');
+  const [activeZoneId, setActiveZoneId] = useState<string>('area-grass');
+  const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
   const [zoneProgress, setZoneProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
     try {
       const saved = localStorage.getItem('wb_zone_progress');
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
+      'area-grass': { stars: 3, cleared: true },
+      'area-water': { stars: 2, cleared: true },
+      'area-earth': { stars: 1, cleared: false },
+      'area-fire': { stars: 0, cleared: false },
+      'area-ice': { stars: 0, cleared: false },
+      'area-air': { stars: 0, cleared: false },
+      'area-electric': { stars: 0, cleared: false },
+      'area-shadow': { stars: 0, cleared: false },
+      'area-light': { stars: 0, cleared: false },
       'root-village': { stars: 3, cleared: true },
       'prefix-path': { stars: 2, cleared: true },
       'suffix-steppes': { stars: 1, cleared: false },
@@ -306,27 +342,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const startBattleInZone = (zoneId: string, customEnemyId?: string) => {
-    setActiveZoneId(zoneId);
-    const chosenEnemy =
-      customEnemyId ||
-      (zoneId === 'root-village'
-        ? 'boss_ruptor'
-        : zoneId === 'prefix-path'
-        ? 'boss_dishornet'
-        : zoneId === 'suffix-steppes'
-        ? 'boss_galecrest'
-        : zoneId === 'compound-colosseum'
-        ? 'boss_pyrostorm'
-        : zoneId === 'syntax-spire'
-        ? 'boss_sovereign'
-        : 'boss_ruptor');
-
-    setEnemyId(chosenEnemy);
-    juice.fanfare();
-    setTab('battle');
-  };
-
   // Combat Engine Instance
   const battleEngine = useMemo(() => {
     return createBattle({
@@ -339,9 +354,49 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [battleState, setBattleState] = useState<BattleState>(() => battleEngine.getState());
 
+  // Sync battleState ONLY when playerId or enemyId changes so mid-battle loadout edits do not reset HP!
   useEffect(() => {
     setBattleState(battleEngine.getState());
-  }, [battleEngine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, enemyId]);
+
+  const ZONE_TO_BOSS: Record<string, string> = {
+    'area-grass': 'boss_galecrest',
+    'area-water': 'boss_leviathan',
+    'area-earth': 'boss_ruptor',
+    'area-fire': 'boss_pyrostorm',
+    'area-ice': 'boss_dishornet',
+    'area-air': 'boss_zephyrlord',
+    'area-electric': 'boss_voltarchon',
+    'area-shadow': 'boss_umbralord',
+    'area-light': 'boss_sovereign',
+    // Legacy & Island aliases
+    'root-village': 'boss_ruptor',
+    'prefix-path': 'boss_dishornet',
+    'prefix-peaks': 'boss_dishornet',
+    'suffix-steppes': 'boss_galecrest',
+    'sunfall-dunes': 'boss_ruptor',
+    'compound-colosseum': 'boss_pyrostorm',
+    'fireforge': 'boss_pyrostorm',
+    'syntax-spire': 'boss_sovereign',
+    'celestia': 'boss_sovereign',
+  };
+
+  const startBattleInZone = (zoneId: string, customEnemyId?: string) => {
+    setActiveZoneId(zoneId);
+    const chosenEnemy = customEnemyId || ZONE_TO_BOSS[zoneId] || 'boss_ruptor';
+
+    setEnemyId(chosenEnemy);
+    const freshBattle = createBattle({
+      playerId,
+      enemyId: chosenEnemy,
+      creatures,
+      words,
+    });
+    setBattleState(freshBattle.getState());
+    juice.fanfare();
+    setTab('battle');
+  };
 
   const restartBattle = (newPlayerId?: string) => {
     const nextPlayerId = newPlayerId || playerId;
@@ -349,11 +404,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPlayerId(nextPlayerId);
     }
     const nextState = battleEngine.restart(nextPlayerId);
-    setBattleState(nextState);
+    setBattleState({ ...nextState });
   };
 
-  const submitCombo = (word1Id: string, word2Id: string | null) => {
-    const nextState = battleEngine.submitCombo(word1Id, word2Id);
+  const submitCombo = (
+    word1Id: string,
+    word2Id: string | null = null,
+    word3Id: string | null = null,
+    word4Id: string | null = null
+  ) => {
+    const nextState = battleEngine.submitCombo(word1Id, word2Id, word3Id, word4Id);
     setBattleState({ ...nextState });
 
     if (nextState.events.some((event) => event.type === 'DAMAGE' && event.amount)) {
@@ -381,9 +441,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const commitCreature = (creature: Creature) => {
     setCreatures((prev) => addForgedCreature(prev, creature));
+    setGameState((prev) => ({
+      ...prev,
+      unlockedPetIds: Array.from(new Set([...prev.unlockedPetIds, creature.id])),
+    }));
   };
 
   const goToBattle = () => {
+    restartBattle(playerId);
     setTab('battle');
   };
 
@@ -403,9 +468,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       })
     );
+    // Sync active battle player loadout in-place without resetting HP
+    setBattleState((prev) => {
+      if (prev.player.id !== petId) return prev;
+      const currentLoadout = prev.player.loadout
+        ? { ...prev.player.loadout }
+        : { verb: null, noun: null, adjective: null, adverb: null };
+      currentLoadout[slot] = wordId;
+      return {
+        ...prev,
+        player: {
+          ...prev.player,
+          loadout: currentLoadout,
+        },
+      };
+    });
   };
 
-  const autoEquipBestLoadout = (petId: string) => {
+  const autoEquipBestLoadout = (petId: string, preferredTier: GradeTier | 'all' = 'all') => {
     const pet = creatures.find((c) => c.id === petId);
     if (!pet) return;
 
@@ -416,7 +496,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newLoadout: PetLoadout = pet.loadout ? { ...pet.loadout } : { verb: null, noun: null, adjective: null, adverb: null };
 
     slots.forEach((slot) => {
-      const candidates = allWordsList.filter((w) => w.partOfSpeech === slot);
+      let candidates = allWordsList.filter((w) => w.partOfSpeech === slot);
+      if (preferredTier !== 'all') {
+        const tierFiltered = candidates.filter((w) => (w.gradeTier || '3') === preferredTier);
+        if (tierFiltered.length > 0) candidates = tierFiltered;
+      }
       candidates.sort((a, b) => {
         const aAffinity = a.element === petAffinity ? 1 : 0;
         const bAffinity = b.element === petAffinity ? 1 : 0;

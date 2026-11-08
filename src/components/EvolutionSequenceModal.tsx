@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Star, Zap, Swords, Shield, Heart, Trophy, Check, ArrowRight } from 'lucide-react';
-import { Creature, EvolutionStage } from '../types';
+import React, { useState } from 'react';
+import { Sparkles, Zap, Swords, Shield, Heart, Check, ArrowRight } from 'lucide-react';
+import { Creature } from '../types';
 import { getCurrentStage, getNextEvolutionStage, applyEvolution } from '../data/evolutionData';
 import { juice } from '../engine/juice';
+import { CreatureSprite } from './CreatureSprite';
 
 interface EvolutionSequenceModalProps {
   creature: Creature;
@@ -18,7 +19,7 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
   onClose,
 }) => {
   const [step, setStep] = useState<SequenceStep>('ready');
-  const [flickerEmoji, setFlickerEmoji] = useState<string>(creature.spriteEmoji || '🦊');
+  const [flickerStage, setFlickerStage] = useState<number>(creature.stage || 1);
   const [isWhiteout, setIsWhiteout] = useState(false);
 
   const currentStage = getCurrentStage(creature);
@@ -49,21 +50,18 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
     setStep('charging');
     juice.ding(500, 150);
 
-    // After 1.4s of charging, enter the flashing metamorphosis
     setTimeout(() => {
       setStep('metamorphosis');
       let count = 0;
-      const maxFlickers = 18;
+      const maxFlickers = 16;
       const interval = setInterval(() => {
         count++;
-        // Rapidly alternate emojis
         const isNext = count % 2 === 1;
-        setFlickerEmoji(isNext ? (nextStage?.spriteEmoji || '🦁') : (currentStage.spriteEmoji || '🦊'));
+        setFlickerStage(isNext ? (nextStage?.stage || 2) : currentStage.stage);
         playTone(550 + count * 25, 0.08, 'sawtooth');
 
         if (count >= maxFlickers) {
           clearInterval(interval);
-          // Dramatic whiteout flash
           setIsWhiteout(true);
           juice.fanfare();
           setTimeout(() => {
@@ -85,16 +83,11 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overflow-hidden select-none">
-      
-      {/* Dramatic Whiteout Flash during Metamorphosis peak */}
       {isWhiteout && (
         <div className="fixed inset-0 z-60 bg-white transition-opacity duration-300 pointer-events-none" />
       )}
 
-      {/* Main Evolution Stage Container */}
-      <div className="relative w-full max-w-xl rounded-3xl border-4 border-[#ffce7a] bg-gradient-to-b from-[#1e1b4b] via-[#0f172a] to-[#020617] p-6 sm:p-8 text-center text-white shadow-[0_0_50px_rgba(251,191,36,0.4)] space-y-6 overflow-hidden">
-        
-        {/* Animated Background Magic Aura & Starry Nebula */}
+      <div className="relative w-full max-w-xl rounded-3xl border-4 border-[#ffce7a] bg-gradient-to-b from-[#3d1e0d] via-[#271206] to-[#140903] p-6 sm:p-8 text-center text-white shadow-[0_0_50px_rgba(251,191,36,0.45)] space-y-6 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 opacity-40">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-500 blur-3xl animate-spin-slow" />
         </div>
@@ -103,43 +96,36 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
         {step === 'ready' && (
           <div className="relative z-10 space-y-5">
             <div className="space-y-1">
-              <span className="rounded-full border-2 border-amber-400 bg-amber-400/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-300 inline-block">
+              <span className="rounded-xl border-2 border-amber-400 bg-amber-400/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-300 inline-block">
                 ✨ Evolution Threshold Reached!
               </span>
               <h2 className="font-serif text-2xl sm:text-3xl font-black text-amber-200">
                 What? {creature.name} is Ready to Evolve!
               </h2>
-              <p className="text-xs sm:text-sm font-bold text-slate-300">
+              <p className="text-xs sm:text-sm font-bold text-amber-100/80">
                 {creature.name} has reached <strong>Level {creature.level || 10}</strong>. Channel your vocabulary power to trigger metamorphosis!
               </p>
             </div>
 
-            {/* Side-by-side Evolution Preview Cards */}
             <div className="flex items-center justify-center gap-3 sm:gap-6 py-2">
-              
-              {/* Current Pet */}
-              <div className="flex flex-col items-center rounded-2xl border-2 border-slate-700 bg-slate-900/80 p-4 w-36 shadow-lg">
-                <span className="text-5xl sm:text-6xl drop-shadow">{currentStage.spriteEmoji}</span>
-                <span className="font-serif text-sm font-black text-slate-200 mt-2">{currentStage.name}</span>
-                <span className="text-[10px] font-bold text-slate-400">Stage {currentStage.stage}</span>
+              <div className="flex flex-col items-center rounded-2xl border-2 border-amber-700/70 bg-black/40 p-3 w-40 shadow-lg">
+                <CreatureSprite creatureId={creature.id} stage={currentStage.stage} element={creature.element} size="md" />
+                <span className="font-serif text-sm font-black text-amber-100 mt-1">{currentStage.name}</span>
+                <span className="text-[10px] font-bold text-amber-300/70">Stage {currentStage.stage}</span>
               </div>
 
-              {/* Arrow */}
               <div className="flex flex-col items-center text-amber-400 animate-pulse">
                 <ArrowRight className="h-8 w-8" />
                 <span className="text-[9px] font-black uppercase tracking-wider">Evolve</span>
               </div>
 
-              {/* Next Evolved Form */}
-              <div className="flex flex-col items-center rounded-2xl border-3 border-amber-400 bg-amber-950/60 p-4 w-36 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-300/40">
-                <span className="text-5xl sm:text-6xl drop-shadow animate-bounce">{nextStage.spriteEmoji}</span>
-                <span className="font-serif text-sm font-black text-amber-300 mt-2">{nextStage.name}</span>
+              <div className="flex flex-col items-center rounded-2xl border-3 border-amber-400 bg-amber-950/60 p-3 w-40 shadow-[0_0_20px_rgba(245,158,11,0.3)] ring-2 ring-amber-300/40">
+                <CreatureSprite creatureId={creature.id} stage={nextStage.stage} element={creature.element} size="md" />
+                <span className="font-serif text-sm font-black text-amber-300 mt-1">{nextStage.name}</span>
                 <span className="text-[10px] font-bold text-amber-400">Stage {nextStage.stage}</span>
               </div>
-
             </div>
 
-            {/* Projected Stat Boost Preview */}
             <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-900/30 p-3.5 text-xs text-amber-200">
               <span className="font-black uppercase tracking-wider text-amber-300 block mb-1">
                 ⚡ Metamorphic Stat Upgrades:
@@ -160,12 +146,11 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-2xl border-2 border-slate-600 bg-slate-800 hover:bg-slate-700 px-5 py-3 text-xs font-black uppercase text-slate-300 transition cursor-pointer"
+                className="rounded-2xl border-2 border-amber-700 bg-amber-950 hover:bg-amber-900 px-5 py-3 text-xs font-black uppercase text-amber-200 transition cursor-pointer"
               >
                 Not Yet
               </button>
@@ -173,9 +158,9 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
               <button
                 type="button"
                 onClick={handleStartEvolution}
-                className="group flex items-center justify-center gap-2 rounded-2xl border-3 border-amber-400 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 px-8 py-3.5 text-sm sm:text-base font-black uppercase tracking-wider text-slate-950 shadow-[0_5px_0_#b45309] hover:scale-103 hover:brightness-110 active:translate-y-1 transition cursor-pointer"
+                className="group flex items-center justify-center gap-2 rounded-2xl border-3 border-amber-300 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 px-8 py-3.5 text-sm sm:text-base font-black uppercase tracking-wider text-amber-950 shadow-[0_5px_0_#92400e] hover:brightness-110 active:translate-y-1 transition cursor-pointer"
               >
-                <Sparkles className="h-5 w-5 text-slate-950 group-hover:rotate-45 transition-transform" />
+                <Sparkles className="h-5 w-5 text-amber-950 group-hover:rotate-45 transition-transform" />
                 <span>Begin Evolution!</span>
               </button>
             </div>
@@ -188,16 +173,11 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
             <h3 className="font-serif text-2xl font-black text-amber-300 animate-pulse">
               Channeling Linguistic Energy...
             </h3>
-
-            {/* Pulsating Summoning Circle */}
             <div className="relative mx-auto flex h-48 w-48 items-center justify-center">
               <div className="absolute inset-0 rounded-full border-4 border-dashed border-amber-400 animate-spin-slow opacity-80" />
               <div className="absolute inset-2 rounded-full border-2 border-rose-400 animate-ping opacity-40" />
-              <span className="text-7xl sm:text-8xl drop-shadow animate-pulse scale-110 transition-transform">
-                {currentStage.spriteEmoji}
-              </span>
+              <CreatureSprite creatureId={creature.id} stage={currentStage.stage} element={creature.element} size="lg" />
             </div>
-
             <p className="font-mono text-xs font-bold text-amber-200">
               Grammatical particles swirling around {creature.name}...
             </p>
@@ -210,16 +190,11 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
             <h3 className="font-serif text-3xl font-black text-amber-300 tracking-wider">
               METAMORPHOSIS!
             </h3>
-
-            {/* Rapidly flashing silhouette / sprite */}
             <div className="relative mx-auto flex h-52 w-52 items-center justify-center">
               <div className="absolute inset-0 rounded-full bg-amber-400/40 blur-2xl animate-pulse" />
               <div className="absolute inset-0 rounded-full border-4 border-amber-300 animate-spin" />
-              <span className="text-8xl sm:text-9xl drop-shadow transform scale-125 transition-all duration-75">
-                {flickerEmoji}
-              </span>
+              <CreatureSprite creatureId={creature.id} stage={flickerStage} element={creature.element} size="xl" />
             </div>
-
             <p className="font-mono text-sm font-black text-amber-400 uppercase tracking-widest animate-pulse">
               ⚡ Transforming Form &amp; Synergies ⚡
             </p>
@@ -229,9 +204,8 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
         {/* STEP 4: TRIUMPHANT REVEAL & STAT UPGRADES */}
         {step === 'reveal' && (
           <div className="relative z-10 space-y-5 animate-in fade-in zoom-in-95 duration-500">
-            
             <div className="space-y-1">
-              <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-black uppercase tracking-wider text-slate-950 inline-block shadow">
+              <span className="rounded-xl bg-emerald-500 px-3 py-1 text-xs font-black uppercase tracking-wider text-slate-950 inline-block shadow">
                 🎉 Evolution Complete!
               </span>
               <h2 className="font-serif text-2xl sm:text-4xl font-black text-amber-300">
@@ -242,16 +216,11 @@ export const EvolutionSequenceModal: React.FC<EvolutionSequenceModalProps> = ({
               </span>
             </div>
 
-            {/* Big Triumphant Sprite Stage */}
-            <div className="relative mx-auto flex h-40 w-40 sm:h-44 sm:w-44 items-center justify-center">
+            <div className="relative mx-auto flex h-44 w-44 items-center justify-center">
               <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-xl animate-pulse" />
-              <div className="absolute bottom-2 h-8 w-32 rounded-full bg-amber-500/30 border-2 border-amber-400/60" />
-              <span className="relative z-10 text-7xl sm:text-8xl drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] animate-bounce select-none">
-                {nextStage.spriteEmoji}
-              </span>
+              <CreatureSprite creatureId={creature.id} stage={nextStage.stage} element={creature.element} size="xl" />
             </div>
 
-            {/* Description & Lore */}
             <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-950/40 p-3 text-xs sm:text-sm font-bold text-amber-100">
               <p className="italic leading-relaxed">"{nextStage.description}"</p>
             </div>

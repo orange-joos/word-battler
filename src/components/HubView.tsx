@@ -7,17 +7,10 @@ interface HubViewProps {
   initialPanel?: 'shop' | 'hatchery' | null;
 }
 
-export const HubView: React.FC<HubViewProps> = ({ onOpenGuide, initialPanel = null }) => {
-  const { tab, setTab, startBattleInZone } = useGame();
-
+export const HubView: React.FC<HubViewProps> = ({ initialPanel }) => {
   return (
     <div className="relative h-full min-h-screen w-full overflow-hidden">
-      <OverworldMap
-        onSelectZone={(zId) => startBattleInZone(zId)}
-        onOpenGuide={onOpenGuide}
-        initialPanel={initialPanel}
-        activeTab={tab}
-      />
+      <OverworldMap initialPanel={initialPanel} />
     </div>
   );
 };

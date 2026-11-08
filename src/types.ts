@@ -7,7 +7,11 @@ export type ElementType =
   | 'shadow'
   | 'light'
   | 'earth'
-  | 'air';
+  | 'air'
+  | 'nature'
+  | 'cosmic';
+
+export type GradeTier = 'K' | '1' | '2' | '3' | '4' | '5' | 'extender';
 
 export type PartOfSpeech = 'adjective' | 'noun' | 'verb' | 'adverb';
 
@@ -69,6 +73,8 @@ export interface Word {
   powerBonus?: number;
   fusionDepth?: number;
   forge?: ForgeMetadata;
+  gradeTier?: GradeTier;
+  morphologyNote?: string;
 }
 
 export interface CreatureStats {
@@ -161,6 +167,9 @@ export interface ComboEvaluation {
   phrase: string;
   word1: Word | null;
   word2?: Word | null;
+  word3?: Word | null;
+  word4?: Word | null;
+  isUltimateSentence?: boolean;
   power: number;
   shieldGain: number;
   effectName: string;

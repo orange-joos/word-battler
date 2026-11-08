@@ -3,7 +3,6 @@ import { GameProvider, useGame } from './context/GameContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TitleScreen } from './components/TitleScreen';
 import { CharacterCreator } from './components/CharacterCreator';
-import { Header } from './components/Header';
 import { BattleView } from './components/BattleView';
 import { WordForgeView } from './components/WordForgeView';
 import { LoadoutView } from './components/LoadoutView';
@@ -77,10 +76,8 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-amber-50 text-slate-800 flex flex-col font-sans">
-      <Header onOpenGuide={() => setIsGuideOpen(true)} />
-
-      <div className="flex-1">
+    <div className="w-screen h-screen overflow-hidden bg-[#2a170b] text-slate-800 flex flex-col font-sans select-none">
+      <div className="flex-1 overflow-hidden">
         {tab === 'battle' ? (
           <BattleView />
         ) : tab === 'loadout' ? (
@@ -89,10 +86,6 @@ const AppContent: React.FC = () => {
           <WordForgeView />
         )}
       </div>
-
-      <footer className="border-t-4 border-[#793d35] bg-[#aa5544] py-4 text-center text-xs text-orange-50">
-        Word Battler · Educational Vocabulary &amp; English Morphology Combat System
-      </footer>
 
       <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 

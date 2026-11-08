@@ -1,4 +1,19 @@
-import type { Creature, CatalogWords, Affix } from '../types';
+import type { Creature, CatalogWords, Affix, ElementType } from '../types';
+import { buildMergedVocabularyCatalog } from './vocabDatabase';
+
+const ALL_ELEMENTS: ElementType[] = [
+  'fire',
+  'water',
+  'ice',
+  'grass',
+  'electric',
+  'shadow',
+  'light',
+  'earth',
+  'air',
+  'nature',
+  'cosmic',
+];
 
 export const INITIAL_CREATURES: Creature[] = [
   {
@@ -19,15 +34,15 @@ export const INITIAL_CREATURES: Creature[] = [
       adjective: "blazing",
       adverb: "fiercely"
     },
-    description: "A nimble fox whose fur holds live embers. It attacks with heat adjectives, flame nouns, and fiery strikes.",
+    description: "A nimble fox whose fur holds live embers. Gains bonus Elemental Synergy when casting Fire words!",
     stats: {
-      hp: 42,
+      hp: 46,
       attack: 14,
-      defense: 8,
+      defense: 9,
       speed: 12
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["fire"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "rimepup",
@@ -47,15 +62,15 @@ export const INITIAL_CREATURES: Creature[] = [
       adjective: "frozen",
       adverb: "coldly"
     },
-    description: "A frost-coated pup that breathes pale mist. Chills opponents with cold adjectives and ice nouns. (Ready to Evolve!)",
+    description: "A frost-coated pup that breathes pale mist. Chills opponents with icy adjectives and crystalline nouns. (Ready to Evolve!)",
     stats: {
-      hp: 46,
-      attack: 10,
+      hp: 50,
+      attack: 11,
       defense: 13,
-      speed: 9
+      speed: 10
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["ice"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "verdantsprout",
@@ -75,15 +90,127 @@ export const INITIAL_CREATURES: Creature[] = [
       adjective: "ancient",
       adverb: "steadily"
     },
-    description: "A playful kitten woven with flourishing vine roots. Channels botanical adjectives and growth.",
+    description: "A playful lynx woven with flourishing vine roots. Channels botanical adjectives and steady growth.",
     stats: {
-      hp: 44,
+      hp: 48,
       attack: 12,
-      defense: 10,
+      defense: 11,
       speed: 11
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["grass"]
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "voltowl",
+    name: "Voltowl",
+    element: "electric",
+    elementAffinity: "electric",
+    level: 9,
+    exp: 140,
+    maxExp: 170,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🦉⚡",
+    title: "Stormfeather Owlet",
+    loadout: {
+      verb: "spark",
+      noun: "charge",
+      adjective: "charged",
+      adverb: "rapidly"
+    },
+    description: "A wise storm-feathered owlet hatched in the Treetop Canopy. Strikes with high-voltage verbs and lightning adverbs.",
+    stats: {
+      hp: 44,
+      attack: 14,
+      defense: 10,
+      speed: 15
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "terraturtle",
+    name: "Terraturtle",
+    element: "earth",
+    elementAffinity: "earth",
+    level: 9,
+    exp: 135,
+    maxExp: 170,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🐢🪨",
+    title: "Crystal-Shell Tortoise",
+    loadout: {
+      verb: "fortify",
+      noun: "boulder",
+      adjective: "sturdy",
+      adverb: "heavily"
+    },
+    description: "An ancient tortoise carrying emerald crystals and mountain stone on its shell. Excels at impenetrable noun shields.",
+    stats: {
+      hp: 56,
+      attack: 11,
+      defense: 16,
+      speed: 8
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "zephyrkit",
+    name: "Zephyrkit",
+    element: "air",
+    elementAffinity: "air",
+    level: 9,
+    exp: 145,
+    maxExp: 170,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🦊🌬️",
+    title: "Cloud-Runner Kit",
+    loadout: {
+      verb: "soar",
+      noun: "breeze",
+      adjective: "buoyant",
+      adverb: "gracefully"
+    },
+    description: "A sky-dancing cloud kit with feathered ears that rides gentle updrafts between the floating islands.",
+    stats: {
+      hp: 45,
+      attack: 12,
+      defense: 10,
+      speed: 16
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "glimmerfae",
+    name: "Glimmerfae",
+    element: "light",
+    elementAffinity: "light",
+    level: 10,
+    exp: 180,
+    maxExp: 180,
+    stage: 1,
+    evolvesAtLevel: 10,
+    spriteEmoji: "🦋✨",
+    title: "Starlight Sprite",
+    loadout: {
+      verb: "illuminate",
+      noun: "glow",
+      adjective: "radiant",
+      adverb: "brightly"
+    },
+    description: "A radiant celestial sprite born from Celestia's fountain. Channels luminous academic vocabulary! (Ready to Evolve!)",
+    stats: {
+      hp: 47,
+      attack: 15,
+      defense: 11,
+      speed: 14
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "boss_ruptor",
@@ -98,13 +225,13 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     description: "Guardian of Root Village. An ancient mossy stone beast that channels Greek and Latin root monoliths.",
     stats: {
-      hp: 40,
+      hp: 42,
       attack: 10,
       defense: 9,
       speed: 8
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["earth", "fire"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "boss_dishornet",
@@ -119,13 +246,13 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     description: "Terror of Prefix Path. A frost-coated winged colony that reverses meanings with rapid prefix stings.",
     stats: {
-      hp: 46,
+      hp: 48,
       attack: 12,
       defense: 10,
       speed: 12
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["ice"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "boss_galecrest",
@@ -140,13 +267,13 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     description: "High-Altitude Suffix Sovereign. Shifts grammatical forms between noun and adjective mid-flight.",
     stats: {
-      hp: 52,
+      hp: 54,
       attack: 13,
       defense: 12,
       speed: 11
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["grass", "ice"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "boss_pyrostorm",
@@ -161,13 +288,13 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     description: "Apex champion of the Compound Colosseum. Formed from fused magma and storm nouns with double power.",
     stats: {
-      hp: 58,
+      hp: 60,
       attack: 15,
       defense: 12,
       speed: 13
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["fire"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "boss_sovereign",
@@ -182,65 +309,173 @@ export const INITIAL_CREATURES: Creature[] = [
     },
     description: "Grand Arbiter of Grammar at the peak of Syntax Spire. Commands the entire 4x4 Action Matrix.",
     stats: {
-      hp: 68,
+      hp: 70,
       attack: 17,
       defense: 15,
       speed: 15
     },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["fire", "water", "ice", "grass", "electric", "shadow", "light", "earth", "air"]
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "boss_leviathan",
+    name: "Tidal Leviathan",
+    element: "water",
+    elementAffinity: "water",
+    loadout: {
+      verb: "surge",
+      noun: "tide",
+      adjective: "rushing",
+      adverb: "smoothly"
+    },
+    description: "Guardian of the Azure Water Lagoon. Summons tidal shields and cascading verb waves.",
+    stats: {
+      hp: 46,
+      attack: 11,
+      defense: 12,
+      speed: 10
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "boss_zephyrlord",
+    name: "Tempest Griffin",
+    element: "air",
+    elementAffinity: "air",
+    loadout: {
+      verb: "soar",
+      noun: "gale",
+      adjective: "swift",
+      adverb: "rapidly"
+    },
+    description: "Sovereign of the Tempest Sky Spire. Rides high-velocity adverbial updrafts.",
+    stats: {
+      hp: 52,
+      attack: 14,
+      defense: 11,
+      speed: 16
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "boss_voltarchon",
+    name: "Volt-Rune Dynamo",
+    element: "electric",
+    elementAffinity: "electric",
+    loadout: {
+      verb: "spark",
+      noun: "bolt",
+      adjective: "charged",
+      adverb: "fiercely"
+    },
+    description: "Sentinel of the Storm Citadel. Channels supercharged suffixes and high-voltage roots.",
+    stats: {
+      hp: 56,
+      attack: 15,
+      defense: 12,
+      speed: 15
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
+  },
+  {
+    id: "boss_umbralord",
+    name: "Umbra Golem Monarch",
+    element: "shadow",
+    elementAffinity: "shadow",
+    loadout: {
+      verb: "vanish",
+      noun: "shadow",
+      adjective: "mysterious",
+      adverb: "silently"
+    },
+    description: "Ancient keeper of Shadowcrypt Golem Ruins. Tests scholars with cryptic prefixes and extender roots.",
+    stats: {
+      hp: 64,
+      attack: 16,
+      defense: 14,
+      speed: 13
+    },
+    allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "aquafin",
     name: "Aquafin",
     element: "water",
     elementAffinity: "water",
+    level: 8,
+    exp: 110,
+    maxExp: 160,
+    stage: 1,
+    evolvesAtLevel: 10,
     spriteEmoji: "🐬",
+    title: "Tidecrest Dolphin",
     loadout: { verb: "splash", noun: "current", adjective: "flowing", adverb: "swiftly" },
     description: "A playful river companion that rides curling waves and guards its friends.",
     stats: { hp: 48, attack: 11, defense: 13, speed: 11 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["water"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "voltwing",
     name: "Voltwing",
     element: "electric",
     elementAffinity: "electric",
+    level: 8,
+    exp: 110,
+    maxExp: 160,
+    stage: 1,
+    evolvesAtLevel: 10,
     spriteEmoji: "🐝",
+    title: "Sparkwing Stinger",
     loadout: { verb: "spark", noun: "charge", adjective: "charged", adverb: "rapidly" },
     description: "A nimble winged companion that crackles with lively electric energy.",
-    stats: { hp: 42, attack: 12, defense: 9, speed: 15 },
+    stats: { hp: 44, attack: 13, defense: 9, speed: 15 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["electric"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "dusklynx",
     name: "Dusklynx",
     element: "shadow",
     elementAffinity: "shadow",
+    level: 8,
+    exp: 110,
+    maxExp: 160,
+    stage: 1,
+    evolvesAtLevel: 10,
     spriteEmoji: "🐈‍⬛",
+    title: "Twilight Prowler",
     loadout: { verb: "cloak", noun: "shade", adjective: "hidden", adverb: "quietly" },
     description: "A gentle dusk prowler that slips through shadows to protect its team.",
-    stats: { hp: 44, attack: 14, defense: 10, speed: 13 },
+    stats: { hp: 45, attack: 14, defense: 10, speed: 13 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["shadow"]
+    allowedElements: ALL_ELEMENTS
   },
   {
     id: "zephyrfinch",
     name: "Zephyrfinch",
     element: "air",
     elementAffinity: "air",
+    level: 8,
+    exp: 110,
+    maxExp: 160,
+    stage: 1,
+    evolvesAtLevel: 10,
     spriteEmoji: "🪶",
+    title: "Skysong Finch",
     loadout: { verb: "soar", noun: "breeze", adjective: "buoyant", adverb: "lightly" },
     description: "A bright-feathered companion that rides gentle updrafts and darts between the clouds.",
-    stats: { hp: 43, attack: 11, defense: 10, speed: 15 },
+    stats: { hp: 44, attack: 12, defense: 10, speed: 15 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
-    allowedElements: ["air"]
+    allowedElements: ALL_ELEMENTS
   }
 ];
 
-export const INITIAL_WORDS: CatalogWords = {
+const BASE_INITIAL_WORDS: CatalogWords = {
   adjectives: [
     {
       id: "blazing",
@@ -656,6 +891,8 @@ export const INITIAL_WORDS: CatalogWords = {
   ]
 };
 
+export const INITIAL_WORDS: CatalogWords = buildMergedVocabularyCatalog(BASE_INITIAL_WORDS);
+
 export const INITIAL_AFFIXES: Affix[] = [
   {
     id: "un",
@@ -669,6 +906,28 @@ export const INITIAL_AFFIXES: Affix[] = [
     respell: []
   },
   {
+    id: "re",
+    text: "re",
+    type: "prefix",
+    from: ["verb"],
+    to: "verb",
+    gloss: "again; anew",
+    definition: "to {base} again with double energy",
+    elementEffect: "keep",
+    respell: []
+  },
+  {
+    id: "super",
+    text: "super",
+    type: "prefix",
+    from: ["adjective", "noun", "verb"],
+    to: "adjective",
+    gloss: "above; beyond ordinary",
+    definition: "extraordinarily {base}",
+    elementEffect: "keep",
+    respell: []
+  },
+  {
     id: "less",
     text: "less",
     type: "suffix",
@@ -677,6 +936,17 @@ export const INITIAL_AFFIXES: Affix[] = [
     gloss: "without",
     definition: "without {base}",
     elementEffect: "invert",
+    respell: []
+  },
+  {
+    id: "ful",
+    text: "ful",
+    type: "suffix",
+    from: ["noun"],
+    to: "adjective",
+    gloss: "full of; rich in",
+    definition: "full of {base}",
+    elementEffect: "keep",
     respell: []
   },
   {
@@ -711,10 +981,27 @@ export const INITIAL_AFFIXES: Affix[] = [
     definition: "a small {base}",
     elementEffect: "keep",
     respell: ["dropSilentE"]
+  },
+  {
+    id: "ly",
+    text: "ly",
+    type: "suffix",
+    from: ["adjective"],
+    to: "adverb",
+    gloss: "in a manner that is",
+    definition: "in a {base} manner",
+    elementEffect: "keep",
+    respell: ["yToI"]
   }
 ];
 
 export const INITIAL_CREATURE_MORPHEMES: Record<string, { modifier: string; head: string }> = {
   emberfox: { modifier: "ember", head: "fox" },
   rimepup: { modifier: "rime", head: "pup" },
+  verdantsprout: { modifier: "verdant", head: "sprout" },
+  voltowl: { modifier: "volt", head: "owl" },
+  terraturtle: { modifier: "terra", head: "turtle" },
+  zephyrkit: { modifier: "zephyr", head: "kit" },
+  glimmerfae: { modifier: "glimmer", head: "fae" },
 };
+

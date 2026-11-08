@@ -50,6 +50,14 @@ class JuiceFX {
     }
   }
 
+  public speakWord(text: string) {
+    this.speak(text);
+  }
+
+  public click() {
+    this.ding(580, 60);
+  }
+
   /**
    * Sound FX: Success / Combo / Selection Ding
    */

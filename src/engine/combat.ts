@@ -167,9 +167,11 @@ function comboShape(word1: Word, word2: Word | null): {
 export function evaluateCombo(
   attacker: Creature,
   word1: Word | null,
-  word2: Word | null
+  word2: Word | null = null,
+  word3: Word | null = null,
+  word4: Word | null = null
 ): ComboEvaluation {
-  const emptyWord = word1 || word2;
+  const emptyWord = word1 || word2 || word3 || word4;
   const fallbackCategory = emptyWord ? intrinsicCategory(emptyWord) || 'ATTACK' : 'ATTACK';
   if (!word1) {
     return {
@@ -178,11 +180,57 @@ export function evaluateCombo(
       phrase: '—',
       word1: null,
       word2,
+      word3,
+      word4,
       power: 0,
       shieldGain: 0,
       effectName: 'Unassigned',
-      tacticalOutcome: 'Choose a word card to begin.',
+      tacticalOutcome: 'Choose a word card or weave a sentence to begin.',
       reasons: ['Choose a word card to begin.'],
+    };
+  }
+
+  // 4-CARD ULTIMATE SENTENCE WEAVE: [Adjective] + [Noun] + [Verb] + [Adverb]
+  if (word1 && word2 && word3 && word4) {
+    const isStandardOrder =
+      word1.partOfSpeech === 'adjective' &&
+      word2.partOfSpeech === 'noun' &&
+      word3.partOfSpeech === 'verb' &&
+      word4.partOfSpeech === 'adverb';
+
+    const adj = [word1, word2, word3, word4].find((w) => w.partOfSpeech === 'adjective') || word1;
+    const noun = [word1, word2, word3, word4].find((w) => w.partOfSpeech === 'noun') || word2;
+    const verb = [word1, word2, word3, word4].find((w) => w.partOfSpeech === 'verb') || word3;
+    const adv = [word1, word2, word3, word4].find((w) => w.partOfSpeech === 'adverb') || word4;
+
+    const affinity = attacker.elementAffinity || attacker.element;
+    let synergy = 6; // Base Ultimate Sentence Bonus
+    for (const w of [adj, noun, verb, adv]) {
+      if (w.element === affinity) synergy += 3;
+      synergy += w.powerBonus ?? w.forge?.powerBonus ?? 0;
+    }
+
+    const phrase = `The ${adj.word} ${noun.word} ${verb.word}s ${adv.word}!`;
+    const power = BASE_POWER + 12 + synergy;
+    const shieldGain = Math.round(10 + attacker.stats.defense * 0.8 + (noun.powerBonus ?? 2));
+
+    return {
+      valid: true,
+      category: 'ATTACK',
+      phrase,
+      word1: adj,
+      word2: noun,
+      word3: verb,
+      word4: adv,
+      isUltimateSentence: true,
+      power,
+      shieldGain,
+      effectName: isStandardOrder ? 'Syntax Surge Ultimate' : 'Full Sentence Strike',
+      tacticalOutcome:
+        'Unleashes a 4-part grammatical sentence: deals massive Strike damage, raises a Fortification Shield, and surges Attack!',
+      reasons: [
+        `${attacker.name} weaves a complete sentence: “${phrase}” (+${power} Power & +${shieldGain} Shield!)`,
+      ],
     };
   }
 
@@ -192,17 +240,6 @@ export function evaluateCombo(
   const reasons: string[] = [];
 
   if (shape.error) reasons.push(shape.error);
-
-  const allowedElements = new Set(attacker.allowedElements?.length
-    ? attacker.allowedElements
-    : [attacker.elementAffinity || attacker.element]);
-  for (const word of [word1, word2].filter((entry): entry is Word => Boolean(entry))) {
-    if (!allowedElements.has(word.element)) {
-      reasons.push(
-        `"${word.word}" is ${word.element}, but ${attacker.name} can currently channel ${[...allowedElements].join(' or ')}.`
-      );
-    }
-  }
 
   const valid = !shape.error && reasons.length === 0;
   const effectInfo = getMatrixEffectInfo(category, shape.head.partOfSpeech);
@@ -224,7 +261,7 @@ export function evaluateCombo(
         adverb: 4,
       };
       power = BASE_POWER + baseByPartOfSpeech[shape.head.partOfSpeech] + synergy;
-      if (shape.modifier?.partOfSpeech === 'adverb') power += 2;
+      if (shape.modifier?.partOfSpeech === 'adverb') power += 3;
       if (shape.modifier?.partOfSpeech === 'adjective') power += 2;
     } else if (category === 'DEFEND' && shape.head.partOfSpeech === 'noun') {
       shieldGain = 14 + attacker.stats.defense + synergy;
@@ -486,6 +523,38 @@ export function createBattle(options: {
     combo: ComboEvaluation,
     phase: BattlePhase
   ): { damage: number; shieldGain: number } {
+    if (combo.isUltimateSentence && combo.word1 && combo.word2 && combo.word3 && combo.word4) {
+      const verbWord = combo.word3;
+      const advWord = combo.word4;
+      const strikeResult = damageTarget(attacker, defender, verbWord, combo, advWord, phase);
+      const shieldGain = combo.shieldGain;
+      attacker.shield = (attacker.shield ?? 0) + shieldGain;
+      emit(
+        'SHIELD',
+        attacker,
+        attacker,
+        `Syntax Surge! ${attacker.name} gained ${shieldGain} grammar shield!`,
+        { amount: shieldGain, category: 'DEFEND' },
+        phase
+      );
+      applyStatus(
+        attacker,
+        attacker,
+        {
+          id: '',
+          name: 'Attribute Surge',
+          type: 'buff',
+          duration: 3,
+          stat: 'attack',
+          amount: 4,
+          description: 'is surging with +4 Attack from weaving a full sentence!',
+        },
+        phase,
+        'BUFF'
+      );
+      return { damage: strikeResult.damage, shieldGain };
+    }
+
     const head = combo.word2 || combo.word1;
     if (!head) return { damage: 0, shieldGain: 0 };
     const modifier = combo.word2 ? combo.word1 : null;
@@ -602,19 +671,26 @@ export function createBattle(options: {
     emit(winner.id === state.player.id ? 'VICTORY' : 'DEFEAT', winner, undefined, `${winner.name} wins the battle.`, { winnerId: winner.id }, phase);
   }
 
-  function submitCombo(word1Id: string, word2Id: string | null): BattleState {
+  function submitCombo(
+    word1Id: string,
+    word2Id: string | null = null,
+    word3Id: string | null = null,
+    word4Id: string | null = null
+  ): BattleState {
     state.events = [];
     state.lastEnemyResolution = null;
     const allWords = getAllWordsList(options.words);
     const word1 = allWords.find((word) => word.id === word1Id) || null;
     const word2 = word2Id ? allWords.find((word) => word.id === word2Id) || null : null;
+    const word3 = word3Id ? allWords.find((word) => word.id === word3Id) || null : null;
+    const word4 = word4Id ? allWords.find((word) => word.id === word4Id) || null : null;
     if (!word1 || (word2Id && !word2)) {
       emit('FIZZLE', state.player, undefined, 'That word card is no longer available. Choose another word.', { reason: 'Unknown word card.' });
       return { ...state };
     }
 
     tickStatuses(state.player, PHASES.PLAYER_TURN);
-    const combo = evaluateCombo(state.player, word1, word2);
+    const combo = evaluateCombo(state.player, word1, word2, word3, word4);
     state.lastPlayerResolution = null;
     if (!combo.valid) {
       emit('FIZZLE', state.player, undefined, `Try again: ${combo.reasons[0]}`, {
