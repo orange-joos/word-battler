@@ -21,18 +21,16 @@ const SIZE_MAP = {
   xl: 'w-44 h-44',
 };
 
-const ELEMENT_AURA: Record<string, { primary: string; secondary: string; glow: string }> = {
+const ELEMENT_AURA: Record<ElementType, { primary: string; secondary: string; glow: string }> = {
   fire: { primary: '#ff5722', secondary: '#ffca28', glow: 'rgba(255, 87, 34, 0.45)' },
   ice: { primary: '#00bcd4', secondary: '#b2ebf2', glow: 'rgba(0, 188, 212, 0.45)' },
   water: { primary: '#2196f3', secondary: '#90caf9', glow: 'rgba(33, 150, 243, 0.45)' },
   grass: { primary: '#4caf50', secondary: '#c8e6c9', glow: 'rgba(76, 175, 80, 0.45)' },
-  nature: { primary: '#4caf50', secondary: '#c8e6c9', glow: 'rgba(76, 175, 80, 0.45)' },
   electric: { primary: '#ffc107', secondary: '#fff59d', glow: 'rgba(255, 193, 7, 0.5)' },
   earth: { primary: '#8d6e63', secondary: '#d7ccc8', glow: 'rgba(141, 110, 99, 0.45)' },
   air: { primary: '#26c6da', secondary: '#e0f7fa', glow: 'rgba(38, 198, 218, 0.45)' },
   light: { primary: '#ffca28', secondary: '#fff8e1', glow: 'rgba(255, 202, 40, 0.5)' },
   shadow: { primary: '#7e57c2', secondary: '#d1c4e9', glow: 'rgba(126, 87, 194, 0.5)' },
-  cosmic: { primary: '#ab47bc', secondary: '#f3e5f5', glow: 'rgba(171, 71, 188, 0.5)' },
 };
 
 /**

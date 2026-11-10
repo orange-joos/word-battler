@@ -1,4 +1,4 @@
-import type { ElementType } from '../types';
+import type { ElementType } from '../types.ts';
 
 export interface AvatarConfig {
   archetype: 'fox' | 'wolf' | 'lion' | 'owl' | 'panda' | 'drake' | 'steed' | 'dino' | 'kite' | 'sylph';

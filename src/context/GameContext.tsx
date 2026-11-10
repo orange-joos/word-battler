@@ -1,16 +1,47 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { Creature, Word, CatalogWords, BattleState, TabType, PartOfSpeech, PetLoadout, ElementType, GameScreen, GameState, GradeTier } from '../types';
-import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData';
-import { ELEMENTS } from '../data/elements';
-import { createBattle } from '../engine/combat';
-import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/forge';
-import { juice } from '../engine/juice';
-import { applyEvolution } from '../data/evolutionData';
-import { createStarterCreature } from '../data/starterPets';
-import { buildMergedVocabularyCatalog } from '../data/vocabDatabase';
+import type {
+  Creature,
+  Word,
+  CatalogWords,
+  BattleState,
+  TabType,
+  PartOfSpeech,
+  ElementType,
+  GameScreen,
+  GameState,
+  GradeTier,
+} from '../types.ts';
+import { INITIAL_CREATURES, INITIAL_WORDS } from '../data/initialData.ts';
+import { ZONE_ELEMENT_MAP, ZONE_TO_BOSS } from '../data/realms.ts';
+import { createBattle } from '../engine/combat.ts';
+import { addForgedCreature, addForgedWord, getAllWordsList } from '../engine/forge.ts';
+import { juice } from '../engine/juice.ts';
+import { applyEvolution } from '../data/evolutionData.ts';
+import { createStarterCreature } from '../data/starterPets.ts';
+import {
+  applyDerivedGearToRoster,
+  buildAwakenedFossilCreature,
+  computeBestLoadoutForPet,
+  REALM_WEATHERS,
+  type RealmWeather,
+} from '../engine/progression.ts';
+import {
+  DEFAULT_NODE_PROGRESS,
+  DEFAULT_ZONE_PROGRESS,
+  initializeCoreGameState,
+  initializeCreaturesRoster,
+  initializeWordsCatalog,
+  loadUnifiedProfileSave,
+  saveUnifiedProfileSave,
+} from '../engine/storage.ts';
+import {
+  classifyComboMistake,
+  getAdaptiveTutorInsight,
+  type TutorInsight,
+} from '../agents/adaptiveTutorAgent.ts';
 import { useAuth } from './AuthContext';
 
-interface GameContextType {
+export interface GameContextType {
   gameState: GameState;
   setActiveScreen: (screen: GameScreen) => void;
   selectStarterPet: (element: ElementType) => void;
@@ -66,13 +97,7 @@ interface GameContextType {
   setReturnToWordWorldMap: (val: boolean) => void;
   preferredGradeBand: 'all' | 'k-2' | '3-5' | '6-8';
   setPreferredGradeBand: (band: 'all' | 'k-2' | '3-5' | '6-8') => void;
-  activeWeather: {
-    id: string;
-    name: string;
-    element: ElementType;
-    icon: string;
-    effectLabel: string;
-  };
+  activeWeather: RealmWeather;
   cycleRealmWeather: () => void;
   petAccessories: Record<string, string>;
   equipPetAccessory: (petId: string, accessoryId: string) => void;
@@ -91,193 +116,92 @@ interface GameContextType {
   mistakeWords: string[];
   addMistakeWord: (word: string) => void;
   masterMistakeWord: (word: string) => void;
+  tutorInsight: TutorInsight;
   sanctuaryTheme: 'classic' | 'autumn' | 'frostfall' | 'starlight';
   setSanctuaryTheme: (theme: 'classic' | 'autumn' | 'frostfall' | 'starlight') => void;
   ancientAmber: number;
   addAncientAmber: (delta: number) => void;
+  claimedMilestones: string[];
+  claimStarMilestone: (milestoneKey: string) => void;
+  recruitedZones: string[];
+  markZoneRecruited: (zoneId: string) => void;
   advanceToNextNode: () => { zoneId: string; nextNodeId: string } | null;
   resetAll: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
-function initializeWords(): CatalogWords {
-  try {
-    const saved = localStorage.getItem('wb_words');
-    if (!saved) return INITIAL_WORDS;
-    const parsed = JSON.parse(saved);
-    const normalizeWord = (word: Word): Word => ({
-      ...word,
-      element: normalizeElement(word.element),
-      combatCategory:
-        word.partOfSpeech === 'adjective'
-          ? word.combatCategory === 'DEBUFF' ? 'DEBUFF' : 'BUFF'
-          : undefined,
-    });
-
-    const baseVerbs = INITIAL_WORDS.verbs || [];
-    const savedVerbs = Array.isArray(parsed.verbs) ? parsed.verbs.map(normalizeWord) : [];
-    const mergedVerbs = [...baseVerbs];
-    for (const v of savedVerbs) {
-      if (!mergedVerbs.some((existing) => existing.id === v.id)) {
-        mergedVerbs.push(v);
-      }
-    }
-
-    const baseAdverbs = INITIAL_WORDS.adverbs || [];
-    const savedAdverbs = Array.isArray(parsed.adverbs) ? parsed.adverbs.map(normalizeWord) : [];
-    const mergedAdverbs = [...baseAdverbs];
-    for (const a of savedAdverbs) {
-      if (!mergedAdverbs.some((existing) => existing.id === a.id)) {
-        mergedAdverbs.push(a);
-      }
-    }
-
-    const baseAdj = INITIAL_WORDS.adjectives || [];
-    const savedAdj = Array.isArray(parsed.adjectives) ? parsed.adjectives.map(normalizeWord) : [];
-    const mergedAdj = [...baseAdj];
-    for (const adj of savedAdj) {
-      if (!mergedAdj.some((existing) => existing.id === adj.id)) {
-        mergedAdj.push(adj);
-      }
-    }
-
-    const baseNouns = INITIAL_WORDS.nouns || [];
-    const savedNouns = Array.isArray(parsed.nouns) ? parsed.nouns.map(normalizeWord) : [];
-    const mergedNouns = [...baseNouns];
-    for (const n of savedNouns) {
-      if (!mergedNouns.some((existing) => existing.id === n.id)) {
-        mergedNouns.push(n);
-      }
-    }
-
-    return buildMergedVocabularyCatalog({
-      adjectives: mergedAdj,
-      nouns: mergedNouns,
-      verbs: mergedVerbs,
-      adverbs: mergedAdverbs,
-    });
-  } catch {
-    return INITIAL_WORDS;
-  }
-}
-
-function normalizeElement(element: string): ElementType {
-  if (element === 'nature') return 'grass';
-  if (element === 'cosmic') return 'light';
-  return element in ELEMENTS ? (element as ElementType) : 'fire';
-}
-
-function initializeCreatures(): Creature[] {
-  try {
-    const saved = localStorage.getItem('wb_creatures');
-    if (!saved) return INITIAL_CREATURES;
-    const parsed: Creature[] = JSON.parse(saved);
-
-    const allElements: ElementType[] = [
-      'fire',
-      'water',
-      'ice',
-      'grass',
-      'electric',
-      'shadow',
-      'light',
-      'earth',
-      'air',
-      'nature',
-      'cosmic',
-    ];
-
-    const updated: Creature[] = parsed.map((c) => {
-      const existingTypes = new Set(c.allowedWordTypes || []);
-      existingTypes.add('adjective');
-      existingTypes.add('noun');
-      existingTypes.add('verb');
-      existingTypes.add('adverb');
-
-      const initialMatch = INITIAL_CREATURES.find((init) => init.id === c.id);
-      const element = normalizeElement(c.element);
-      const elementAffinity =
-        c.id === 'boss_sovereign' && element === 'light'
-          ? 'light'
-          : normalizeElement(c.elementAffinity || initialMatch?.elementAffinity || element);
-      const loadout: PetLoadout =
-        c.loadout && typeof c.loadout === 'object'
-          ? {
-              verb: c.loadout.verb ?? (initialMatch?.loadout?.verb || null),
-              noun: c.loadout.noun ?? (initialMatch?.loadout?.noun || null),
-              adjective: c.loadout.adjective ?? (initialMatch?.loadout?.adjective || null),
-              adverb: c.loadout.adverb ?? (initialMatch?.loadout?.adverb || null),
-            }
-          : initialMatch?.loadout || { verb: null, noun: null, adjective: null, adverb: null };
-
-      return {
-        ...c,
-        element,
-        elementAffinity,
-        allowedElements: allElements,
-        level: c.level || initialMatch?.level || 8,
-        exp: c.exp ?? (initialMatch?.exp ?? 100),
-        maxExp: c.maxExp || initialMatch?.maxExp || 160,
-        stage: c.stage || initialMatch?.stage || 1,
-        evolvesAtLevel: c.evolvesAtLevel || initialMatch?.evolvesAtLevel || 10,
-        spriteEmoji: c.spriteEmoji || initialMatch?.spriteEmoji || ELEMENTS[element].icon,
-        title: c.title || initialMatch?.title || 'Companion Beast',
-        loadout,
-        allowedWordTypes: Array.from(existingTypes),
-      };
-    });
-
-    for (const initC of INITIAL_CREATURES) {
-      if (!updated.some((c) => c.id === initC.id)) {
-        updated.push(initC);
-      }
-    }
-
-    return updated;
-  } catch {
-    return INITIAL_CREATURES;
-  }
-}
-
-function initializeGameState(): GameState {
-  try {
-    const saved = JSON.parse(localStorage.getItem('wb_game_state') || '{}');
-    const profile = JSON.parse(localStorage.getItem('wb_player_profile') || '{}');
-    return {
-      activeScreen: 'auth',
-      coins: typeof profile.lexiCoins === 'number' ? profile.lexiCoins : 0,
-      fusionTokens: typeof profile.fusionTokens === 'number' ? profile.fusionTokens : 0,
-      unlockedPetIds: Array.isArray(saved.unlockedPetIds)
-        ? saved.unlockedPetIds
-        : INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map((creature) => creature.id),
-      wordInventory: getAllWordsList(INITIAL_WORDS).map((word) => word.id),
-    };
-  } catch {
-    return {
-      activeScreen: 'auth',
-      coins: 0,
-      fusionTokens: 0,
-      unlockedPetIds: INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map((creature) => creature.id),
-      wordInventory: getAllWordsList(INITIAL_WORDS).map((word) => word.id),
-    };
-  }
-}
-
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser } = useAuth();
-  const [gameState, setGameState] = useState<GameState>(initializeGameState);
+  const { currentUser, addRewards } = useAuth();
+  const initialSave = useMemo(() => loadUnifiedProfileSave(), []);
+
+  const [gameState, setGameState] = useState<GameState>(initializeCoreGameState);
   const [tab, setTab] = useState<TabType>('hub');
-  const [creatures, setCreatures] = useState<Creature[]>(initializeCreatures);
-  const [words, setWords] = useState<CatalogWords>(initializeWords);
-  const [playerId, setPlayerIdState] = useState<string>(() => {
-    try {
-      return localStorage.getItem('wb_active_player_id') || 'emberfox';
-    } catch {
-      return 'emberfox';
-    }
-  });
+  const [baseCreatures, setBaseCreatures] = useState<Creature[]>(initializeCreaturesRoster);
+  const [words, setWords] = useState<CatalogWords>(initializeWordsCatalog);
+  const [playerId, setPlayerIdState] = useState<string>(initialSave.playerId);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  const [activeZoneId, setActiveZoneId] = useState<string>('area-grass');
+  const [activeNodeId, setActiveNodeId] = useState<string>('1-1');
+  const [activeEnemyName, setActiveEnemyName] = useState<string | null>(null);
+  const [activeEnemyStage, setActiveEnemyStage] = useState<1 | 2 | 3>(3);
+  const [returnToWordWorldMap, setReturnToWordWorldMap] = useState<boolean>(false);
+  const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
+
+  // Unified profile state slices (Item #4 & #6)
+  const [preferredGradeBand, setPreferredGradeBand] = useState<'all' | 'k-2' | '3-5' | '6-8'>(
+    initialSave.preferredGradeBand
+  );
+  const [weatherIndex, setWeatherIndex] = useState<number>(0);
+  const activeWeather = REALM_WEATHERS[weatherIndex % REALM_WEATHERS.length];
+
+  const [petAccessories, setPetAccessories] = useState<Record<string, string>>(
+    initialSave.petAccessories
+  );
+  const [petSpecializations, setPetSpecializations] = useState<
+    Record<string, 'vanguard' | 'bastion'>
+  >(initialSave.petSpecializations);
+  const [supportCreatureId, setSupportCreatureId] = useState<string>(
+    initialSave.supportCreatureId
+  );
+  const [awakenedFossils, setAwakenedFossils] = useState<Record<string, boolean>>(
+    initialSave.awakenedFossils
+  );
+  const [petBonds, setPetBonds] = useState<Record<string, number>>(initialSave.petBonds);
+  const [bountiesClaimed, setBountiesClaimed] = useState<Record<string, boolean>>(
+    initialSave.bountiesClaimed
+  );
+  const [dyslexiaFriendly, setDyslexiaFriendly] = useState<boolean>(
+    initialSave.dyslexiaFriendly
+  );
+  const [mistakeWords, setMistakeWords] = useState<string[]>(initialSave.mistakeWords);
+  const [sanctuaryTheme, setSanctuaryTheme] = useState<
+    'classic' | 'autumn' | 'frostfall' | 'starlight'
+  >(initialSave.sanctuaryTheme);
+  const [ancientAmber, setAncientAmber] = useState<number>(initialSave.ancientAmber);
+  const [zoneProgress, setZoneProgress] = useState<
+    Record<string, { stars: number; cleared: boolean }>
+  >(initialSave.zoneProgress);
+  const [nodeProgress, setNodeProgress] = useState<
+    Record<string, { stars: number; cleared: boolean }>
+  >(initialSave.nodeProgress);
+  const [claimedMilestones, setClaimedMilestones] = useState<string[]>(
+    initialSave.claimedMilestones
+  );
+  const [recruitedZones, setRecruitedZones] = useState<string[]>(initialSave.recruitedZones);
+
+  // Item #7: Purely derive effective stats from baseCreatures + accessories + specializations
+  const creatures = useMemo(
+    () => applyDerivedGearToRoster(baseCreatures, petAccessories, petSpecializations),
+    [baseCreatures, petAccessories, petSpecializations]
+  );
+
+  // Adaptive Tutor Agent insight derived from current mistakes & grade band
+  const tutorInsight = useMemo(
+    () => getAdaptiveTutorInsight(mistakeWords, words, preferredGradeBand),
+    [mistakeWords, words, preferredGradeBand]
+  );
 
   const setActiveScreen = (activeScreen: GameScreen) => {
     setGameState((previous) => ({ ...previous, activeScreen }));
@@ -285,9 +209,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setPlayerId = (id: string) => {
     setPlayerIdState(id);
-    try {
-      localStorage.setItem('wb_active_player_id', id);
-    } catch {}
   };
 
   const selectStarterPet = (element: ElementType) => {
@@ -296,8 +217,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (creature) => creature.element === element && !creature.id.startsWith('boss_')
       ) || createStarterCreature(element, getAllWordsList(words));
 
-    if (!creatures.some((creature) => creature.id === starterPet.id)) {
-      setCreatures((previous) => [...previous, starterPet]);
+    if (!baseCreatures.some((creature) => creature.id === starterPet.id)) {
+      setBaseCreatures((previous) => [...previous, starterPet]);
     }
 
     setPlayerId(starterPet.id);
@@ -308,6 +229,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
+  // Sync currency from AuthContext (Item #5)
   useEffect(() => {
     setGameState((previous) => ({
       ...previous,
@@ -323,6 +245,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   }, [words]);
 
+  // Persist core rosters & unified save v3 (Item #4)
   useEffect(() => {
     try {
       localStorage.setItem('wb_game_state', JSON.stringify(gameState));
@@ -331,9 +254,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     try {
-      localStorage.setItem('wb_creatures', JSON.stringify(creatures));
+      localStorage.setItem('wb_creatures', JSON.stringify(baseCreatures));
     } catch {}
-  }, [creatures]);
+  }, [baseCreatures]);
 
   useEffect(() => {
     try {
@@ -341,191 +264,69 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, [words]);
 
+  useEffect(() => {
+    saveUnifiedProfileSave({
+      version: 3,
+      playerId,
+      supportCreatureId,
+      preferredGradeBand,
+      petAccessories,
+      petSpecializations,
+      awakenedFossils,
+      petBonds,
+      bountiesClaimed,
+      dyslexiaFriendly,
+      mistakeWords,
+      sanctuaryTheme,
+      ancientAmber,
+      zoneProgress,
+      nodeProgress,
+      claimedMilestones,
+      recruitedZones,
+    });
+  }, [
+    playerId,
+    supportCreatureId,
+    preferredGradeBand,
+    petAccessories,
+    petSpecializations,
+    awakenedFossils,
+    petBonds,
+    bountiesClaimed,
+    dyslexiaFriendly,
+    mistakeWords,
+    sanctuaryTheme,
+    ancientAmber,
+    zoneProgress,
+    nodeProgress,
+    claimedMilestones,
+    recruitedZones,
+  ]);
+
   const toggleMute = () => {
     const next = !isMuted;
     setIsMuted(next);
     juice.setMuted(next);
   };
 
-  const [activeZoneId, setActiveZoneId] = useState<string>('area-grass');
-  const [activeNodeId, setActiveNodeId] = useState<string>('1-1');
-  const [activeEnemyName, setActiveEnemyName] = useState<string | null>(null);
-  const [activeEnemyStage, setActiveEnemyStage] = useState<1 | 2 | 3>(3);
-  const [returnToWordWorldMap, setReturnToWordWorldMap] = useState<boolean>(false);
-  const [preferredGradeBand, setPreferredGradeBandState] = useState<'all' | 'k-2' | '3-5' | '6-8'>(() => {
-    try {
-      const saved = localStorage.getItem('wb_grade_band');
-      if (saved === 'k-2' || saved === '3-5' || saved === '6-8') return saved;
-    } catch {}
-    return 'all';
-  });
-
-  const setPreferredGradeBand = (band: 'all' | 'k-2' | '3-5' | '6-8') => {
-    setPreferredGradeBandState(band);
-    try {
-      localStorage.setItem('wb_grade_band', band);
-    } catch {}
-  };
-
-  // Feature #4: Rotating Realm Weather & Elemental Tide Shifts
-  const REALM_WEATHERS: {
-    id: string;
-    name: string;
-    element: ElementType;
-    icon: string;
-    effectLabel: string;
-  }[] = [
-    {
-      id: 'solar-flare',
-      name: 'Solar Flare',
-      element: 'fire',
-      icon: '☀️',
-      effectLabel: 'Fire & Light Tablets +25% Power',
-    },
-    {
-      id: 'monsoon-tide',
-      name: 'Monsoon Tide',
-      element: 'water',
-      icon: '🌊',
-      effectLabel: 'Water & Grass Tablets +25% Power',
-    },
-    {
-      id: 'crystal-blizzard',
-      name: 'Crystal Blizzard',
-      element: 'ice',
-      icon: '🌨️',
-      effectLabel: 'Ice & Air Tablets +25% Power',
-    },
-    {
-      id: 'meteor-shower',
-      name: 'Meteor Shower',
-      element: 'earth',
-      icon: '☄️',
-      effectLabel: 'Earth & Shadow Tablets +25% Power',
-    },
-    {
-      id: 'ion-tempest',
-      name: 'Ion Tempest',
-      element: 'electric',
-      icon: '🌩️',
-      effectLabel: 'Electric & Air Tablets +25% Power',
-    },
-  ];
-  const [weatherIndex, setWeatherIndex] = useState<number>(0);
-  const activeWeather = REALM_WEATHERS[weatherIndex % REALM_WEATHERS.length];
-
   const cycleRealmWeather = () => {
     setWeatherIndex((prev) => (prev + 1) % REALM_WEATHERS.length);
     juice.ding(740, 120);
   };
 
-  // Feature #10: Companion Accessories & Battle Armor Slots
-  const [petAccessories, setPetAccessories] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('wb_pet_accessories');
-      return saved ? JSON.parse(saved) : { emberfox: 'amber_fang' };
-    } catch {
-      return { emberfox: 'amber_fang' };
-    }
-  });
-
+  // Item #7: Equip accessory without mutating base stats in-place
   const equipPetAccessory = (petId: string, accessoryId: string) => {
-    setPetAccessories((prev) => {
-      const next = { ...prev, [petId]: accessoryId };
-      try {
-        localStorage.setItem('wb_pet_accessories', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-    // Also grant a small permanent stat boost when equipping new armor
-    setCreatures((prev) =>
-      prev.map((c) => {
-        if (c.id !== petId) return c;
-        return {
-          ...c,
-          stats: {
-            hp: c.stats.hp + (accessoryId === 'root_crown' ? 4 : 1),
-            attack: c.stats.attack + (accessoryId === 'amber_fang' ? 3 : 1),
-            defense: c.stats.defense + (accessoryId === 'iron_shell' ? 3 : 1),
-            speed: c.stats.speed + (accessoryId === 'zephyr_band' ? 3 : 1),
-          },
-        };
-      })
-    );
+    setPetAccessories((prev) => ({ ...prev, [petId]: accessoryId }));
     juice.ding(920, 130);
   };
 
-  // Feature #11: Branching Stage-3 Evolution Paths (Vanguard Power vs. Bastion Wisdom)
-  const [petSpecializations, setPetSpecializations] = useState<
-    Record<string, 'vanguard' | 'bastion'>
-  >(() => {
-    try {
-      const saved = localStorage.getItem('wb_pet_specs');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
+  // Item #7: Set specialization without mutating base stats in-place
   const setPetSpecialization = (petId: string, branch: 'vanguard' | 'bastion') => {
-    setPetSpecializations((prev) => {
-      const next = { ...prev, [petId]: branch };
-      try {
-        localStorage.setItem('wb_pet_specs', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-    setCreatures((prev) =>
-      prev.map((c) => {
-        if (c.id !== petId) return c;
-        return {
-          ...c,
-          title: branch === 'vanguard' ? 'Vanguard Strike Form' : 'Bastion Guardian Form',
-          stats: {
-            hp: c.stats.hp + (branch === 'bastion' ? 6 : 2),
-            attack: c.stats.attack + (branch === 'vanguard' ? 4 : 1),
-            defense: c.stats.defense + (branch === 'bastion' ? 4 : 1),
-            speed: c.stats.speed + (branch === 'vanguard' ? 3 : 1),
-          },
-        };
-      })
-    );
+    setPetSpecializations((prev) => ({ ...prev, [petId]: branch }));
     juice.fanfare();
   };
 
-  // Efficiency #8: Unified Profile State Loader
-  const unifiedInitial = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('aetheria_unified_save_v2');
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  }, []);
-
-  // Feature #5: Dual-Companion Tag-Team Support Slot
-  const [supportCreatureId, setSupportCreatureId] = useState<string>(
-    () => unifiedInitial.supportCreatureId || 'aquafin'
-  );
-
-  // Feature #12: Fossil Awakening (Prehistoric Companion Revival)
-  const [awakenedFossils, setAwakenedFossils] = useState<Record<string, boolean>>(
-    () => unifiedInitial.awakenedFossils || {}
-  );
-
   const awakenPrehistoricCompanion = (element: ElementType): Creature => {
-    const PREHISTORIC_NAMES: Record<string, { name: string; title: string; emoji: string }> = {
-      fire: { name: 'Pyroraptor Rex', title: 'Ancient Magma Saurian', emoji: '🦖' },
-      water: { name: 'Plesiocrest', title: 'Tidal Abyssal Fossil', emoji: '🦕' },
-      grass: { name: 'Ferntops', title: 'Primeval Canopy Horn', emoji: '🌿' },
-      earth: { name: 'Ankylostone', title: 'Bedrock Bastion Titan', emoji: '🪨' },
-      ice: { name: 'Mammothfrost', title: 'Glacial Tusk Ancient', emoji: '🦣' },
-      air: { name: 'Pterogale', title: 'Skycrest Wing Fossil', emoji: '🦅' },
-      electric: { name: 'Voltadon', title: 'Amber Spark Crest', emoji: '⚡' },
-      shadow: { name: 'Nyxosaurus', title: 'Twilight Obsidian Stalker', emoji: '🐉' },
-      light: { name: 'Solarchaeon', title: 'Dawnfeather Relic', emoji: '✨' },
-    };
-    const meta = PREHISTORIC_NAMES[element] || PREHISTORIC_NAMES.fire;
     const fossilId = `fossil_${element}`;
     setAwakenedFossils((prev) => ({ ...prev, [element]: true }));
 
@@ -535,23 +336,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return existing;
     }
 
-    const base = createStarterCreature(element, getAllWordsList(words));
-    const awakened: Creature = {
-      ...base,
-      id: fossilId,
-      name: meta.name,
-      title: meta.title,
-      spriteEmoji: meta.emoji,
-      level: 12,
-      stage: 2,
-      stats: {
-        hp: 115,
-        attack: 22,
-        defense: 19,
-        speed: 17,
-      },
-    };
-    setCreatures((prev) => [...prev, awakened]);
+    const awakened = buildAwakenedFossilCreature(element, words);
+    setBaseCreatures((prev) => [...prev, awakened]);
     setGameState((prev) => ({
       ...prev,
       unlockedPetIds: Array.from(new Set([...prev.unlockedPetIds, fossilId])),
@@ -560,11 +346,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return awakened;
   };
 
-  // Feature #13: Companion Bond & Mood Meter
-  const [petBonds, setPetBonds] = useState<Record<string, number>>(
-    () => unifiedInitial.petBonds || { emberfox: 4, aquafin: 3 }
-  );
-
   const increasePetBond = (petId: string, amount = 1) => {
     setPetBonds((prev) => ({
       ...prev,
@@ -572,25 +353,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  // Feature #15: Daily Expedition Bounty Board
-  const [bountiesClaimed, setBountiesClaimed] = useState<Record<string, boolean>>(
-    () => unifiedInitial.bountiesClaimed || {}
-  );
-
   const claimBounty = (bountyId: string) => {
     setBountiesClaimed((prev) => ({ ...prev, [bountyId]: true }));
     juice.fanfare();
   };
-
-  // Feature #18: Dyslexia-Friendly Typography & High-Contrast Toggle
-  const [dyslexiaFriendly, setDyslexiaFriendly] = useState<boolean>(
-    () => Boolean(unifiedInitial.dyslexiaFriendly)
-  );
-
-  // Feature #19: Mistake Review "Field Journal" Deck
-  const [mistakeWords, setMistakeWords] = useState<string[]>(
-    () => unifiedInitial.mistakeWords || ['Their / There', 'Affect / Effect', 'Ferocious']
-  );
 
   const addMistakeWord = (word: string) => {
     setMistakeWords((prev) => (prev.includes(word) ? prev : [word, ...prev].slice(0, 12)));
@@ -601,102 +367,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     juice.fanfare();
   };
 
-  // Feature #20: Seasonal & Holiday Sanctuary Themes
-  const [sanctuaryTheme, setSanctuaryTheme] = useState<'classic' | 'autumn' | 'frostfall' | 'starlight'>(
-    () => unifiedInitial.sanctuaryTheme || 'classic'
-  );
-
-  // Efficiency #10: Universal Ancient Amber currency
-  const [ancientAmber, setAncientAmber] = useState<number>(
-    () => unifiedInitial.ancientAmber ?? 18
-  );
-
   const addAncientAmber = (delta: number) => {
     setAncientAmber((prev) => Math.max(0, prev + delta));
   };
 
-  // Efficiency #8: Consolidate persistence into single unified save key
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        'aetheria_unified_save_v2',
-        JSON.stringify({
-          supportCreatureId,
-          awakenedFossils,
-          petBonds,
-          bountiesClaimed,
-          dyslexiaFriendly,
-          mistakeWords,
-          sanctuaryTheme,
-          ancientAmber,
-          petAccessories,
-          petSpecializations,
-          preferredGradeBand,
-        })
-      );
-    } catch {}
-  }, [
-    supportCreatureId,
-    awakenedFossils,
-    petBonds,
-    bountiesClaimed,
-    dyslexiaFriendly,
-    mistakeWords,
-    sanctuaryTheme,
-    ancientAmber,
-    petAccessories,
-    petSpecializations,
-    preferredGradeBand,
-  ]);
+  const claimStarMilestone = (milestoneKey: string) => {
+    setClaimedMilestones((prev) =>
+      prev.includes(milestoneKey) ? prev : [...prev, milestoneKey]
+    );
+  };
 
-  const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
-  const [zoneProgress, setZoneProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
-    try {
-      const saved = localStorage.getItem('wb_zone_progress');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {
-      'area-grass': { stars: 3, cleared: true },
-      'area-water': { stars: 2, cleared: true },
-      'area-earth': { stars: 1, cleared: false },
-      'area-fire': { stars: 0, cleared: false },
-      'area-ice': { stars: 0, cleared: false },
-      'area-air': { stars: 0, cleared: false },
-      'area-electric': { stars: 0, cleared: false },
-      'area-shadow': { stars: 0, cleared: false },
-      'area-light': { stars: 0, cleared: false },
-      'root-village': { stars: 3, cleared: true },
-      'prefix-path': { stars: 2, cleared: true },
-      'suffix-steppes': { stars: 1, cleared: false },
-      'compound-colosseum': { stars: 0, cleared: false },
-      'syntax-spire': { stars: 0, cleared: false },
-    };
-  });
-
-  const [nodeProgress, setNodeProgress] = useState<Record<string, { stars: number; cleared: boolean }>>(() => {
-    try {
-      const saved = localStorage.getItem('wb_node_progress');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {
-      '1-1': { stars: 3, cleared: true },
-      '1-2': { stars: 3, cleared: true },
-      '1-3': { stars: 2, cleared: true },
-      '2-1': { stars: 3, cleared: true },
-    };
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('wb_zone_progress', JSON.stringify(zoneProgress));
-    } catch {}
-  }, [zoneProgress]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('wb_node_progress', JSON.stringify(nodeProgress));
-    } catch {}
-  }, [nodeProgress]);
+  const markZoneRecruited = (zoneId: string) => {
+    setRecruitedZones((prev) => (prev.includes(zoneId) ? prev : [...prev, zoneId]));
+  };
 
   const completeZone = (zoneId: string, stars = 3) => {
     setZoneProgress((prev) => {
@@ -740,7 +423,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Combat Engine Instance
+  // Item #13: Only recreate battleEngine when playerId or enemyId changes; sync catalog in-place otherwise!
   const battleEngine = useMemo(() => {
     return createBattle({
       playerId,
@@ -748,37 +431,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       creatures,
       words,
     });
-  }, [playerId, enemyId, creatures, words]);
-
-  const [battleState, setBattleState] = useState<BattleState>(() => battleEngine.getState());
-
-  // Sync battleState ONLY when playerId or enemyId changes so mid-battle loadout edits do not reset HP!
-  useEffect(() => {
-    setBattleState(battleEngine.getState());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId, enemyId]);
 
-  const ZONE_TO_BOSS: Record<string, string> = {
-    'area-grass': 'boss_galecrest',
-    'area-water': 'boss_leviathan',
-    'area-earth': 'boss_ruptor',
-    'area-fire': 'boss_pyrostorm',
-    'area-ice': 'boss_dishornet',
-    'area-air': 'boss_zephyrlord',
-    'area-electric': 'boss_voltarchon',
-    'area-shadow': 'boss_umbralord',
-    'area-light': 'boss_sovereign',
-    // Legacy & Island aliases
-    'root-village': 'boss_ruptor',
-    'prefix-path': 'boss_dishornet',
-    'prefix-peaks': 'boss_dishornet',
-    'suffix-steppes': 'boss_galecrest',
-    'sunfall-dunes': 'boss_ruptor',
-    'compound-colosseum': 'boss_pyrostorm',
-    'fireforge': 'boss_pyrostorm',
-    'syntax-spire': 'boss_sovereign',
-    'celestia': 'boss_sovereign',
-  };
+  useEffect(() => {
+    battleEngine.syncCatalog(words, creatures);
+  }, [battleEngine, words, creatures]);
+
+  const [battleState, setBattleState] = useState<BattleState>(() => battleEngine.getState());
+
+  useEffect(() => {
+    setBattleState(battleEngine.getState());
+  }, [battleEngine]);
 
   const startBattleInZone = (zoneId: string, customEnemyId?: string) => {
     setActiveZoneId(zoneId);
@@ -825,7 +489,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const baseState = freshBattle.getState();
     const hpScale = stageNum >= 10 ? 1.0 : stageNum === 5 ? 0.8 : 0.65;
-    const scaledMaxHp = Math.max(36, Math.round((baseState.enemy.maxHp || baseState.enemy.stats.hp) * hpScale));
+    const scaledMaxHp = Math.max(
+      36,
+      Math.round((baseState.enemy.maxHp || baseState.enemy.stats.hp) * hpScale)
+    );
 
     setBattleState({
       ...baseState,
@@ -859,6 +526,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextState = battleEngine.submitCombo(word1Id, word2Id, word3Id, word4Id);
     setBattleState({ ...nextState });
 
+    // Adaptive Tutor Agent: record any syntax/order fizzle into the student's mistake deck
+    const fizzleEvent = nextState.events.find((e) => e.type === 'FIZZLE');
+    if (fizzleEvent && fizzleEvent.phrase) {
+      addMistakeWord(fizzleEvent.phrase);
+    } else if (nextState.lastPlayerResolution && !nextState.lastPlayerResolution.combo.valid) {
+      const classified = classifyComboMistake(nextState.lastPlayerResolution.combo);
+      if (classified) addMistakeWord(classified.mistakeLabel);
+    }
+
     if (nextState.events.some((event) => event.type === 'DAMAGE' && event.amount)) {
       juice.hit();
     } else if (nextState.events.some((event) => event.type === 'SHIELD')) {
@@ -870,16 +546,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       juice.boing();
     }
 
-    if (nextState.phase === 'BATTLE_END') {
-      if (nextState.winner === battleState.player.id) {
-        const remainingRatio =
-          (nextState.player.currentHp ?? nextState.player.stats.hp) /
-          Math.max(1, nextState.player.maxHp ?? nextState.player.stats.hp);
-        const earnedStars = remainingRatio >= 0.6 ? 3 : remainingRatio >= 0.3 ? 2 : 1;
-        completeMapNode(activeZoneId, activeNodeId, earnedStars);
-        completeZone(activeZoneId, earnedStars);
-        setTimeout(() => juice.fanfare(), 600);
-      }
+    if (nextState.phase === 'BATTLE_END' && nextState.winner === battleState.player.id) {
+      const remainingRatio =
+        (nextState.player.currentHp ?? nextState.player.stats.hp) /
+        Math.max(1, nextState.player.maxHp ?? nextState.player.stats.hp);
+      const earnedStars = remainingRatio >= 0.6 ? 3 : remainingRatio >= 0.3 ? 2 : 1;
+      completeMapNode(activeZoneId, activeNodeId, earnedStars);
+      completeZone(activeZoneId, earnedStars);
+      setTimeout(() => juice.fanfare(), 600);
     }
   };
 
@@ -888,7 +562,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const commitCreature = (creature: Creature) => {
-    setCreatures((prev) => addForgedCreature(prev, creature));
+    setBaseCreatures((prev) => addForgedCreature(prev, creature));
     setGameState((prev) => ({
       ...prev,
       unlockedPetIds: Array.from(new Set([...prev.unlockedPetIds, creature.id])),
@@ -905,18 +579,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updatePetLoadout = (petId: string, slot: PartOfSpeech, wordId: string | null) => {
-    setCreatures((prev) =>
+    setBaseCreatures((prev) =>
       prev.map((c) => {
         if (c.id !== petId) return c;
-        const currentLoadout = c.loadout ? { ...c.loadout } : { verb: null, noun: null, adjective: null, adverb: null };
+        const currentLoadout = c.loadout
+          ? { ...c.loadout }
+          : { verb: null, noun: null, adjective: null, adverb: null };
         currentLoadout[slot] = wordId;
-        return {
-          ...c,
-          loadout: currentLoadout,
-        };
+        return { ...c, loadout: currentLoadout };
       })
     );
-    // Sync active battle player loadout in-place without resetting HP
     setBattleState((prev) => {
       if (prev.player.id !== petId) return prev;
       const currentLoadout = prev.player.loadout
@@ -925,10 +597,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentLoadout[slot] = wordId;
       return {
         ...prev,
-        player: {
-          ...prev.player,
-          loadout: currentLoadout,
-        },
+        player: { ...prev.player, loadout: currentLoadout },
       };
     });
   };
@@ -936,41 +605,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const autoEquipBestLoadout = (petId: string, preferredTier: GradeTier | 'all' = 'all') => {
     const pet = creatures.find((c) => c.id === petId);
     if (!pet) return;
-
-    const allWordsList = getAllWordsList(words);
-    const petAffinity = pet.elementAffinity || pet.element;
-
-    const slots: PartOfSpeech[] = ['verb', 'noun', 'adjective', 'adverb'];
-    const newLoadout: PetLoadout = pet.loadout ? { ...pet.loadout } : { verb: null, noun: null, adjective: null, adverb: null };
-
-    slots.forEach((slot) => {
-      let candidates = allWordsList.filter((w) => w.partOfSpeech === slot);
-      if (preferredTier !== 'all') {
-        const tierFiltered = candidates.filter((w) => (w.gradeTier || '3') === preferredTier);
-        if (tierFiltered.length > 0) candidates = tierFiltered;
-      }
-      candidates.sort((a, b) => {
-        const aAffinity = a.element === petAffinity ? 1 : 0;
-        const bAffinity = b.element === petAffinity ? 1 : 0;
-        if (bAffinity !== aAffinity) return bAffinity - aAffinity;
-        const aPwr = a.powerBonus ?? (a.forge?.powerBonus || 0);
-        const bPwr = b.powerBonus ?? (b.forge?.powerBonus || 0);
-        return bPwr - aPwr;
-      });
-
-      if (candidates.length > 0) {
-        newLoadout[slot] = candidates[0].id;
-      }
-    });
-
-    setCreatures((prev) =>
+    const newLoadout = computeBestLoadoutForPet(pet, words, preferredTier);
+    setBaseCreatures((prev) =>
       prev.map((c) => (c.id === petId ? { ...c, loadout: newLoadout } : c))
     );
     juice.ding(880, 100);
   };
 
   const levelUpPet = (petId: string, levels = 1) => {
-    setCreatures((prev) =>
+    setBaseCreatures((prev) =>
       prev.map((c) => {
         if (c.id !== petId) return c;
         const newLevel = (c.level || 8) + levels;
@@ -991,7 +634,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const feedPetStatTreat = (petId: string, stat: 'hp' | 'attack' | 'defense' | 'speed') => {
-    setCreatures((prev) =>
+    setBaseCreatures((prev) =>
       prev.map((c) => {
         if (c.id !== petId) return c;
         const nextHp = stat === 'hp' ? c.stats.hp + 4 : c.stats.hp;
@@ -1011,17 +654,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const recruitWildCompanion = (zoneId: string): Creature | null => {
-    const ZONE_ELEMENT_MAP: Record<string, ElementType> = {
-      'area-grass': 'grass',
-      'area-water': 'water',
-      'area-earth': 'earth',
-      'area-fire': 'fire',
-      'area-ice': 'ice',
-      'area-air': 'air',
-      'area-electric': 'electric',
-      'area-shadow': 'shadow',
-      'area-light': 'light',
-    };
     const elem = ZONE_ELEMENT_MAP[zoneId] || 'grass';
     const existing = creatures.find((c) => !c.id.startsWith('boss_') && c.element === elem);
     if (existing) {
@@ -1029,7 +661,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return existing;
     }
     const wildPet = createStarterCreature(elem, getAllWordsList(words));
-    setCreatures((prev) => [...prev, wildPet]);
+    setBaseCreatures((prev) => [...prev, wildPet]);
     setGameState((prev) => ({
       ...prev,
       unlockedPetIds: Array.from(new Set([...prev.unlockedPetIds, wildPet.id])),
@@ -1038,30 +670,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return wildPet;
   };
 
+  // Item #5: Unified currency check & deduction via AuthContext.addRewards
   const trainPetWithCoins = (petId: string, coinCost = 50): { success: boolean; error?: string } => {
-    try {
-      const rawUser = localStorage.getItem('wb_player_profile');
-      let coins = 450;
-      if (rawUser) {
-        const parsed = JSON.parse(rawUser);
-        if (parsed.lexiCoins !== undefined) coins = parsed.lexiCoins;
-      }
-      if (coins < coinCost) {
-        return { success: false, error: `Need ${coinCost} Lexi-Coins to train!` };
-      }
-      levelUpPet(petId, 1);
-      return { success: true };
-    } catch {
-      levelUpPet(petId, 1);
-      return { success: true };
+    const availableCoins = currentUser?.lexiCoins ?? gameState.coins ?? 0;
+    if (availableCoins < coinCost) {
+      return { success: false, error: `Need ${coinCost} Lexi-Coins! Win battles to earn more.` };
     }
+    addRewards({ coins: -coinCost });
+    levelUpPet(petId, 1);
+    return { success: true };
   };
 
   const evolvePet = (petId: string): { success: boolean; evolvedCreature: Creature } => {
-    const pet = creatures.find((c) => c.id === petId);
+    const pet = baseCreatures.find((c) => c.id === petId);
     if (!pet) return { success: false, evolvedCreature: {} as Creature };
     const { evolvedCreature } = applyEvolution(pet);
-    setCreatures((prev) => prev.map((c) => (c.id === petId ? evolvedCreature : c)));
+    setBaseCreatures((prev) => prev.map((c) => (c.id === petId ? evolvedCreature : c)));
     if (playerId === petId) {
       restartBattle(evolvedCreature.id);
     }
@@ -1077,18 +701,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetAll = () => {
     localStorage.removeItem('wb_creatures');
     localStorage.removeItem('wb_words');
-    setCreatures(INITIAL_CREATURES);
+    setBaseCreatures(INITIAL_CREATURES);
     setWords(INITIAL_WORDS);
     setPlayerId('emberfox');
+    setZoneProgress(DEFAULT_ZONE_PROGRESS);
+    setNodeProgress(DEFAULT_NODE_PROGRESS);
     setGameState((previous) => ({
       ...previous,
-      unlockedPetIds: INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map((creature) => creature.id),
+      unlockedPetIds: INITIAL_CREATURES.filter((creature) => !creature.id.startsWith('boss_')).map(
+        (creature) => creature.id
+      ),
       wordInventory: getAllWordsList(INITIAL_WORDS).map((word) => word.id),
     }));
     restartBattle('emberfox');
   };
 
-  // Efficiency #9: Quick-Replay / Next Node Launcher from Battle Victory Banner
   const advanceToNextNode = (): { zoneId: string; nextNodeId: string } | null => {
     const parts = activeNodeId.split('-');
     const worldNum = Number(parts[0] || 1);
@@ -1173,10 +800,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         mistakeWords,
         addMistakeWord,
         masterMistakeWord,
+        tutorInsight,
         sanctuaryTheme,
         setSanctuaryTheme,
         ancientAmber,
         addAncientAmber,
+        claimedMilestones,
+        claimStarMilestone,
+        recruitedZones,
+        markZoneRecruited,
         advanceToNextNode,
         resetAll,
       }}
@@ -1194,4 +826,36 @@ export const useGame = () => {
     throw new Error('useGame must be used within a GameProvider');
   }
   return context;
+};
+
+/**
+ * Focused domain selector hooks (Item #6)
+ */
+export const useRoster = () => {
+  const ctx = useGame();
+  return {
+    creatures: ctx.creatures,
+    words: ctx.words,
+    playerId: ctx.playerId,
+    setPlayerId: ctx.setPlayerId,
+    updatePetLoadout: ctx.updatePetLoadout,
+    autoEquipBestLoadout: ctx.autoEquipBestLoadout,
+    levelUpPet: ctx.levelUpPet,
+    trainPetWithCoins: ctx.trainPetWithCoins,
+    evolvePet: ctx.evolvePet,
+    petAccessories: ctx.petAccessories,
+    equipPetAccessory: ctx.equipPetAccessory,
+    petSpecializations: ctx.petSpecializations,
+    setPetSpecialization: ctx.setPetSpecialization,
+  };
+};
+
+export const useBattleSession = () => {
+  const ctx = useGame();
+  return {
+    battleState: ctx.battleState,
+    submitCombo: ctx.submitCombo,
+    restartBattle: ctx.restartBattle,
+    tutorInsight: ctx.tutorInsight,
+  };
 };

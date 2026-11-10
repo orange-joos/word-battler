@@ -1,5 +1,5 @@
-import { Creature, EvolutionStage, CreatureStats } from '../types';
-import { ELEMENTS } from './elements';
+import type { Creature, EvolutionStage, CreatureStats } from '../types.ts';
+import { ELEMENTS } from './elements.ts';
 
 /**
  * Pre-defined evolution branches for the primary companion lines.

@@ -3,7 +3,7 @@
  * adjectives can be marked as buffs or debuffs in the word catalog.
  */
 
-import {
+import type {
   BattleLogEntry,
   BattlePhase,
   BattleState,
@@ -16,9 +16,10 @@ import {
   PartOfSpeech,
   StatusEffect,
   Word,
-} from '../types';
-import { ELEMENTS } from '../data/elements';
-import { getAllWordsList } from './forge';
+} from '../types.ts';
+import { ELEMENTS } from '../data/elements.ts';
+import { getAllWordsList } from './forge.ts';
+import { selectBossTacticalMove } from '../agents/bossTacticianAgent.ts';
 
 export const PHASES = Object.freeze({
   PLAYER_TURN: 'PLAYER_TURN' as BattlePhase,
@@ -734,31 +735,19 @@ export function createBattle(options: {
         return { ...state };
       }
 
-      const usableWords = allWords.filter((word) =>
-        state.enemy.allowedElements.includes(word.element) && word.partOfSpeech !== 'adverb'
-      );
-      let aiWords: [Word, Word | null] | null = null;
-      if (!combosBlocked && Math.random() < 0.35) {
-        const validPairs: [Word, Word][] = [];
-        for (const first of allWords.filter((word) =>
-          state.enemy.allowedElements.includes(word.element) &&
-          (word.partOfSpeech === 'adjective' || word.partOfSpeech === 'adverb')
-        )) {
-          const headPos = first.partOfSpeech === 'adjective' ? 'noun' : 'verb';
-          const head = usableWords.find((word) => word.partOfSpeech === headPos && state.enemy.allowedElements.includes(word.element));
-          if (head) validPairs.push([first, head]);
-        }
-        const pair = validPairs[Math.floor(Math.random() * validPairs.length)];
-        if (pair) aiWords = pair;
-      }
-      if (!aiWords && usableWords.length) {
-        aiWords = [usableWords[Math.floor(Math.random() * usableWords.length)], null];
-      }
-
-      if (aiWords) {
-        const aiCombo = evaluateCombo(state.enemy, aiWords[0], aiWords[1]);
+      const decision = selectBossTacticalMove(state.enemy, state.player, allWords, combosBlocked);
+      if (decision) {
+        const [w1, w2, w3, w4] = decision.words;
+        const aiCombo = evaluateCombo(state.enemy, w1, w2, w3, w4);
         if (aiCombo.valid) {
-          emit('SPEAK', state.enemy, state.player, aiCombo.phrase, { phrase: aiCombo.phrase, category: aiCombo.category }, PHASES.ENEMY_TURN);
+          emit(
+            'SPEAK',
+            state.enemy,
+            state.player,
+            aiCombo.phrase,
+            { phrase: aiCombo.phrase, category: aiCombo.category, reason: decision.tacticName },
+            PHASES.ENEMY_TURN
+          );
           const result = executeMove(state.enemy, state.player, aiCombo, PHASES.ENEMY_TURN);
           state.lastEnemyResolution = {
             attackerId: state.enemy.id,
@@ -776,6 +765,20 @@ export function createBattle(options: {
     else if ((state.enemy.currentHp ?? 0) <= 0) finishBattle(state.player, PHASES.BATTLE_END);
     else state.phase = PHASES.PLAYER_TURN;
     return { ...state };
+  }
+
+  function syncCatalog(newWords: CatalogWords, newCreatures?: Creature[]): void {
+    options.words = newWords;
+    if (newCreatures) {
+      options.creatures = newCreatures;
+      const updatedPlayer = newCreatures.find((c) => c.id === state.player.id);
+      if (updatedPlayer?.loadout) {
+        state.player = {
+          ...state.player,
+          loadout: { ...updatedPlayer.loadout },
+        };
+      }
+    }
   }
 
   function restart(newPlayerId?: string): BattleState {
@@ -800,6 +803,7 @@ export function createBattle(options: {
   return {
     getState: () => ({ ...state }),
     submitCombo,
+    syncCatalog,
     restart,
   };
 }

@@ -3,7 +3,6 @@ import {
   Volume2,
   VolumeX,
   LogOut,
-  Check,
   Sparkles,
   BookOpen,
 } from 'lucide-react';
@@ -17,9 +16,10 @@ import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
 import { LexiDexModal } from './LexiDexModal';
 import { ElementalNodeMap } from './ElementalNodeMap';
-import { ElementType, GradeTier, PartOfSpeech, Word } from '../types';
+import { GradeTier, Word } from '../types';
 import { getGradeTierMeta } from '../data/vocabDatabase';
-import { ELEMENTAL_ADVENTURE_BIOMES } from '../data/adventureNodesData';
+import { NINE_ELEMENTAL_AREAS, type ElementalAdventureArea } from '../data/realms';
+import { HubSecondaryModalBody } from './hub/HubSecondaryModals';
 
 type HubModalType =
   | null
@@ -47,15 +47,6 @@ interface PrimaryHubNode {
   tabTarget?: 'loadout' | 'forge' | 'battle' | 'shop';
 }
 
-/**
- * Issue #11 + World Map Setup References (Bastion Sanctuary + Citadel Courtyard):
- * 5 Landmark Structures arranged around the central circular courtyard & golden sun-dial nexus:
- * 1. Word World Portal Monolith (Top-Center / 12 o'clock — 9 Elemental Adventure Realms)
- * 2. Word Forge Crucible & Red Crystal (Upper-Left / 10 o'clock — Morphology & Affix Fusion)
- * 3. Battle Arena Colosseum & Purple Banners (Lower-Left / 8 o'clock — Matchmaking & Boss Lobby)
- * 4. Pet Hatchery Sanctuary & Rooftop Pool (Upper-Right / 2 o'clock — Pet Arsenal, Stats & Eggs)
- * 5. Lexi-Shop Caravan & Timber Bazaar (Lower-Right / 4 o'clock — Storefront & Booster Packs)
- */
 const PRIMARY_ISLAND_NODES: PrimaryHubNode[] = [
   {
     id: 'word-world',
@@ -119,125 +110,9 @@ const PRIMARY_ISLAND_NODES: PrimaryHubNode[] = [
   },
 ];
 
-interface ElementalAdventureArea {
-  zoneId: string;
-  order: number;
-  name: string;
-  element: ElementType;
-  gradeBand: string;
-  bossId: string;
-  bossName: string;
-  grammarFocus: string;
-  color: string;
-}
-
-/**
- * 9 Linear / Node-Based Elemental Progression Areas inside Word World (Adventure Mode)
- */
-const NINE_ELEMENTAL_AREAS: ElementalAdventureArea[] = [
-  {
-    zoneId: 'area-grass',
-    order: 1,
-    name: 'Emerald Grass Glade',
-    element: 'grass',
-    gradeBand: 'Kindergarten – Grade 1',
-    bossId: 'boss_galecrest',
-    bossName: 'Galecrest Wyvern',
-    grammarFocus: 'Core Nouns & Action Verbs',
-    color: '#4caf50',
-  },
-  {
-    zoneId: 'area-water',
-    order: 2,
-    name: 'Azure Water Lagoon',
-    element: 'water',
-    gradeBand: 'Grade 1 – Grade 2',
-    bossId: 'boss_leviathan',
-    bossName: 'Tidal Leviathan',
-    grammarFocus: 'Descriptive Adjectives & Shields',
-    color: '#0288d1',
-  },
-  {
-    zoneId: 'area-earth',
-    order: 3,
-    name: 'Sunfall Fossil Canyon',
-    element: 'earth',
-    gradeBand: 'Grade 2 – Grade 3',
-    bossId: 'boss_ruptor',
-    bossName: 'Ruptor the Break-Beast',
-    grammarFocus: 'Compound Words & Root Foundations',
-    color: '#8d6e63',
-  },
-  {
-    zoneId: 'area-fire',
-    order: 4,
-    name: 'Fireforge Magma Caldera',
-    element: 'fire',
-    gradeBand: 'Grade 3',
-    bossId: 'boss_pyrostorm',
-    bossName: 'Pyrostorm Chimera',
-    grammarFocus: 'Adverb + Verb Empowered Strikes',
-    color: '#e53935',
-  },
-  {
-    zoneId: 'area-ice',
-    order: 5,
-    name: 'Frostpeak Crystal Glacier',
-    element: 'ice',
-    gradeBand: 'Grade 3 – Grade 4',
-    bossId: 'boss_dishornet',
-    bossName: 'Dis-Hornet Swarm',
-    grammarFocus: 'Prefixes (un-, re-, pre-, dis-)',
-    color: '#00acc1',
-  },
-  {
-    zoneId: 'area-air',
-    order: 6,
-    name: 'Tempest Sky Spire',
-    element: 'air',
-    gradeBand: 'Grade 4 – Grade 5',
-    bossId: 'boss_zephyrlord',
-    bossName: 'Tempest Griffin',
-    grammarFocus: 'Suffixes (-ful, -less, -ly, -ness)',
-    color: '#26a69a',
-  },
-  {
-    zoneId: 'area-electric',
-    order: 7,
-    name: 'Volt-Rune Storm Citadel',
-    element: 'electric',
-    gradeBand: 'Grade 5',
-    bossId: 'boss_voltarchon',
-    bossName: 'Volt-Rune Dynamo',
-    grammarFocus: 'High-Voltage 4-Card Sentence Weaving',
-    color: '#ffb300',
-  },
-  {
-    zoneId: 'area-shadow',
-    order: 8,
-    name: 'Shadowcrypt Golem Ruins',
-    element: 'shadow',
-    gradeBand: 'Grades 5 – 7 Extender',
-    bossId: 'boss_umbralord',
-    bossName: 'Umbra Golem Monarch',
-    grammarFocus: 'Greek & Latin Morpheme Roots',
-    color: '#5e35b1',
-  },
-  {
-    zoneId: 'area-light',
-    order: 9,
-    name: 'Celestia Radiant Sanctum',
-    element: 'light',
-    gradeBand: 'Grades 6 – 8 High-Achiever',
-    bossId: 'boss_sovereign',
-    bossName: 'The Syntax Sovereign',
-    grammarFocus: 'Mastery of All 4 Parts of Speech',
-    color: '#fbc02d',
-  },
-];
-
 interface OverworldMapProps {
   initialPanel?: 'shop' | 'hatchery' | null;
+  onOpenGuide?: () => void;
 }
 
 export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null }) => {
@@ -249,7 +124,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     isMuted,
     toggleMute,
     zoneProgress,
-    nodeProgress,
     startBattleInZone,
     startBattleAtNode,
     setTab,
@@ -260,8 +134,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     commitWord,
     returnToWordWorldMap,
     setReturnToWordWorldMap,
-    preferredGradeBand,
-    setPreferredGradeBand,
     activeWeather,
     cycleRealmWeather,
     petAccessories,
@@ -271,22 +143,15 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     autoEquipBestLoadout,
     supportCreatureId,
     setSupportCreatureId,
-    awakenedFossils,
-    awakenPrehistoricCompanion,
     petBonds,
     increasePetBond,
+    sanctuaryTheme,
     bountiesClaimed,
     claimBounty,
-    dyslexiaFriendly,
-    setDyslexiaFriendly,
-    mistakeWords,
-    masterMistakeWord,
-    sanctuaryTheme,
-    setSanctuaryTheme,
-    ancientAmber,
-    addAncientAmber,
+    trainPetWithCoins,
   } = useGame();
   const { currentUser, logout, setIsCustomizingAvatar, updateProfile, addRewards } = useAuth();
+  const claimedQuestIds = Object.keys(bountiesClaimed).filter((k) => bountiesClaimed[k]);
 
   const [selectedIslandId, setSelectedIslandId] = useState<PrimaryHubNode['id']>('word-world');
   const [activeModal, setActiveModal] = useState<HubModalType>(null);
@@ -306,29 +171,10 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
   // Feature #9: Habitat Yield Claimed state
   const [habitatClaimedToday, setHabitatClaimedToday] = useState<boolean>(false);
 
-  // Feature #1: Museum Wing Bonus Claimed state
-  const [museumBonusClaimed, setMuseumBonusClaimed] = useState<boolean>(false);
-
-  // Feature #14: Custom Spelling Word Importer state
-  const [customSpellingWord, setCustomSpellingWord] = useState<string>('');
-  const [customSpellingDef, setCustomSpellingDef] = useState<string>('');
-  const [customSpellingPos, setCustomSpellingPos] = useState<PartOfSpeech>('adjective');
-  const [customSpellingElem, setCustomSpellingElem] = useState<ElementType>('fire');
-
   // Arena Matchmaking Selection
   const [selectedArenaArea, setSelectedArenaArea] = useState<ElementalAdventureArea>(
     NINE_ELEMENTAL_AREAS[0]
   );
-
-  // Interactive Claimable Quests State
-  const [claimedQuestIds, setClaimedQuestIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('wb_claimed_quests');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
 
   // Interactive 3-Tap Egg Incubator state
   const [eggTapCount, setEggTapCount] = useState<number>(0);
@@ -379,11 +225,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
 
   const handleClaimQuest = (questId: string, coins: number, tokens: number) => {
     if (claimedQuestIds.includes(questId)) return;
-    const next = [...claimedQuestIds, questId];
-    setClaimedQuestIds(next);
-    try {
-      localStorage.setItem('wb_claimed_quests', JSON.stringify(next));
-    } catch {}
+    claimBounty(questId);
     addRewards({ coins, tokens, xp: 35 });
     juice.fanfare();
     triggerToast(`Claimed Quest Reward: +${coins} 🪙 & +${tokens} 💎!`);
@@ -1300,13 +1142,11 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const coins = currentUser?.lexiCoins ?? 0;
-                                if (coins < 50) {
-                                  triggerToast('Need 50 Lexi-Coins to train!');
+                                const res = trainPetWithCoins(pet.id, 50);
+                                if (!res.success) {
+                                  triggerToast(res.error || 'Need 50 Lexi-Coins to train!');
                                   return;
                                 }
-                                updateProfile({ lexiCoins: coins - 50 });
-                                levelUpPet(pet.id, 1);
                                 triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
                               }}
                               className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
@@ -1539,598 +1379,21 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
               </div>
             )}
 
-            {/* ===============================================================
-                INTERACTIVE CLAIMABLE QUESTS (Issue #5 Fix)
-            ================================================================ */}
-            {activeModal === 'quests' && (
-              <div className="space-y-3">
-                {[
-                  {
-                    id: 'quest-1',
-                    title: 'Explore Word World & Clear an Elemental Area',
-                    coins: 120,
-                    tokens: 2,
-                    ready: clearedAreasCount >= 1,
-                  },
-                  {
-                    id: 'quest-2',
-                    title: 'Unlock 50+ K–8 Word Tablets in Your Lexicon Field Guide',
-                    coins: 150,
-                    tokens: 3,
-                    ready: allWords.length >= 50,
-                  },
-                  {
-                    id: 'quest-3',
-                    title: 'Train a Companion Pet to Level 9 or Higher',
-                    coins: 180,
-                    tokens: 3,
-                    ready: selectablePets.some((p) => (p.level || 8) >= 9),
-                  },
-                  {
-                    id: 'quest-4',
-                    title: 'Reach Level 10 Ready-to-Evolve Milestone',
-                    coins: 250,
-                    tokens: 5,
-                    ready: selectablePets.some((p) => (p.level || 8) >= 10),
-                  },
-                ].map((q) => {
-                  const isClaimed = claimedQuestIds.includes(q.id);
-                  return (
-                    <div
-                      key={q.id}
-                      className="flex items-center justify-between p-3.5 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center font-black border-2 border-[#1a162b] ${
-                            isClaimed
-                              ? 'bg-[#4caf50] text-white'
-                              : q.ready
-                              ? 'bg-[#ffd54f] text-[#1a162b]'
-                              : 'bg-[#e0e0e0] text-[#757575]'
-                          }`}
-                        >
-                          {isClaimed ? <Check className="w-4 h-4" /> : '★'}
-                        </div>
-                        <div>
-                          <div className="font-bold text-sm text-[#1a162b]">{q.title}</div>
-                          <div className="text-xs font-extrabold text-[#e65100]">
-                            Reward: +{q.coins} 🪙 &amp; +{q.tokens} 💎
-                          </div>
-                        </div>
-                      </div>
-
-                      {isClaimed ? (
-                        <span className="px-3 py-1.5 rounded-xl bg-[#e8f5e9] border-2 border-[#1a162b] font-black text-xs text-[#2e7d32]">
-                          ✓ Claimed
-                        </span>
-                      ) : q.ready ? (
-                        <button
-                          onClick={() => handleClaimQuest(q.id, q.coins, q.tokens)}
-                          className="px-4 py-1.5 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#ffb300] border-2 border-[#1a162b] font-display font-black text-xs text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer animate-pulse"
-                        >
-                          Claim Reward!
-                        </button>
-                      ) : (
-                        <span className="px-3 py-1.5 rounded-xl bg-stone-100 border-2 border-[#1a162b] font-bold text-xs text-stone-500">
-                          In Progress
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Feature #15: Daily Expedition Bounty Board */}
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fef3c7] to-[#fde68a] border-[3px] border-[#1a162b] space-y-2.5 shadow-[0_4px_0_#1a162b]">
-                  <div className="font-display font-black text-sm uppercase text-[#1a162b]">
-                    📌 Feature #15 · Daily Expedition Bounty Board (+🦴 Ancient Amber)
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {[
-                      { id: 'bounty-amber', label: 'Excavate 1 Fossil Dig Site', amber: 3, coins: 60 },
-                      { id: 'bounty-adverb', label: 'Weave a 4-Word Sentence', amber: 4, coins: 75 },
-                      { id: 'bounty-bond', label: 'Train or Bond with a Companion', amber: 3, coins: 55 },
-                    ].map((b) => {
-                      const done = Boolean(bountiesClaimed[b.id]);
-                      return (
-                        <div
-                          key={b.id}
-                          className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 flex flex-col justify-between gap-2"
-                        >
-                          <div>
-                            <div className="font-display font-black text-xs text-[#1a162b]">
-                              {b.label}
-                            </div>
-                            <div className="text-[10px] font-bold text-amber-800">
-                              +{b.coins} 🪙 · +{b.amber} 🦴 Amber
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={done}
-                            onClick={() => {
-                              claimBounty(b.id);
-                              addAncientAmber(b.amber);
-                              addRewards({ coins: b.coins, tokens: 1, xp: 30 });
-                              triggerToast(`Claimed Bounty: +${b.coins} 🪙 & +${b.amber} 🦴 Amber!`);
-                            }}
-                            className={`w-full py-1.5 rounded-lg border-2 border-[#1a162b] font-display font-black text-[10px] uppercase cursor-pointer ${
-                              done
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-[#fde047] hover:bg-amber-300 text-[#1a162b]'
-                            }`}
-                          >
-                            {done ? '✓ Claimed' : 'Claim Bounty'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ===============================================================
-                FEATURE #1 & #12: AETHERIA PALEONTOLOGY MUSEUM & FOSSIL AWAKENING
-            ================================================================ */}
-            {activeModal === 'museum' && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-[#fef3c7] via-[#fde68a] to-[#fcd34d] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b]">
-                  <div>
-                    <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#78350f] text-[#fde047]">
-                      🏛️ Grand Paleontology Hall · 🦴 {ancientAmber} Ancient Amber
-                    </span>
-                    <h3 className="font-display font-black text-lg text-[#1a162b] mt-1">
-                      Excavated Stone Word Tablets &amp; Prehistoric Companion Awakening
-                    </h3>
-                    <p className="text-xs font-bold text-[#5d4037]">
-                      Display excavated tablets and revive ancient Prehistoric Companions for your Sanctuary squad!
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={museumBonusClaimed}
-                    onClick={() => {
-                      if (museumBonusClaimed) return;
-                      setMuseumBonusClaimed(true);
-                      addAncientAmber(5);
-                      addRewards({ coins: 180, tokens: 3, xp: 80 });
-                      juice.fanfare();
-                      triggerToast('Claimed Curator Grant: +180 🪙, +3 💎 & +5 🦴 Amber!');
-                    }}
-                    className={`px-4 py-2.5 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs cursor-pointer ${
-                      museumBonusClaimed
-                        ? 'bg-emerald-700 text-white'
-                        : 'bg-[#1a162b] text-[#fde047] hover:bg-slate-800'
-                    }`}
-                  >
-                    {museumBonusClaimed ? '✓ Curator Grant Claimed' : '🏆 Claim Curator Grant (+180 🪙)'}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {ELEMENTAL_ADVENTURE_BIOMES.map((biome) => {
-                    const digNode = biome.nodes.find((n) => n.type === 'digsite');
-                    const tablet = digNode?.digSiteTablet;
-                    const isExcavated =
-                      Boolean(digNode && nodeProgress[digNode.nodeId]?.cleared) ||
-                      allWords.some((w) => w.id === tablet?.id);
-                    const isAwakened = Boolean(awakenedFossils[biome.element]);
-
-                    return (
-                      <div
-                        key={biome.zoneId}
-                        onClick={() => {
-                          if (tablet) {
-                            juice.speakWord(`${tablet.word}. ${tablet.definition}`);
-                          }
-                        }}
-                        className={`p-3.5 rounded-2xl border-[3px] border-[#1a162b] flex flex-col justify-between transition cursor-pointer ${
-                          isExcavated
-                            ? 'bg-white shadow-[0_4px_0_#1a162b]'
-                            : 'bg-stone-200/80 opacity-85'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between text-[10px] font-black">
-                            <span className="uppercase text-[#78350f]">
-                              {ELEMENTS[biome.element]?.icon} {biome.name}
-                            </span>
-                            <span
-                              className={`px-1.5 py-0.5 rounded ${
-                                isExcavated
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-700'
-                                  : 'bg-stone-300 text-stone-700'
-                              }`}
-                            >
-                              {isExcavated ? '★ Displayed' : `Stage ${biome.order}-4`}
-                            </span>
-                          </div>
-                          <div className="font-display font-black text-base text-[#1a162b] mt-1.5">
-                            🦴 {tablet?.word || 'Ancient Tablet'}
-                          </div>
-                          <p className="text-[11px] font-semibold text-[#5d4037] mt-0.5">
-                            {tablet?.definition}
-                          </p>
-                          <div className="mt-1.5 text-[10px] font-black text-amber-800">
-                            🔬 {tablet?.morphologyNote}
-                          </div>
-                        </div>
-
-                        {/* Feature #12: Awaken Prehistoric Companion Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const pet = awakenPrehistoricCompanion(biome.element);
-                            triggerToast(`🦖 Awakened Prehistoric Companion: ${pet.name}!`);
-                          }}
-                          className={`mt-2.5 w-full py-1.5 rounded-xl border-2 border-[#1a162b] font-display font-black text-[10px] uppercase cursor-pointer ${
-                            isAwakened
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-gradient-to-r from-[#fde047] to-[#f59e0b] text-[#1a162b]'
-                          }`}
-                        >
-                          {isAwakened ? '🦖 Fossil Companion Active (+Lv)' : '🦖 Awaken Fossil Companion'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {activeModal === 'profile' && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <CreatureSprite
-                      creatureId={selectedPet.forged?.sourceId || selectedPet.id}
-                      stage={selectedPet.stage || 1}
-                      element={selectedPet.element}
-                      size="md"
-                    />
-                    <div>
-                      <div className="text-xs font-black uppercase text-[#283593]">
-                        Aetheria Official Tamer License &amp; Literacy Report Card
-                      </div>
-                      <div className="font-display font-black text-xl">
-                        {currentUser?.displayName || 'Aris'} &amp; {selectedPet.name}
-                      </div>
-                      <div className="text-xs font-bold text-[#5d4037] mt-1">
-                        Elemental Areas Cleared: <strong>{clearedAreasCount} / 9</strong> · Vocabulary Catalog: <strong>{allWords.length} Word Tablets</strong>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="px-4 py-2 rounded-xl bg-[#1a162b] text-[#fde047] font-display font-black text-xs border-2 border-[#1a162b] cursor-pointer"
-                  >
-                    🖨️ Print Field Report
-                  </button>
-                </div>
-
-                {/* Feature #15: Explorer Achievement Badge Cabinet & K–8 Report Breakdown */}
-                <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-3">
-                  <div className="font-display font-black text-sm text-[#1a162b]">
-                    🏅 Explorer Achievement Badge Cabinet
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { icon: '🦴', title: 'Fossil Ranger', desc: 'Excavated Stone Tablets', unlocked: true },
-                      { icon: '🔨', title: 'Tablet Chisel Master', desc: 'Forged Morpheme Words', unlocked: allWords.length >= 45 },
-                      { icon: '🌍', title: 'Realm Trailblazer', desc: 'Cleared Elemental Realms', unlocked: clearedAreasCount >= 1 },
-                      { icon: '👑', title: 'Syntax Sovereign', desc: 'Mastered K–8 Vocabulary', unlocked: allWords.length >= 60 },
-                    ].map((badge) => (
-                      <div
-                        key={badge.title}
-                        className={`p-2.5 rounded-xl border-2 border-[#1a162b] text-center ${
-                          badge.unlocked ? 'bg-[#fde047]/40' : 'bg-stone-200 opacity-60'
-                        }`}
-                      >
-                        <div className="text-2xl">{badge.icon}</div>
-                        <div className="font-display font-black text-xs text-[#1a162b] mt-0.5">
-                          {badge.title}
-                        </div>
-                        <div className="text-[10px] font-bold text-[#5d4037]">{badge.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Parts of Speech Mastery Bar */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-                    {(
-                      [
-                        { label: 'Adjectives', count: words.adjectives.length, color: 'bg-amber-200' },
-                        { label: 'Nouns', count: words.nouns.length, color: 'bg-sky-200' },
-                        { label: 'Verbs', count: (words.verbs ?? []).length, color: 'bg-rose-200' },
-                        { label: 'Adverbs', count: (words.adverbs ?? []).length, color: 'bg-purple-200' },
-                      ] as const
-                    ).map((stat) => (
-                      <div
-                        key={stat.label}
-                        className={`rounded-xl border-2 border-[#1a162b] ${stat.color} p-2 text-center`}
-                      >
-                        <div className="font-mono text-sm font-black text-[#1a162b]">
-                          {stat.count} Tablets
-                        </div>
-                        <div className="text-[10px] font-black uppercase text-[#1a162b]/80">
-                          {stat.label}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Feature #19: Mistake Review "Field Journal" Practice Deck */}
-                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="font-display font-black text-sm text-[#1a162b]">
-                      📓 Feature #19 · Mistake Review &amp; Field Journal Practice Deck
-                    </div>
-                    <span className="text-[10px] font-black text-emerald-700">
-                      +20 🪙 per Mastered Word
-                    </span>
-                  </div>
-                  {mistakeWords.length === 0 ? (
-                    <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-2.5 text-xs font-bold text-emerald-800">
-                      ✨ All Field Journal review words have been mastered!
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {mistakeWords.map((mw) => (
-                        <button
-                          key={mw}
-                          type="button"
-                          onClick={() => {
-                            juice.speakWord(mw);
-                            masterMistakeWord(mw);
-                            addRewards({ coins: 20, tokens: 0, xp: 15 });
-                            triggerToast(`Mastered "${mw}" in Field Journal! +20 🪙`);
-                          }}
-                          className="flex items-center gap-2 rounded-xl border-2 border-[#1a162b] bg-[#fff8e7] hover:bg-[#fde047] px-3 py-1.5 text-xs font-black text-[#1a162b] cursor-pointer"
-                        >
-                          <span>🔊 Practice &amp; Master: "{mw}"</span>
-                          <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] text-white">
-                            +20 🪙
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setActiveModal(null);
-                      setIsCustomizingAvatar(true);
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#ffd54f] to-[#ffb300] border-[3px] border-[#1a162b] font-display font-black text-xs text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
-                  >
-                    Customize Explorer Avatar
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveModal(null);
-                      setTab('loadout');
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-b from-[#4fc3f7] to-[#0288d1] border-[3px] border-[#1a162b] font-display font-black text-xs text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
-                  >
-                    Open Word Arsenal
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeModal === 'settings' && (
-              <div className="space-y-4">
-                {/* Improvement #15: Adaptive K–8 Grade Band Selector */}
-                <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2.5">
-                  <div>
-                    <div className="font-display font-black text-base text-[#1a162b]">
-                      🎓 Adaptive K–8 Vocabulary Grade Band
-                    </div>
-                    <div className="text-xs font-semibold text-[#5d4037]">
-                      Filter default Word Tablets in battle and tailor your Explorer experience
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {(
-                      [
-                        { id: 'all', label: 'All K–8 Tiers', desc: 'Complete Catalog' },
-                        { id: 'k-2', label: 'Grades K–2', desc: 'Sprout Foundations' },
-                        { id: '3-5', label: 'Grades 3–5', desc: 'Core Elementary' },
-                        { id: '6-8', label: 'Grades 6–8', desc: 'High-Achiever Extender' },
-                      ] as const
-                    ).map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => {
-                          setPreferredGradeBand(b.id);
-                          juice.click();
-                          triggerToast(`Grade Band set to ${b.label}!`);
-                        }}
-                        className={`p-2.5 rounded-xl border-2 border-[#1a162b] text-left cursor-pointer transition ${
-                          preferredGradeBand === b.id
-                            ? 'bg-[#ffd54f] text-[#1a162b] shadow-[0_3px_0_#1a162b]'
-                            : 'bg-[#fff8e7] hover:bg-[#ffe082] text-[#1a162b]'
-                        }`}
-                      >
-                        <div className="font-display font-black text-xs">{b.label}</div>
-                        <div className="text-[10px] font-bold text-[#5d4037]">{b.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Feature #14: Custom Spelling List & Vocabulary Importer (Parent / Teacher Mode) */}
-                <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-3">
-                  <div>
-                    <div className="font-display font-black text-base text-[#1a162b]">
-                      📝 Custom Spelling Word &amp; Tablet Importer (Parent / Teacher Studio)
-                    </div>
-                    <p className="text-xs font-semibold text-[#5d4037]">
-                      Type any weekly school vocabulary word below to chisel it into a playable Stone Word Tablet!
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      value={customSpellingWord}
-                      onChange={(e) => setCustomSpellingWord(e.target.value)}
-                      placeholder="Word (e.g. Luminous)"
-                      className="rounded-xl border-2 border-[#1a162b] bg-white px-3 py-2 text-xs font-bold text-[#1a162b]"
-                    />
-                    <input
-                      type="text"
-                      value={customSpellingDef}
-                      onChange={(e) => setCustomSpellingDef(e.target.value)}
-                      placeholder="Short definition..."
-                      className="rounded-xl border-2 border-[#1a162b] bg-white px-3 py-2 text-xs font-bold text-[#1a162b]"
-                    />
-                    <div className="flex gap-1.5">
-                      <select
-                        value={customSpellingPos}
-                        onChange={(e) => setCustomSpellingPos(e.target.value as PartOfSpeech)}
-                        className="flex-1 rounded-xl border-2 border-[#1a162b] bg-white px-2 py-2 text-xs font-black text-[#1a162b]"
-                      >
-                        <option value="adjective">Adjective</option>
-                        <option value="noun">Noun</option>
-                        <option value="verb">Verb</option>
-                        <option value="adverb">Adverb</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const clean = customSpellingWord.trim();
-                          if (!clean) {
-                            triggerToast('Enter a vocabulary word first!');
-                            return;
-                          }
-                          const newTablet: Word = {
-                            id: `custom_${clean.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`,
-                            word: clean,
-                            definition:
-                              customSpellingDef.trim() ||
-                              `Custom Explorer Word Tablet (${customSpellingPos}).`,
-                            example: `The explorer used the ${clean.toLowerCase()} tablet on the trail.`,
-                            partOfSpeech: customSpellingPos,
-                            element: customSpellingElem,
-                            gradeTier: '4',
-                            powerBonus: 5,
-                          };
-                          commitWord(newTablet);
-                          setCustomSpellingWord('');
-                          setCustomSpellingDef('');
-                          juice.fanfare();
-                          juice.speakWord(clean);
-                          triggerToast(`Chiseled Custom Word Tablet: "${clean}"!`);
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] border-2 border-[#1a162b] font-display font-black text-xs text-[#1a162b] cursor-pointer shrink-0"
-                      >
-                        + Add Tablet
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Feature #18: Dyslexia-Friendly Typography & High-Contrast Mode + Feature #20: Seasonal Sanctuary Themes */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
-                    <div>
-                      <div className="font-display font-black text-sm text-[#1a162b]">
-                        📖 Dyslexia-Friendly Readability (#18)
-                      </div>
-                      <div className="text-[11px] font-semibold text-[#5d4037]">
-                        Wider letter spacing &amp; clear word intervals
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDyslexiaFriendly(!dyslexiaFriendly);
-                        juice.click();
-                      }}
-                      className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer ${
-                        dyslexiaFriendly ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
-                      }`}
-                    >
-                      {dyslexiaFriendly ? '✓ Active' : 'Enable'}
-                    </button>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-1.5">
-                    <div className="font-display font-black text-sm text-[#1a162b]">
-                      🍂 Seasonal Sanctuary Theme (#20)
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {(
-                        [
-                          { id: 'classic', label: '🌿 Summer' },
-                          { id: 'autumn', label: '🍁 Autumn' },
-                          { id: 'frostfall', label: '❄️ Frostfall' },
-                          { id: 'starlight', label: '✨ Starlight' },
-                        ] as const
-                      ).map((th) => (
-                        <button
-                          key={th.id}
-                          type="button"
-                          onClick={() => {
-                            setSanctuaryTheme(th.id);
-                            juice.click();
-                          }}
-                          className={`px-2 py-1 rounded-lg border border-[#1a162b] text-[10px] font-black cursor-pointer ${
-                            sanctuaryTheme === th.id
-                              ? 'bg-[#1a162b] text-[#fde047]'
-                              : 'bg-amber-50 text-[#1a162b]'
-                          }`}
-                        >
-                          {th.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
-                  <div>
-                    <div className="font-display font-black text-base">
-                      Voice Read-Aloud &amp; Sound FX
-                    </div>
-                    <div className="text-xs font-semibold text-[#5d4037]">
-                      Toggle speech synthesis and RPG sound effects
-                    </div>
-                  </div>
-                  <button
-                    onClick={toggleMute}
-                    className="px-4 py-2 rounded-xl bg-[#ffd54f] border-2 border-[#1a162b] font-black text-xs cursor-pointer"
-                  >
-                    {isMuted ? '🔇 Muted' : '🔊 Sound On'}
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-[#ffebee] border-[3px] border-[#1a162b]">
-                  <div>
-                    <div className="font-display font-black text-base text-[#c62828]">
-                      Switch Explorer / Log Out
-                    </div>
-                    <div className="text-xs font-semibold text-[#b71c1c]">
-                      Return to the Explorer Login &amp; Sign-Up Portal
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setActiveModal(null);
-                      logout();
-                    }}
-                    className="px-4 py-2 rounded-xl bg-[#e53935] text-white border-2 border-[#1a162b] font-black text-xs cursor-pointer"
-                  >
-                    Log Out Now
-                  </button>
-                </div>
-              </div>
+            {(activeModal === 'quests' ||
+              activeModal === 'museum' ||
+              activeModal === 'profile' ||
+              activeModal === 'settings') && (
+              <HubSecondaryModalBody
+                activeModal={activeModal}
+                selectedPet={selectedPet}
+                selectablePets={selectablePets}
+                allWords={allWords}
+                clearedAreasCount={clearedAreasCount}
+                claimedQuestIds={claimedQuestIds}
+                onClaimQuest={handleClaimQuest}
+                onCloseModal={() => setActiveModal(null)}
+                onTriggerToast={triggerToast}
+              />
             )}
           </div>
         </div>

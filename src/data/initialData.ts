@@ -1,5 +1,5 @@
-import type { Creature, CatalogWords, Affix, ElementType } from '../types';
-import { buildMergedVocabularyCatalog } from './vocabDatabase';
+import type { Creature, CatalogWords, Affix, ElementType } from '../types.ts';
+import { buildMergedVocabularyCatalog } from './vocabDatabase.ts';
 
 const ALL_ELEMENTS: ElementType[] = [
   'fire',
@@ -11,8 +11,6 @@ const ALL_ELEMENTS: ElementType[] = [
   'light',
   'earth',
   'air',
-  'nature',
-  'cosmic',
 ];
 
 export const INITIAL_CREATURES: Creature[] = [
@@ -323,10 +321,10 @@ export const INITIAL_CREATURES: Creature[] = [
     element: "water",
     elementAffinity: "water",
     loadout: {
-      verb: "surge",
-      noun: "tide",
-      adjective: "rushing",
-      adverb: "smoothly"
+      verb: "splash",
+      noun: "current",
+      adjective: "flowing",
+      adverb: "swiftly"
     },
     description: "Guardian of the Azure Water Lagoon. Summons tidal shields and cascading verb waves.",
     stats: {
@@ -345,7 +343,7 @@ export const INITIAL_CREATURES: Creature[] = [
     elementAffinity: "air",
     loadout: {
       verb: "soar",
-      noun: "gale",
+      noun: "breeze",
       adjective: "swift",
       adverb: "rapidly"
     },
@@ -366,7 +364,7 @@ export const INITIAL_CREATURES: Creature[] = [
     elementAffinity: "electric",
     loadout: {
       verb: "spark",
-      noun: "bolt",
+      noun: "charge",
       adjective: "charged",
       adverb: "fiercely"
     },
@@ -386,10 +384,10 @@ export const INITIAL_CREATURES: Creature[] = [
     element: "shadow",
     elementAffinity: "shadow",
     loadout: {
-      verb: "vanish",
-      noun: "shadow",
-      adjective: "mysterious",
-      adverb: "silently"
+      verb: "cloak",
+      noun: "shade",
+      adjective: "hidden",
+      adverb: "quietly"
     },
     description: "Ancient keeper of Shadowcrypt Golem Ruins. Tests scholars with cryptic prefixes and extender roots.",
     stats: {

@@ -21,191 +21,13 @@ import { canPetEvolve } from '../data/evolutionData';
 import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
 import { GRADE_TIERS, getGradeTierMeta } from '../data/vocabDatabase';
-
-const ZONE_BIOMES: Record<
-  string,
-  {
-    title: string;
-    subtitle: string;
-    skyFrom: string;
-    skyTo: string;
-    horizonColor: string;
-    groundColor: string;
-    accentColor: string;
-    badge: string;
-  }
-> = {
-  'area-grass': {
-    title: 'Emerald Grass Glade',
-    subtitle: 'Area 1 · Grass Realm (Grades K–1 Roots)',
-    skyFrom: '#38bdf8',
-    skyTo: '#bae6fd',
-    horizonColor: '#0284c7',
-    groundColor: '#65d654',
-    accentColor: '#228b22',
-    badge: '🌿 Grass Area',
-  },
-  'area-water': {
-    title: 'Azure Water Lagoon',
-    subtitle: 'Area 2 · Water Realm (Grades 1–2 Verbs & Nouns)',
-    skyFrom: '#0284c7',
-    skyTo: '#7dd3fc',
-    horizonColor: '#0369a1',
-    groundColor: '#38bdf8',
-    accentColor: '#0284c7',
-    badge: '💧 Water Area',
-  },
-  'area-earth': {
-    title: 'Sunfall Fossil Canyon',
-    subtitle: 'Area 3 · Earth Realm (Grades 2–3 Compounds)',
-    skyFrom: '#f59e0b',
-    skyTo: '#fef3c7',
-    horizonColor: '#d97706',
-    groundColor: '#eab308',
-    accentColor: '#a16207',
-    badge: '🪨 Earth Area',
-  },
-  'area-fire': {
-    title: 'Fireforge Magma Caldera',
-    subtitle: 'Area 4 · Fire Realm (Grades 3–4 Action Matrix)',
-    skyFrom: '#7c2d12',
-    skyTo: '#fb923c',
-    horizonColor: '#9a3412',
-    groundColor: '#78716c',
-    accentColor: '#ea580c',
-    badge: '🔥 Fire Area',
-  },
-  'area-ice': {
-    title: 'Frostpeak Crystal Glacier',
-    subtitle: 'Area 5 · Ice Realm (Grades 3–4 Prefixes)',
-    skyFrom: '#0369a1',
-    skyTo: '#e0f2fe',
-    horizonColor: '#0284c7',
-    groundColor: '#7dd3fc',
-    accentColor: '#0369a1',
-    badge: '❄️ Ice Area',
-  },
-  'area-air': {
-    title: 'Tempest Sky Spire',
-    subtitle: 'Area 6 · Air Realm (Grades 4–5 Suffixes & Adverbs)',
-    skyFrom: '#0d9488',
-    skyTo: '#ccfbf1',
-    horizonColor: '#0f766e',
-    groundColor: '#5eead4',
-    accentColor: '#0f766e',
-    badge: '🌬️ Air Area',
-  },
-  'area-electric': {
-    title: 'Volt-Rune Storm Citadel',
-    subtitle: 'Area 7 · Electric Realm (Grade 5 High-Voltage Syntax)',
-    skyFrom: '#1e1b4b',
-    skyTo: '#4338ca',
-    horizonColor: '#312e81',
-    groundColor: '#eab308',
-    accentColor: '#ca8a04',
-    badge: '⚡ Electric Area',
-  },
-  'area-shadow': {
-    title: 'Shadowcrypt Golem Ruins',
-    subtitle: 'Area 8 · Shadow Realm (Grades 5–8 Cryptic Morphemes)',
-    skyFrom: '#1e1b4b',
-    skyTo: '#581c87',
-    horizonColor: '#3b0764',
-    groundColor: '#64748b',
-    accentColor: '#7e22ce',
-    badge: '🌑 Shadow Area',
-  },
-  'area-light': {
-    title: 'Celestia Radiant Sanctum',
-    subtitle: 'Area 9 · Light Realm (Grades 6–8 Extender Summit)',
-    skyFrom: '#3b0764',
-    skyTo: '#a855f7',
-    horizonColor: '#6b21a8',
-    groundColor: '#fde047',
-    accentColor: '#ca8a04',
-    badge: '✨ Light Area',
-  },
-  'root-village': {
-    title: 'Harmony Village Meadow',
-    subtitle: 'Zone 1 · Root Word Sanctuary',
-    skyFrom: '#38bdf8',
-    skyTo: '#bae6fd',
-    horizonColor: '#0284c7',
-    groundColor: '#65d654',
-    accentColor: '#15803d',
-    badge: '🌿 Meadow Stage',
-  },
-  'prefix-path': {
-    title: 'Frostpeak Glacial Pass',
-    subtitle: 'Zone 2 · Prefix Peaks',
-    skyFrom: '#0284c7',
-    skyTo: '#e0f2fe',
-    horizonColor: '#0369a1',
-    groundColor: '#bae6fd',
-    accentColor: '#0369a1',
-    badge: '❄️ Glacier Stage',
-  },
-  'prefix-peaks': {
-    title: 'Frostpeak Glacial Pass',
-    subtitle: 'Zone 2 · Prefix Peaks',
-    skyFrom: '#0284c7',
-    skyTo: '#e0f2fe',
-    horizonColor: '#0369a1',
-    groundColor: '#bae6fd',
-    accentColor: '#0369a1',
-    badge: '❄️ Glacier Stage',
-  },
-  'suffix-steppes': {
-    title: 'Sunfall Oasis & Sky Steppes',
-    subtitle: 'Zone 3 · Suffix Steppes',
-    skyFrom: '#f59e0b',
-    skyTo: '#fef3c7',
-    horizonColor: '#d97706',
-    groundColor: '#fcd34d',
-    accentColor: '#b45309',
-    badge: '🏜️ Oasis Stage',
-  },
-  'sunfall-dunes': {
-    title: 'Sunfall Fossil Canyon',
-    subtitle: 'Zone 3 · Prehistoric Dig & Suffix Steppes',
-    skyFrom: '#f59e0b',
-    skyTo: '#fef3c7',
-    horizonColor: '#d97706',
-    groundColor: '#fcd34d',
-    accentColor: '#b45309',
-    badge: '🦴 Fossil Stage',
-  },
-  'compound-colosseum': {
-    title: 'Fireforge Magma Caldera',
-    subtitle: 'Zone 4 · Compound Colosseum',
-    skyFrom: '#7c2d12',
-    skyTo: '#ea580c',
-    horizonColor: '#9a3412',
-    groundColor: '#57534e',
-    accentColor: '#f97316',
-    badge: '🌋 Volcano Stage',
-  },
-  'syntax-spire': {
-    title: 'Celestia Astral Sanctum',
-    subtitle: 'Zone 5 · Peak of the Syntax Spire',
-    skyFrom: '#3b0764',
-    skyTo: '#a855f7',
-    horizonColor: '#581c87',
-    groundColor: '#fef08a',
-    accentColor: '#ca8a04',
-    badge: '👑 Astral Stage',
-  },
-  celestia: {
-    title: 'Celestia Astral Sanctum',
-    subtitle: 'Zone 5 · Peak of the Syntax Spire',
-    skyFrom: '#3b0764',
-    skyTo: '#a855f7',
-    horizonColor: '#581c87',
-    groundColor: '#fef08a',
-    accentColor: '#ca8a04',
-    badge: '👑 Astral Stage',
-  },
-};
+import { ZONE_BIOMES } from '../data/realms';
+import {
+  PASSIVE_TRAITS,
+  ACCESSORY_LABELS,
+  BattleMiniGameControls,
+  AdaptiveTutorCoachBar,
+} from './battle/BattleMiniGames';
 
 export const BattleView: React.FC = () => {
   const {
@@ -237,6 +59,7 @@ export const BattleView: React.FC = () => {
     increasePetBond,
     addMistakeWord,
     advanceToNextNode,
+    tutorInsight,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -247,16 +70,6 @@ export const BattleView: React.FC = () => {
   const [hoveredCmd, setHoveredCmd] = useState<string>('ultimate');
   const [projectileBurst, setProjectileBurst] = useState<boolean>(false);
   const [tagTeamComboActive, setTagTeamComboActive] = useState<boolean>(false);
-
-  // Feature #5: Synonym & Antonym Word Duel Counter-Clash state
-  const [showWordDuel, setShowWordDuel] = useState<boolean>(false);
-  const [duelIndex, setDuelIndex] = useState<number>(0);
-  const [duelBanner, setDuelBanner] = useState<string | null>(null);
-
-  // Feature #1: Homophone & Easily-Confused Word Traps state
-  const [showHomophoneTrap, setShowHomophoneTrap] = useState<boolean>(false);
-  const [homophoneIdx, setHomophoneIdx] = useState<number>(0);
-  const [homophoneFeedback, setHomophoneFeedback] = useState<string | null>(null);
 
   // Feature #2: Live Prefix & Suffix Combat Modifiers
   const [activeAffixChip, setActiveAffixChip] = useState<string | null>(null);
@@ -520,29 +333,6 @@ export const BattleView: React.FC = () => {
     setActiveAffixChip(null);
   };
 
-  // Feature #1: Homophone & Easily-Confused Word Traps
-  const HOMOPHONE_TRAPS = [
-    {
-      context: 'The guardians defended _____ ancient crystal cavern.',
-      options: ['THEIR', 'THERE', "THEY'RE"],
-      correctIndex: 0,
-      pairLabel: 'Their / There',
-    },
-    {
-      context: 'The solar storm had a powerful _____ on the arena turf.',
-      options: ['AFFECT', 'EFFECT', 'DEFECT'],
-      correctIndex: 1,
-      pairLabel: 'Affect / Effect',
-    },
-    {
-      context: 'The frost dragon shook _____ shimmering crystalline wings.',
-      options: ["IT'S", 'ITS', 'IGHTS'],
-      correctIndex: 1,
-      pairLabel: "Its / It's",
-    },
-  ];
-  const currentHomophone = HOMOPHONE_TRAPS[homophoneIdx % HOMOPHONE_TRAPS.length];
-
   // Feature #5: Dual-Companion Elemental Cross-Combo Name
   const crossComboName =
     sidekickPet && sidekickPet.element !== player.element
@@ -559,49 +349,9 @@ export const BattleView: React.FC = () => {
       ? 'verb'
       : 'adverb';
 
-  // Feature #5: Synonym & Antonym Word Duel Prompts
-  const WORD_DUEL_CHALLENGES = [
-    {
-      bossMove: 'COLOSSAL CRUSH',
-      prompt: 'Pick the ANTONYM Tablet of "COLOSSAL" to deflect!',
-      options: ['MINUSCULE', 'GIGANTIC', 'FIERCE'],
-      correctIndex: 0,
-    },
-    {
-      bossMove: 'FRIGID GALE',
-      prompt: 'Pick the ANTONYM Tablet of "FRIGID" to deflect!',
-      options: ['ICY', 'SCORCHING', 'SILENT'],
-      correctIndex: 1,
-    },
-    {
-      bossMove: 'RAPID BARRAGE',
-      prompt: 'Pick the SYNONYM Tablet of "RAPID" to parry!',
-      options: ['SLUGGISH', 'SWIFT', 'HEAVY'],
-      correctIndex: 1,
-    },
-  ];
-  const currentDuel = WORD_DUEL_CHALLENGES[duelIndex % WORD_DUEL_CHALLENGES.length];
-
   // Feature #8 & #10: Companion Passive Trait & Equipped Accessory Badge
-  const PASSIVE_TRAITS: Record<string, string> = {
-    fire: '🔥 Blaze Verb Mastery (+3 Verb Pwr)',
-    water: '💧 Tidal Bastion (+4 Noun Shield)',
-    grass: '🌿 Rootweaver (+3 Adj Pwr)',
-    electric: '⚡ Swift Syntax (+3 Adv Pwr)',
-    ice: '❄️ Permafrost Ward (+3 DEF)',
-    earth: '🪨 Granite Stance (+4 HP/Shield)',
-    air: '🌬️ Gale Tailwind (+4 SPD)',
-    shadow: '🌑 Umbra Echo (+3 Morpheme Pwr)',
-    light: '✨ Radiant Harmony (+3 All Pwr)',
-  };
   const companionTrait = PASSIVE_TRAITS[player.element] || PASSIVE_TRAITS.fire;
   const equippedAccId = petAccessories[player.id] || 'amber_fang';
-  const ACCESSORY_LABELS: Record<string, string> = {
-    amber_fang: '🦴 Amber Fang (+ATK)',
-    iron_shell: '🛡️ Iron Shell (+DEF)',
-    zephyr_band: '🪶 Zephyr Band (+SPD)',
-    root_crown: '👑 Root Crown (+HP)',
-  };
   const equippedAccLabel = ACCESSORY_LABELS[equippedAccId] || ACCESSORY_LABELS.amber_fang;
 
   const displayEnemyName = activeEnemyName || enemy.name;
@@ -1303,123 +1053,18 @@ export const BattleView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Feature #5 (Word Duel), Feature #1 (Homophone Trap) & Feature #13 (Syllables) */}
-                <div className="mt-1.5 flex items-center justify-between gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      juice.click();
-                      setShowWordDuel((prev) => !prev);
-                      setShowHomophoneTrap(false);
-                      setDuelBanner(null);
-                    }}
-                    className="flex-1 rounded-lg border-2 border-[#1a162b] bg-gradient-to-r from-[#fde047] to-[#f59e0b] px-1.5 py-1 font-display text-[9px] font-black uppercase text-[#1a162b] shadow cursor-pointer"
-                  >
-                    ⚔️ Duel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      juice.click();
-                      setShowHomophoneTrap((prev) => !prev);
-                      setShowWordDuel(false);
-                      setHomophoneFeedback(null);
-                    }}
-                    className="flex-1 rounded-lg border-2 border-[#1a162b] bg-gradient-to-r from-[#a78bfa] to-[#7c3aed] px-1.5 py-1 font-display text-[9px] font-black uppercase text-white shadow cursor-pointer"
-                  >
-                    🪞 Homophone
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      juice.click();
-                      setShowSyllables((s) => !s);
-                    }}
-                    className={`rounded-lg border-2 border-[#1a162b] px-1.5 py-1 font-display text-[9px] font-black uppercase cursor-pointer ${
-                      showSyllables ? 'bg-sky-400 text-[#1a162b]' : 'bg-[#271306] text-amber-200'
-                    }`}
-                    title="Toggle Phonetics & Syllable Clapper Breakdown"
-                  >
-                    👏 Syllables
-                  </button>
-                </div>
-
-                {showWordDuel && (
-                  <div className="mt-1.5 rounded-xl border-2 border-[#fde047] bg-[#1e1b4b] p-2 text-white space-y-1.5">
-                    <div className="text-[10px] font-black text-[#fde047]">
-                      ⚡ {currentDuel.bossMove}: {currentDuel.prompt}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {currentDuel.options.map((opt, idx) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => {
-                            if (idx === currentDuel.correctIndex) {
-                              juice.fanfare();
-                              juice.speakWord(opt);
-                              setProjectileBurst(true);
-                              setTimeout(() => setProjectileBurst(false), 600);
-                              addRewards({ coins: 20, tokens: 0, xp: 15 });
-                              setDuelBanner(`✨ Deflected with "${opt}"! +20 🪙!`);
-                              setDuelIndex((i) => i + 1);
-                            } else {
-                              juice.boing();
-                              setDuelBanner('Try again! Look for the exact match.');
-                            }
-                          }}
-                          className="rounded-lg border border-[#fde047] bg-indigo-900 hover:bg-[#fde047] hover:text-[#1a162b] py-1 font-display text-[10px] font-black cursor-pointer transition"
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                    {duelBanner && (
-                      <div className="text-center font-display text-[10px] font-black text-emerald-300">
-                        {duelBanner}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {showHomophoneTrap && (
-                  <div className="mt-1.5 rounded-xl border-2 border-purple-300 bg-[#2e1065] p-2 text-white space-y-1.5">
-                    <div className="text-[10px] font-black text-purple-200">
-                      🪞 Mirage Trap: {currentHomophone.context}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {currentHomophone.options.map((opt, idx) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => {
-                            if (idx === currentHomophone.correctIndex) {
-                              juice.fanfare();
-                              juice.speakWord(opt);
-                              addRewards({ coins: 25, tokens: 0, xp: 15 });
-                              setHomophoneFeedback(`✨ Mirage Shattered with "${opt}"! +25 🪙!`);
-                              setHomophoneIdx((i) => i + 1);
-                            } else {
-                              juice.boing();
-                              addMistakeWord(currentHomophone.pairLabel);
-                              setHomophoneFeedback(
-                                `Saved "${currentHomophone.pairLabel}" to Field Journal for practice!`
-                              );
-                            }
-                          }}
-                          className="rounded-lg border border-purple-300 bg-purple-900 hover:bg-[#fde047] hover:text-[#1a162b] py-1 font-display text-[10px] font-black cursor-pointer transition"
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                    {homophoneFeedback && (
-                      <div className="text-center font-display text-[10px] font-black text-amber-200">
-                        {homophoneFeedback}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Feature #5 (Word Duel), Feature #1 (Homophone Trap), Feature #13 (Syllables) & Adaptive Tutor Coach */}
+                <BattleMiniGameControls
+                  showSyllables={showSyllables}
+                  onToggleSyllables={() => setShowSyllables((s) => !s)}
+                  onTriggerBurst={() => {
+                    setProjectileBurst(true);
+                    setTimeout(() => setProjectileBurst(false), 600);
+                  }}
+                  onAddRewards={addRewards}
+                  onAddMistakeWord={addMistakeWord}
+                />
+                <AdaptiveTutorCoachBar insight={tutorInsight} />
               </div>
             </div>
 

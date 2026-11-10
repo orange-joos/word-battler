@@ -7,9 +7,7 @@ export type ElementType =
   | 'shadow'
   | 'light'
   | 'earth'
-  | 'air'
-  | 'nature'
-  | 'cosmic';
+  | 'air';
 
 export type GradeTier = 'K' | '1' | '2' | '3' | '4' | '5' | 'extender';
 

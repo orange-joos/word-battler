@@ -1,4 +1,4 @@
-import { ElementType, GradeTier, PartOfSpeech } from '../types';
+import type { ElementType, GradeTier, PartOfSpeech } from '../types.ts';
 
 export type NodeEncounterType = 'combat' | 'quiz' | 'digsite' | 'midboss' | 'chest' | 'boss';
 

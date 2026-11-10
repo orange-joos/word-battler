@@ -113,11 +113,11 @@ export const LoadoutView: React.FC = () => {
     updatePetLoadout,
     autoEquipBestLoadout,
     useCreatureInBattle,
-    levelUpPet,
+    trainPetWithCoins,
     evolvePet,
     setTab,
   } = useGame();
-  const { currentUser, addRewards } = useAuth();
+  const { currentUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ArsenalTab>('my-creatures');
   const [elementFilter, setElementFilter] = useState<ElementType | 'all'>('all');
@@ -210,14 +210,12 @@ export const LoadoutView: React.FC = () => {
   };
 
   const handleTrainPet = (targetPet = selectedPet) => {
-    const coins = currentUser?.lexiCoins ?? 0;
-    if (coins < 50) {
-      setTrainFeedback('Need 50 Lexi-Coins! Win battles to earn more.');
+    const res = trainPetWithCoins(targetPet.id, 50);
+    if (!res.success) {
+      setTrainFeedback(res.error || 'Need 50 Lexi-Coins! Win battles to earn more.');
       setTimeout(() => setTrainFeedback(null), 2500);
       return;
     }
-    addRewards({ coins: -50 });
-    levelUpPet(targetPet.id, 1);
     setTrainFeedback(`Trained ${targetPet.name} to Level ${(targetPet.level || 8) + 1}!`);
     setTimeout(() => setTrainFeedback(null), 2500);
   };

@@ -6,7 +6,7 @@ import { CharacterCreator } from './components/CharacterCreator';
 import { BattleView } from './components/BattleView';
 import { WordForgeView } from './components/WordForgeView';
 import { LoadoutView } from './components/LoadoutView';
-import { HubView } from './components/HubView';
+import { OverworldMap } from './components/OverworldMap';
 import { GuideModal } from './components/GuideModal';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StarterPetSelection } from './components/StarterPetSelection';
@@ -61,10 +61,12 @@ const AppContent: React.FC = () => {
   if (tab === 'hub' || tab === 'shop') {
     return (
       <div className="w-screen h-screen overflow-hidden bg-[#59b8fa] text-slate-800 flex flex-col font-sans select-none">
-        <HubView
-          onOpenGuide={() => setIsGuideOpen(true)}
-          initialPanel={tab === 'shop' ? 'shop' : null}
-        />
+        <div className="relative h-full min-h-screen w-full overflow-hidden">
+          <OverworldMap
+            onOpenGuide={() => setIsGuideOpen(true)}
+            initialPanel={tab === 'shop' ? 'shop' : null}
+          />
+        </div>
 
         <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 

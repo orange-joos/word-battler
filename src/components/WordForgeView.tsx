@@ -15,79 +15,11 @@ import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import { INITIAL_AFFIXES } from '../data/initialData';
 import { ELEMENTS } from '../data/elements';
-import { forgeCombine, getAllWordsList } from '../engine/forge';
+import { forgeCombine, FORGE_BLUEPRINTS, ForgeBlueprint, getAllWordsList } from '../engine/forge';
 import { ForgeToken, Word, Creature, GradeTier } from '../types';
 import { juice } from '../engine/juice';
 import { CreatureSprite } from './CreatureSprite';
 import { GRADE_TIERS, getGradeTierMeta } from '../data/vocabDatabase';
-
-interface ForgeBlueprint {
-  id: string;
-  title: string;
-  category: 'Prefix Tablet' | 'Suffix Shift' | 'Compound Word' | 'Hybrid Companion';
-  ruleNote: string;
-  token1: ForgeToken;
-  token2: ForgeToken;
-}
-
-const FORGE_BLUEPRINTS: ForgeBlueprint[] = [
-  {
-    id: 'bp-unfrozen',
-    title: 'un- + frozen → unfrozen',
-    category: 'Prefix Tablet',
-    ruleNote: 'Prefix Rule: Attach "un-" to the front without changing the root spelling!',
-    token1: { kind: 'affix', id: 'un' },
-    token2: { kind: 'word', id: 'frozen' },
-  },
-  {
-    id: 'bp-reignite',
-    title: 're- + ignite → reignite',
-    category: 'Prefix Tablet',
-    ruleNote: 'Prefix Rule: "re-" means again—to ignite a second time!',
-    token1: { kind: 'affix', id: 're' },
-    token2: { kind: 'word', id: 'ignite' },
-  },
-  {
-    id: 'bp-chilliness',
-    title: 'chilly + -ness → chilliness',
-    category: 'Suffix Shift',
-    ruleNote: 'Y-to-I Rule: Final consonant + Y changes to I before adding "-ness"!',
-    token1: { kind: 'word', id: 'chilly' },
-    token2: { kind: 'affix', id: 'ness' },
-  },
-  {
-    id: 'bp-flameling',
-    title: 'flame + -ling → flameling',
-    category: 'Suffix Shift',
-    ruleNote: 'Drop-Silent-E Rule: Drop silent E on "flame" before adding "-ling"!',
-    token1: { kind: 'word', id: 'flame' },
-    token2: { kind: 'affix', id: 'ling' },
-  },
-  {
-    id: 'bp-flameless',
-    title: 'flame + -less → flameless',
-    category: 'Suffix Shift',
-    ruleNote: 'Suffix "-less" means "without" and inverts the elemental polarity!',
-    token1: { kind: 'word', id: 'flame' },
-    token2: { kind: 'affix', id: 'less' },
-  },
-  {
-    id: 'bp-compound',
-    title: 'blazing + flame → blazingflame',
-    category: 'Compound Word',
-    ruleNote: 'Compound Head Rule: Second word ("flame") sets the Noun part of speech!',
-    token1: { kind: 'word', id: 'blazing' },
-    token2: { kind: 'word', id: 'flame' },
-  },
-  {
-    id: 'bp-hybrid-pet',
-    title: 'Emberfox + Rimepup → Hybrid Companion',
-    category: 'Hybrid Companion',
-    ruleNote: 'Splices two companion cores into a dual-morpheme hybrid creature!',
-    token1: { kind: 'creature', id: 'emberfox' },
-    token2: { kind: 'creature', id: 'rimepup' },
-  },
-];
 
 export const WordForgeView: React.FC = () => {
   const {

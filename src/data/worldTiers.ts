@@ -1,4 +1,4 @@
-import type { ElementType } from '../types';
+import type { ElementType } from '../types.ts';
 
 export interface VocabSample {
   word: string;

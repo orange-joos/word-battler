@@ -1,4 +1,4 @@
-import type { ElementType } from '../types';
+import type { ElementType } from '../types.ts';
 
 export const ELEMENTS: Record<
   ElementType,
@@ -13,14 +13,12 @@ export const ELEMENTS: Record<
   light: { name: 'Light', icon: '✨', color: '#facc15', stat: 'hp' },
   earth: { name: 'Earth', icon: '🪨', color: '#a16207', stat: 'defense' },
   air: { name: 'Air', icon: '🌬️', color: '#38bdf8', stat: 'speed' },
-  nature: { name: 'Nature', icon: '🌿', color: '#22c55e', stat: 'hp' },
-  cosmic: { name: 'Cosmic', icon: '✨', color: '#a855f7', stat: 'attack' },
 };
 
 export const ELEMENT_TYPES = Object.freeze(Object.keys(ELEMENTS) as ElementType[]);
 
 export const OPPOSITE_ELEMENT: Record<ElementType, ElementType> = {
-  fire: 'water',
+  fire: 'ice',
   water: 'electric',
   ice: 'fire',
   grass: 'fire',
@@ -29,7 +27,12 @@ export const OPPOSITE_ELEMENT: Record<ElementType, ElementType> = {
   light: 'shadow',
   earth: 'grass',
   air: 'ice',
-  nature: 'fire',
-  cosmic: 'shadow',
 };
+
+export function normalizeElement(element?: string): ElementType {
+  if (!element) return 'fire';
+  if (element === 'nature') return 'grass';
+  if (element === 'cosmic') return 'light';
+  return element in ELEMENTS ? (element as ElementType) : 'fire';
+}
 

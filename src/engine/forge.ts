@@ -2,23 +2,11 @@
  * Word Forge — morphology fusion engine for Word Battler (Layer 2 - Word Relationships)
  */
 
-import { Word, Creature, Affix, ForgeToken, ForgeResult, CatalogWords, ElementType } from '../types';
-import { INITIAL_AFFIXES, INITIAL_CREATURE_MORPHEMES } from '../data/initialData';
+import type { Word, Creature, Affix, ForgeToken, ForgeResult, CatalogWords, ElementType } from '../types.ts';
+import { OPPOSITE_ELEMENT } from '../data/elements.ts';
+import { INITIAL_AFFIXES, INITIAL_CREATURE_MORPHEMES } from '../data/initialData.ts';
 
 export const MAX_FORGE_DEPTH = 2;
-const OPPOSITE_ELEMENT: Record<ElementType, ElementType> = {
-  fire: 'ice',
-  water: 'water',
-  ice: 'fire',
-  grass: 'grass',
-  electric: 'electric',
-  shadow: 'shadow',
-  light: 'light',
-  earth: 'earth',
-  air: 'air',
-  nature: 'nature',
-  cosmic: 'cosmic',
-};
 
 const AFFIXATION_BONUS = 1;
 const COMPOUND_BONUS = 2;
@@ -66,13 +54,33 @@ function pluralize(parts: string[]): string {
   return parts.map((p) => `${p}s`).join(' or ');
 }
 
+const wordListCache = new WeakMap<CatalogWords, Word[]>();
+const wordMapCache = new WeakMap<CatalogWords, Map<string, Word>>();
+
 export function getAllWordsList(words: CatalogWords): Word[] {
-  return [
+  const cached = wordListCache.get(words);
+  if (cached) return cached;
+  const list = [
     ...(words.adjectives || []),
     ...(words.nouns || []),
     ...(words.verbs || []),
     ...(words.adverbs || []),
   ];
+  wordListCache.set(words, list);
+  return list;
+}
+
+export function getWordById(words: CatalogWords, id: string | null | undefined): Word | null {
+  if (!id) return null;
+  let map = wordMapCache.get(words);
+  if (!map) {
+    map = new Map<string, Word>();
+    for (const w of getAllWordsList(words)) {
+      map.set(w.id, w);
+    }
+    wordMapCache.set(words, map);
+  }
+  return map.get(id) || null;
 }
 
 export function createForge(options: {
@@ -334,6 +342,78 @@ export function createForge(options: {
     };
   }
 
+  /* Process 4: Dual-Companion Morpheme Splicing (e.g., Emberfox + Rimepup -> Emberpup) */
+  function forgeCreaturePair(modCreature: Creature, headCreature: Creature): ForgeResult {
+    if (modCreature.id === headCreature.id) {
+      return fail('Choose two distinct companions to splice their morpheme cores.');
+    }
+    const depth = Math.max(modCreature.forged?.depth ?? 0, headCreature.forged?.depth ?? 0);
+    if (depth >= MAX_FORGE_DEPTH) {
+      return fail('One of these companions has already reached maximum fusion depth.');
+    }
+
+    const modifierText =
+      modCreature.forged?.modifier ??
+      creatureMorphemes[modCreature.id]?.modifier ??
+      modCreature.name.slice(0, Math.min(5, modCreature.name.length)).toLowerCase();
+    const head =
+      headCreature.forged?.head ??
+      creatureMorphemes[headCreature.id]?.head ??
+      headCreature.name.slice(-3).toLowerCase();
+
+    const hybridName = capitalize(modifierText) + head;
+    const resonance = modCreature.element === headCreature.element;
+    const stats = {
+      hp: Math.max(modCreature.stats.hp, headCreature.stats.hp) + (resonance ? 10 : 6),
+      attack: Math.max(modCreature.stats.attack, headCreature.stats.attack) + 3,
+      defense: Math.max(modCreature.stats.defense, headCreature.stats.defense) + 3,
+      speed: Math.max(modCreature.stats.speed, headCreature.stats.speed) + 2,
+    };
+
+    const allowedElements = Array.from(
+      new Set([
+        ...(modCreature.allowedElements || [modCreature.element]),
+        ...(headCreature.allowedElements || [headCreature.element]),
+        modCreature.element,
+        headCreature.element,
+      ])
+    );
+
+    const result: Creature = {
+      ...headCreature,
+      id: slug(hybridName),
+      name: hybridName,
+      element: modCreature.element,
+      elementAffinity: headCreature.element,
+      loadout: headCreature.loadout
+        ? { ...headCreature.loadout }
+        : { verb: null, noun: null, adjective: null, adverb: null },
+      description: `A dual-core hybrid spliced from ${modCreature.name} ("${modifierText}-") and ${headCreature.name} ("-${head}").`,
+      stats,
+      currentHp: stats.hp,
+      maxHp: stats.hp,
+      allowedWordTypes: ['adjective', 'noun', 'verb', 'adverb'],
+      allowedElements,
+      forged: {
+        layer: 2,
+        process: 'creature-compounding',
+        modifier: modifierText,
+        head,
+        sourceId: headCreature.id,
+        depth: depth + 1,
+        resonance,
+      },
+    };
+
+    return {
+      ok: true,
+      kind: 'creature-fusion',
+      result,
+      lesson: `"${hybridName}" splices modifier morpheme "${modifierText}-" (${modCreature.name}) onto head morpheme "-${head}" (${headCreature.name}), creating a Dual-Element ${modCreature.element}/${headCreature.element} companion!`,
+      reasons: [`${modCreature.name} + ${headCreature.name} → ${hybridName}`],
+    };
+  }
+
   function fuse(left: ForgeToken | null, right: ForgeToken | null): ForgeResult {
     const a = resolveToken(left);
     const b = resolveToken(right);
@@ -358,9 +438,9 @@ export function createForge(options: {
       case 'affix+affix':
         return fail('Affixes cannot attach to affixes; they require a root or base word.');
       case 'creature+creature':
-        return fail('Two creature heads cannot share one body. Fuse a word token with a creature.');
+        return forgeCreaturePair(a.entry as Creature, b.entry as Creature);
       default:
-        return fail('Combine an affix with a word, two words, or a word with a creature.');
+        return fail('Combine an affix with a word, two words, or a word/companion with a creature.');
     }
   }
 
@@ -407,3 +487,72 @@ export function addForgedCreature(creatures: Creature[], entry: Creature): Creat
   }
   return [...creatures, entry];
 }
+
+export interface ForgeBlueprint {
+  id: string;
+  title: string;
+  category: 'Prefix Tablet' | 'Suffix Shift' | 'Compound Word' | 'Hybrid Companion';
+  ruleNote: string;
+  token1: ForgeToken;
+  token2: ForgeToken;
+}
+
+export const FORGE_BLUEPRINTS: ForgeBlueprint[] = [
+  {
+    id: 'bp-unfrozen',
+    title: 'un- + frozen → unfrozen',
+    category: 'Prefix Tablet',
+    ruleNote: 'Prefix Rule: Attach "un-" to the front without changing the root spelling!',
+    token1: { kind: 'affix', id: 'un' },
+    token2: { kind: 'word', id: 'frozen' },
+  },
+  {
+    id: 'bp-reignite',
+    title: 're- + ignite → reignite',
+    category: 'Prefix Tablet',
+    ruleNote: 'Prefix Rule: "re-" means again—to ignite a second time!',
+    token1: { kind: 'affix', id: 're' },
+    token2: { kind: 'word', id: 'ignite' },
+  },
+  {
+    id: 'bp-chilliness',
+    title: 'chilly + -ness → chilliness',
+    category: 'Suffix Shift',
+    ruleNote: 'Y-to-I Rule: Final consonant + Y changes to I before adding "-ness"!',
+    token1: { kind: 'word', id: 'chilly' },
+    token2: { kind: 'affix', id: 'ness' },
+  },
+  {
+    id: 'bp-flameling',
+    title: 'flame + -ling → flameling',
+    category: 'Suffix Shift',
+    ruleNote: 'Drop-Silent-E Rule: Drop silent E on "flame" before adding "-ling"!',
+    token1: { kind: 'word', id: 'flame' },
+    token2: { kind: 'affix', id: 'ling' },
+  },
+  {
+    id: 'bp-flameless',
+    title: 'flame + -less → flameless',
+    category: 'Suffix Shift',
+    ruleNote: 'Suffix "-less" means "without" and inverts the elemental polarity!',
+    token1: { kind: 'word', id: 'flame' },
+    token2: { kind: 'affix', id: 'less' },
+  },
+  {
+    id: 'bp-compound',
+    title: 'blazing + flame → blazingflame',
+    category: 'Compound Word',
+    ruleNote: 'Compound Head Rule: Second word ("flame") sets the Noun part of speech!',
+    token1: { kind: 'word', id: 'blazing' },
+    token2: { kind: 'word', id: 'flame' },
+  },
+  {
+    id: 'bp-hybrid-pet',
+    title: 'Emberfox + Rimepup → Emberpup',
+    category: 'Hybrid Companion',
+    ruleNote: 'Splices two companion cores into a dual-morpheme hybrid creature!',
+    token1: { kind: 'creature', id: 'emberfox' },
+    token2: { kind: 'creature', id: 'rimepup' },
+  },
+];
+

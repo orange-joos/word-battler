@@ -1,4 +1,4 @@
-import type { TabType } from '../types';
+import type { TabType } from '../types.ts';
 
 export interface HubDestination {
   id: TabType;

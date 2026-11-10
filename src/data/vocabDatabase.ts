@@ -1,4 +1,4 @@
-import { Word, GradeTier, CatalogWords } from '../types';
+import type { Word, GradeTier, CatalogWords } from '../types.ts';
 
 export interface GradeTierMetadata {
   id: GradeTier;

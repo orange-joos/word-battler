@@ -1,4 +1,4 @@
-import type { Creature, ElementType, PartOfSpeech, Word } from '../types';
+import type { Creature, ElementType, PartOfSpeech, Word } from '../types.ts';
 import { ELEMENTS } from './elements.ts';
 
 export interface StarterPetOption {
@@ -72,20 +72,6 @@ export const STARTER_PETS: Record<ElementType, StarterPetOption> = {
     emoji: '🪁',
     description: 'A breezy sky friend who carries curious minds to new heights.',
     stats: { hp: 40, attack: 11, defense: 9, speed: 16 },
-  },
-  nature: {
-    element: 'nature',
-    name: 'Sylvanbloom',
-    emoji: '🌿',
-    description: 'A woodland guardian who blossoms with every new word.',
-    stats: { hp: 45, attack: 12, defense: 11, speed: 11 },
-  },
-  cosmic: {
-    element: 'cosmic',
-    name: 'Astralwing',
-    emoji: '🌌',
-    description: 'A starlit traveler who collects celestial vocabulary.',
-    stats: { hp: 46, attack: 14, defense: 11, speed: 13 },
   },
 };
 
