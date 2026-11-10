@@ -248,18 +248,34 @@ export const WordForgeView: React.FC = () => {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSlot1(null);
-              setSlot2(null);
-              setJustForgedBanner(null);
-            }}
-            className="flex items-center gap-1.5 rounded-xl border-2 border-[#fde047] bg-[#1a162b] hover:bg-slate-800 px-3.5 py-2 text-xs font-display font-black text-[#fde047] cursor-pointer"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span>Reset Anvil</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const randomBp =
+                  FORGE_BLUEPRINTS[Math.floor(Math.random() * FORGE_BLUEPRINTS.length)];
+                handleLoadBlueprint(randomBp);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3.5 py-2 text-xs font-display font-black text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+              title="Accessibility #11: Automatically load a valid morphology recipe onto the Anvil"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>✨ Pick a Recipe for Me</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSlot1(null);
+                setSlot2(null);
+                setJustForgedBanner(null);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border-2 border-[#fde047] bg-[#1a162b] hover:bg-slate-800 px-3.5 py-2 text-xs font-display font-black text-[#fde047] cursor-pointer"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Reset Anvil</span>
+            </button>
+          </div>
         </div>
 
         {justForgedBanner && (
@@ -449,6 +465,14 @@ export const WordForgeView: React.FC = () => {
                       (slot1?.kind === 'word' && slot1.id === w.id) ||
                       (slot2?.kind === 'word' && slot2.id === w.id);
                     const tierMeta = getGradeTierMeta(w.gradeTier);
+                    const slot1Affix =
+                      slot1?.kind === 'affix'
+                        ? INITIAL_AFFIXES.find((a) => a.id === slot1.id)
+                        : null;
+                    const isCompatibleWithSlot1 = slot1Affix
+                      ? slot1Affix.from.includes(w.partOfSpeech)
+                      : true;
+
                     return (
                       <button
                         key={w.id}
@@ -457,6 +481,10 @@ export const WordForgeView: React.FC = () => {
                         className={`flex flex-col justify-between rounded-xl border-2 p-2.5 text-left transition cursor-pointer ${
                           isSelected
                             ? 'border-[#1a162b] bg-[#fde047] shadow-[0_3px_0_#1a162b]'
+                            : !isCompatibleWithSlot1
+                            ? 'border-stone-300 bg-stone-100 opacity-50'
+                            : slot1Affix && isCompatibleWithSlot1
+                            ? 'border-emerald-600 bg-emerald-50 hover:bg-emerald-100 ring-2 ring-emerald-400'
                             : 'border-[#1a162b] bg-white hover:bg-amber-50'
                         }`}
                       >
@@ -478,7 +506,9 @@ export const WordForgeView: React.FC = () => {
                             {ELEMENTS[w.element]?.icon} {w.element}
                           </span>
                           <span className="font-mono font-black text-emerald-700">
-                            +{w.powerBonus ?? tierMeta.powerBonus}
+                            {slot1Affix && isCompatibleWithSlot1
+                              ? '✓ Fits Slot 1'
+                              : `+${w.powerBonus ?? tierMeta.powerBonus}`}
                           </span>
                         </div>
                       </button>

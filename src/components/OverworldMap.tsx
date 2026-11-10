@@ -124,6 +124,7 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     isMuted,
     toggleMute,
     zoneProgress,
+    setActiveZoneId,
     startBattleInZone,
     startBattleAtNode,
     setTab,
@@ -199,6 +200,17 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     }
   }, [initialPanel, returnToWordWorldMap, setReturnToWordWorldMap]);
 
+  // Accessibility #15: Close open hub modals with Escape key
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && activeModal) {
+        setActiveModal(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeModal]);
+
   const selectablePets = creatures.filter((c) => !c.id.startsWith('boss_'));
   const selectedPet = selectablePets.find((c) => c.id === playerId) || selectablePets[0];
   const allWords = getAllWordsList(words);
@@ -206,6 +218,9 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
   const clearedAreasCount = NINE_ELEMENTAL_AREAS.filter(
     (a) => zoneProgress[a.zoneId]?.cleared
   ).length;
+
+  const nextRecommendedArea =
+    NINE_ELEMENTAL_AREAS.find((a) => !zoneProgress[a.zoneId]?.cleared) || NINE_ELEMENTAL_AREAS[0];
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -1036,147 +1051,162 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                           </div>
                         </div>
 
-                         <div className="mt-3 pt-2.5 border-t-2 border-[#e6d0a7] space-y-2">
-                          {/* Improvement #13: Companion Bonding & Stat-Boosting Treats */}
-                          <div className="flex flex-wrap items-center gap-1">
-                            {(
-                              [
-                                { stat: 'hp', label: '🍎 +4 HP', title: 'Heart Berry (+4 Max HP)' },
-                                { stat: 'attack', label: '🌶️ +2 ATK', title: 'Blaze Pepper (+2 Attack)' },
-                                { stat: 'defense', label: '🪨 +2 DEF', title: 'Iron Truffle (+2 Defense)' },
-                                { stat: 'speed', label: '⚡ +2 SPD', title: 'Volt Melon (+2 Speed)' },
-                              ] as const
-                            ).map((treat) => (
+                        {isSelected ? (
+                          <div className="mt-3 pt-2.5 border-t-2 border-[#e6d0a7] space-y-2">
+                            <div className="flex items-center justify-between text-xs font-black text-[#92400e]">
+                              <span>★ Active Partner Care &amp; Gear Drawer</span>
+                              <span>25 🪙 per Treat</span>
+                            </div>
+                            {/* Improvement #13: Companion Bonding & Stat-Boosting Treats */}
+                            <div className="flex flex-wrap items-center gap-1">
+                              {(
+                                [
+                                  { stat: 'hp', label: '🍎 +4 HP', title: 'Heart Berry (+4 Max HP)' },
+                                  { stat: 'attack', label: '🌶️ +2 ATK', title: 'Blaze Pepper (+2 Attack)' },
+                                  { stat: 'defense', label: '🪨 +2 DEF', title: 'Iron Truffle (+2 Defense)' },
+                                  { stat: 'speed', label: '⚡ +2 SPD', title: 'Volt Melon (+2 Speed)' },
+                                ] as const
+                              ).map((treat) => (
+                                <button
+                                  key={treat.stat}
+                                  type="button"
+                                  title={`${treat.title} · 25 Lexi-Coins`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const coins = currentUser?.lexiCoins ?? 0;
+                                    if (coins < 25) {
+                                      triggerToast('Need 25 Lexi-Coins for a Bonding Treat!');
+                                      return;
+                                    }
+                                    updateProfile({ lexiCoins: coins - 25 });
+                                    feedPetStatTreat(pet.id, treat.stat);
+                                    juice.ding(840, 110);
+                                    triggerToast(`Fed ${treat.title} to ${pet.name}!`);
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-[#e8f5e9] hover:bg-[#a5d6a7] border border-[#1a162b] text-[10px] font-black text-[#1b5e20] cursor-pointer"
+                                >
+                                  {treat.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Feature #10 & #11: Companion Armor Slot & Stage-3 Branching Specialization */}
+                            <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[#e6d0a7]">
+                              <div className="flex items-center gap-1">
+                                {(
+                                  [
+                                    { id: 'amber_fang', icon: '🦴', label: 'Fang' },
+                                    { id: 'iron_shell', icon: '🛡️', label: 'Shell' },
+                                    { id: 'zephyr_band', icon: '🪶', label: 'Band' },
+                                    { id: 'root_crown', icon: '👑', label: 'Crown' },
+                                  ] as const
+                                ).map((acc) => {
+                                  const isEq = (petAccessories[pet.id] || 'amber_fang') === acc.id;
+                                  return (
+                                    <button
+                                      key={acc.id}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        equipPetAccessory(pet.id, acc.id);
+                                        triggerToast(`Equipped ${acc.icon} ${acc.label} on ${pet.name}!`);
+                                      }}
+                                      className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
+                                        isEq
+                                          ? 'bg-[#1a162b] text-[#fde047] border-[#1a162b]'
+                                          : 'bg-stone-100 text-stone-700 border-stone-400'
+                                      }`}
+                                      title={`Equip ${acc.label} Armor`}
+                                    >
+                                      {acc.icon} {acc.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {(
+                                  [
+                                    { id: 'vanguard', label: '⚔️ Vanguard' },
+                                    { id: 'bastion', label: '🛡️ Bastion' },
+                                  ] as const
+                                ).map((spec) => {
+                                  const activeSpec = petSpecializations[pet.id] === spec.id;
+                                  return (
+                                    <button
+                                      key={spec.id}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPetSpecialization(pet.id, spec.id);
+                                        triggerToast(
+                                          `${pet.name} specialized into ${spec.label} Path!`
+                                        );
+                                      }}
+                                      className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
+                                        activeSpec
+                                          ? 'bg-purple-800 text-white border-[#1a162b]'
+                                          : 'bg-purple-50 text-purple-900 border-purple-300'
+                                      }`}
+                                      title="Select Stage-3 Evolution Specialization Path"
+                                    >
+                                      {spec.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2">
                               <button
-                                key={treat.stat}
                                 type="button"
-                                title={`${treat.title} · 25 Lexi-Coins`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const coins = currentUser?.lexiCoins ?? 0;
-                                  if (coins < 25) {
-                                    triggerToast('Need 25 Lexi-Coins for a Bonding Treat!');
+                                  const res = trainPetWithCoins(pet.id, 50);
+                                  if (!res.success) {
+                                    triggerToast(res.error || 'Need 50 Lexi-Coins to train!');
                                     return;
                                   }
-                                  updateProfile({ lexiCoins: coins - 25 });
-                                  feedPetStatTreat(pet.id, treat.stat);
-                                  juice.ding(840, 110);
-                                  triggerToast(`Fed ${treat.title} to ${pet.name}!`);
+                                  triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
                                 }}
-                                className="px-2 py-1 rounded-lg bg-[#e8f5e9] hover:bg-[#a5d6a7] border border-[#1a162b] text-[10px] font-black text-[#1b5e20] cursor-pointer"
+                                className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
                               >
-                                {treat.label}
+                                Train (+1 Lv · 50 🪙)
                               </button>
-                            ))}
-                          </div>
 
-                          {/* Feature #10 & #11: Companion Armor Slot & Stage-3 Branching Specialization */}
-                          <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[#e6d0a7]">
-                            <div className="flex items-center gap-1">
-                              {(
-                                [
-                                  { id: 'amber_fang', icon: '🦴', label: 'Fang' },
-                                  { id: 'iron_shell', icon: '🛡️', label: 'Shell' },
-                                  { id: 'zephyr_band', icon: '🪶', label: 'Band' },
-                                  { id: 'root_crown', icon: '👑', label: 'Crown' },
-                                ] as const
-                              ).map((acc) => {
-                                const isEq = (petAccessories[pet.id] || 'amber_fang') === acc.id;
-                                return (
-                                  <button
-                                    key={acc.id}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      equipPetAccessory(pet.id, acc.id);
-                                      triggerToast(`Equipped ${acc.icon} ${acc.label} on ${pet.name}!`);
-                                    }}
-                                    className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
-                                      isEq
-                                        ? 'bg-[#1a162b] text-[#fde047] border-[#1a162b]'
-                                        : 'bg-stone-100 text-stone-700 border-stone-400'
-                                    }`}
-                                    title={`Equip ${acc.label} Armor`}
-                                  >
-                                    {acc.icon} {acc.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              {(
-                                [
-                                  { id: 'vanguard', label: '⚔️ Vanguard' },
-                                  { id: 'bastion', label: '🛡️ Bastion' },
-                                ] as const
-                              ).map((spec) => {
-                                const activeSpec = petSpecializations[pet.id] === spec.id;
-                                return (
-                                  <button
-                                    key={spec.id}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPetSpecialization(pet.id, spec.id);
-                                      triggerToast(
-                                        `${pet.name} specialized into ${spec.label} Path!`
-                                      );
-                                    }}
-                                    className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
-                                      activeSpec
-                                        ? 'bg-purple-800 text-white border-[#1a162b]'
-                                        : 'bg-purple-50 text-purple-900 border-purple-300'
-                                    }`}
-                                    title="Select Stage-3 Evolution Specialization Path"
-                                  >
-                                    {spec.label}
-                                  </button>
-                                );
-                              })}
+                              {readyToEvolve ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    juice.fanfare();
+                                    setEvolvingCreatureId(pet.id);
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" /> Evolve!
+                                </button>
+                              ) : petStage < maxStage ? (
+                                <span className="text-[10px] font-black text-[#5d4037]">
+                                  Evolves at Lv.{pet.evolvesAtLevel || 10}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-black text-[#e65100]">
+                                  ★ Max Form
+                                </span>
+                              )}
                             </div>
                           </div>
-
-                          <div className="flex items-center justify-between gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const res = trainPetWithCoins(pet.id, 50);
-                                if (!res.success) {
-                                  triggerToast(res.error || 'Need 50 Lexi-Coins to train!');
-                                  return;
-                                }
-                                triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
-                              }}
-                              className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
-                            >
-                              Train (+1 Lv · 50 🪙)
-                            </button>
-
-                            {readyToEvolve ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  juice.fanfare();
-                                  setEvolvingCreatureId(pet.id);
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
-                              >
-                                <Sparkles className="w-3.5 h-3.5" /> Evolve!
-                              </button>
-                            ) : petStage < maxStage ? (
-                              <span className="text-[10px] font-black text-[#5d4037]">
-                                Evolves at Lv.{pet.evolvesAtLevel || 10}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-black text-[#e65100]">
-                                ★ Max Form
+                        ) : (
+                          <div className="mt-2 pt-2 border-t border-[#e6d0a7] flex items-center justify-between text-xs font-bold text-[#5d4037]">
+                            <span>✨ Tap card to make Active Partner &amp; open Care Drawer</span>
+                            {readyToEvolve && (
+                              <span className="rounded bg-[#fde047] px-2 py-0.5 font-display text-xs font-black text-[#1a162b] border border-[#1a162b]">
+                                ★ Ready to Evolve!
                               </span>
                             )}
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2003,6 +2033,30 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </button>
           );
         })}
+      </div>
+
+      {/* Accessibility #6: "🧭 Next Adventure" Golden Quest Compass Bar */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#fef08a] via-[#fde047] to-[#f59e0b] px-4 py-2 text-[#1a162b] shadow-[0_5px_0_#1a162b]">
+        <span className="text-lg">🧭</span>
+        <div className="text-left">
+          <div className="font-display text-xs font-black uppercase tracking-wider text-[#78350f]">
+            Quest Compass · Next Recommended Step
+          </div>
+          <div className="font-display text-xs sm:text-sm font-black text-[#1a162b]">
+            Explore {nextRecommendedArea.name} ({nextRecommendedArea.gradeBand})
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            juice.click();
+            setActiveZoneId(nextRecommendedArea.zoneId);
+            setActiveModal('word-world');
+          }}
+          className="ml-2 rounded-xl border-2 border-[#1a162b] bg-[#1a162b] hover:bg-slate-800 px-3 py-1.5 font-display text-xs font-black uppercase text-[#fde047] cursor-pointer"
+        >
+          Go Now →
+        </button>
       </div>
 
       {/* Toast Feedback Banner */}

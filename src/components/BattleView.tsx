@@ -20,7 +20,7 @@ import { juice } from '../engine/juice';
 import { canPetEvolve } from '../data/evolutionData';
 import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
-import { GRADE_TIERS, getGradeTierMeta } from '../data/vocabDatabase';
+import { GRADE_TIERS, getGradeTierMeta, getPartOfSpeechMeta } from '../data/vocabDatabase';
 import { ZONE_BIOMES } from '../data/realms';
 import {
   PASSIVE_TRAITS,
@@ -60,6 +60,10 @@ export const BattleView: React.FC = () => {
     addMistakeWord,
     advanceToNextNode,
     tutorInsight,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
+    calmAnimations,
+    setCalmAnimations,
   } = useGame();
   const { currentUser, addRewards } = useAuth();
 
@@ -67,9 +71,15 @@ export const BattleView: React.FC = () => {
   const [showReserveDrawer, setShowReserveDrawer] = useState(false);
   const [gradeFilter, setGradeFilter] = useState<GradeTier | 'all'>('all');
   const [fastMode, setFastMode] = useState(false);
-  const [hoveredCmd, setHoveredCmd] = useState<string>('ultimate');
   const [projectileBurst, setProjectileBurst] = useState<boolean>(false);
   const [tagTeamComboActive, setTagTeamComboActive] = useState<boolean>(false);
+
+  // Accessibility #3 & #2: Consolidated Battle Options Popover & Turn-Triggered Mini-Game Drawer
+  const [showBattleOptions, setShowBattleOptions] = useState<boolean>(false);
+  const [showMiniGameModal, setShowMiniGameModal] = useState<boolean>(false);
+
+  // Accessibility #13: Karaoke-Style Word Highlighting index during TTS Read-Aloud
+  const [karaokeWordIdx, setKaraokeWordIdx] = useState<number | null>(null);
 
   // Feature #2: Live Prefix & Suffix Combat Modifiers
   const [activeAffixChip, setActiveAffixChip] = useState<string | null>(null);
@@ -291,10 +301,60 @@ export const BattleView: React.FC = () => {
     }
   };
 
-  const handleSingleWordAction = (word: Word | null) => {
-    if (isBattleOver || !word) return;
-    juice.click();
-    setSelectedWordIds([word.id]);
+  const handleFixGrammarOrder = () => {
+    if (selectedWords.length < 2) return;
+    juice.ding(780, 120);
+    // If 2 words (Adverb + Verb), sort Adverb first then Verb
+    if (
+      selectedWords.length === 2 &&
+      selectedWords.some((w) => w.partOfSpeech === 'adverb') &&
+      selectedWords.some((w) => w.partOfSpeech === 'verb')
+    ) {
+      const adv = selectedWords.find((w) => w.partOfSpeech === 'adverb')!;
+      const verb = selectedWords.find((w) => w.partOfSpeech === 'verb')!;
+      setSelectedWordIds([adv.id, verb.id]);
+      return;
+    }
+    // Otherwise sort into canonical [adjective, noun, verb, adverb] sentence order
+    const orderMap: Record<PartOfSpeech, number> = {
+      adjective: 0,
+      noun: 1,
+      verb: 2,
+      adverb: 3,
+    };
+    const sorted = [...selectedWords].sort(
+      (a, b) => orderMap[a.partOfSpeech] - orderMap[b.partOfSpeech]
+    );
+    setSelectedWordIds(sorted.map((w) => w.id));
+  };
+
+  // Accessibility #13: Karaoke-style word-by-word highlighting during TTS read-aloud
+  const handleKaraokeReadSentence = () => {
+    const wordsToRead =
+      selectedWords.length > 0
+        ? selectedWords
+        : [equippedAdj, equippedNoun, equippedVerb, equippedAdv].filter(
+            (w): w is Word => Boolean(w)
+          );
+    if (wordsToRead.length === 0) return;
+
+    const fullPhrase = wordsToRead.map((w) => w.word).join(' ');
+    juice.speakWord(fullPhrase);
+    setIsListeningVoice(true);
+    setVoiceFeedback('🔊 Reading sentence aloud with word tracking...');
+
+    wordsToRead.forEach((_, idx) => {
+      setTimeout(() => {
+        setKaraokeWordIdx(idx);
+      }, idx * 420);
+    });
+
+    setTimeout(() => {
+      setKaraokeWordIdx(null);
+      setIsListeningVoice(false);
+      setVoiceFeedback('🌟 Great sentence rhythm! +15 🪙');
+      addRewards({ coins: 15, tokens: 0, xp: 10 });
+    }, wordsToRead.length * 420 + 250);
   };
 
   const handleLaunchWordStrike = () => {
@@ -332,6 +392,42 @@ export const BattleView: React.FC = () => {
     setSelectedWordIds([]);
     setActiveAffixChip(null);
   };
+
+  // Accessibility #15: Keyboard Navigation (1-4 to toggle tablets, Space/Enter to Cast, Esc to clear/close)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (e.key === '1' && equippedAdj) {
+        e.preventDefault();
+        handleToggleWordCard(equippedAdj);
+      } else if (e.key === '2' && equippedNoun) {
+        e.preventDefault();
+        handleToggleWordCard(equippedNoun);
+      } else if (e.key === '3' && equippedVerb) {
+        e.preventDefault();
+        handleToggleWordCard(equippedVerb);
+      } else if (e.key === '4' && equippedAdv) {
+        e.preventDefault();
+        handleToggleWordCard(equippedAdv);
+      } else if ((e.key === ' ' || e.key === 'Enter') && previewCombo.valid && selectedWords.length > 0 && !isBattleOver) {
+        e.preventDefault();
+        handleLaunchWordStrike();
+      } else if (e.key === 'Escape' || e.key === 'Backspace') {
+        if (showBattleOptions) setShowBattleOptions(false);
+        else if (showMiniGameModal) setShowMiniGameModal(false);
+        else if (showReserveDrawer) setShowReserveDrawer(false);
+        else if (selectedWordIds.length > 0) setSelectedWordIds([]);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   // Feature #5: Dual-Companion Elemental Cross-Combo Name
   const crossComboName =
@@ -427,14 +523,6 @@ export const BattleView: React.FC = () => {
     { pos: 'verb' as PartOfSpeech, short: 'VERB', label: 'Verb', word: equippedVerb, color: '#ef4444', bg: 'from-rose-500 to-red-600' },
     { pos: 'adverb' as PartOfSpeech, short: 'ADV', label: 'Adverb', word: equippedAdv, color: '#a855f7', bg: 'from-purple-500 to-indigo-600' },
   ];
-
-  // Center 2x2 Elemental Rune Board coordinates for glowing energy link lines
-  const runeCoords: Record<number, { x: number; y: number }> = {
-    0: { x: 42, y: 42 },
-    1: { x: 138, y: 42 },
-    2: { x: 42, y: 128 },
-    3: { x: 138, y: 128 },
-  };
 
   return (
     <div className="h-full w-full overflow-y-auto bg-[#120e24] p-1.5 sm:p-2.5 select-none">
@@ -678,8 +766,8 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* TOP-CENTER: HANGING WOODEN TURN BANNER & DQM ENEMY DIAMONDS (References #1 & #5) */}
-            <div className="flex flex-col items-center">
+            {/* TOP-CENTER: HANGING WOODEN TURN BANNER & AGE-TIERED MODE BAR (#3, #5) */}
+            <div className="relative flex flex-col items-center">
               {/* Wooden Hanging Rope Posts */}
               <div className="flex w-44 justify-between px-6 -mb-1">
                 <div className="h-3 w-2 bg-[#78350f] border border-[#1a162b]" />
@@ -687,65 +775,150 @@ export const BattleView: React.FC = () => {
               </div>
               {/* Carved Wooden Turn Sign */}
               <div className="relative rounded-2xl border-[3px] border-[#451a03] bg-gradient-to-b from-[#b45309] via-[#92400e] to-[#78350f] px-6 py-1.5 text-center shadow-[0_5px_0_#270e02]">
-                {/* Leafy Vine Accents */}
                 <span className="absolute -left-2.5 -top-1 text-base select-none">🌿</span>
                 <span className="absolute -right-2.5 -top-1 text-base select-none">🌿</span>
-                <div className="font-display text-xs sm:text-sm font-black text-white drop-shadow-[0_1.5px_0_#1a162b]">
+                <div className="font-display text-sm sm:text-base font-black text-white drop-shadow-[0_1.5px_0_#1a162b]">
                   {isBattleOver
                     ? winner === player.id
                       ? '🏆 Realm Cleared!'
                       : '⚡ Battle Complete'
-                    : `${player.name}'s Turn!`}
+                    : `${player.name}'s Turn · Round ${roundNumber}`}
                 </div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-[#fde047]">
+                <div className="text-xs font-black text-[#fde047]">
                   Stage {activeNodeId} · {biome.title}
                 </div>
               </div>
 
-              {/* Lower Wooden Sub-Sign with Round, Weather Tide Shift (#4) & Fast Mode Toggle */}
-              <div className="-mt-1 flex flex-wrap items-center justify-center gap-2 rounded-xl border-2 border-[#451a03] bg-[#78350f] px-3 py-0.5 text-[10px] font-black text-white shadow">
-                <span>⏱️ Round {roundNumber}</span>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={cycleRealmWeather}
-                  title={activeWeather.effectLabel}
-                  className="flex items-center gap-1 rounded bg-cyan-950/90 px-1.5 py-0.2 text-cyan-200 border border-cyan-400/40 cursor-pointer"
-                >
-                  <span>{activeWeather.icon}</span>
-                  <span>{activeWeather.name}</span>
-                </button>
+              {/* Accessibility #3 & #5: Streamlined Sub-Bar with Grade Mode & Single Options Button */}
+              <div className="-mt-1 flex flex-wrap items-center justify-center gap-1.5 rounded-xl border-2 border-[#451a03] bg-[#78350f] px-3 py-1 text-xs font-black text-white shadow">
+                {(
+                  [
+                    { id: 'k-2', label: '🌱 K–2' },
+                    { id: '3-5', label: '🧭 3–5' },
+                    { id: '6-8', label: '🏛️ 6–8' },
+                  ] as const
+                ).map((band) => (
+                  <button
+                    key={band.id}
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setPreferredGradeBand(band.id);
+                    }}
+                    className={`rounded-lg px-2 py-0.5 text-xs font-black cursor-pointer transition ${
+                      preferredGradeBand === band.id
+                        ? 'bg-[#fde047] text-[#1a162b] shadow-xs'
+                        : 'bg-black/25 text-amber-100 hover:bg-black/40'
+                    }`}
+                    title="Switch Age-Tiered UI Mode & Vocabulary Level"
+                  >
+                    {band.label}
+                  </button>
+                ))}
+
                 <button
                   type="button"
                   onClick={() => {
                     juice.click();
-                    setSpeedScribeActive((s) => !s);
-                    setSpeedScribeSeconds(12);
+                    setShowBattleOptions((v) => !v);
                   }}
-                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.2 cursor-pointer ${
-                    speedScribeActive
-                      ? 'bg-emerald-400 text-[#1a162b]'
-                      : 'text-emerald-200 hover:text-white'
-                  }`}
-                  title="Feature #9: Timed 12s Speed-Scribe Challenge (+30 Gold & +1 Gem)"
+                  className="flex items-center gap-1 rounded-lg border border-amber-300/60 bg-[#1a162b] hover:bg-slate-800 px-2.5 py-0.5 text-xs font-black text-[#fde047] cursor-pointer"
+                  title="Open Battle & Accessibility Options"
                 >
-                  <span>⚡ {speedScribeActive ? `${speedScribeSeconds}s Rush` : '12s Rush'}</span>
-                </button>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => setFastMode((f) => !f)}
-                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.2 cursor-pointer ${
-                    fastMode ? 'bg-[#fde047] text-[#1a162b]' : 'text-amber-200 hover:text-white'
-                  }`}
-                >
-                  <FastForward className="h-3 w-3" />
-                  <span>Fast</span>
+                  <span>⚙️ Options</span>
                 </button>
               </div>
+
+              {/* Consolidated Battle Options Popover (#3) */}
+              {showBattleOptions && (
+                <div className="absolute top-24 z-40 w-72 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b] p-3 text-white shadow-2xl space-y-2">
+                  <div className="flex items-center justify-between border-b border-white/15 pb-1.5">
+                    <span className="font-display text-xs font-black text-[#fde047]">
+                      ⚙️ Battle &amp; Accessibility Options
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowBattleOptions(false)}
+                      className="rounded bg-white/15 px-2 py-0.5 text-xs font-black hover:bg-rose-500 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setShowSyllables((s) => !s)}
+                      className={`rounded-xl border border-white/20 p-2 text-left cursor-pointer ${
+                        showSyllables ? 'bg-sky-400 text-[#1a162b] font-black' : 'bg-white/10'
+                      }`}
+                    >
+                      👏 Syllables: {showSyllables ? 'ON' : 'OFF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDyslexiaFriendly(!dyslexiaFriendly)}
+                      className={`rounded-xl border border-white/20 p-2 text-left cursor-pointer ${
+                        dyslexiaFriendly ? 'bg-emerald-400 text-[#1a162b] font-black' : 'bg-white/10'
+                      }`}
+                    >
+                      📖 Dyslexia Font: {dyslexiaFriendly ? 'ON' : 'OFF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalmAnimations(!calmAnimations)}
+                      className={`rounded-xl border border-white/20 p-2 text-left cursor-pointer ${
+                        calmAnimations ? 'bg-emerald-400 text-[#1a162b] font-black' : 'bg-white/10'
+                      }`}
+                    >
+                      🌿 Calm Motion: {calmAnimations ? 'ON' : 'OFF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFastMode((f) => !f)}
+                      className={`rounded-xl border border-white/20 p-2 text-left cursor-pointer ${
+                        fastMode ? 'bg-[#fde047] text-[#1a162b] font-black' : 'bg-white/10'
+                      }`}
+                    >
+                      <FastForward className="inline h-3.5 w-3.5 mr-1" />
+                      Fast Anim: {fastMode ? 'ON' : 'OFF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSpeedScribeActive((s) => !s);
+                        setSpeedScribeSeconds(12);
+                      }}
+                      className={`rounded-xl border border-white/20 p-2 text-left cursor-pointer ${
+                        speedScribeActive ? 'bg-amber-400 text-[#1a162b] font-black' : 'bg-white/10'
+                      }`}
+                    >
+                      ⚡ 12s Timer: {speedScribeActive ? `${speedScribeSeconds}s` : 'OFF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cycleRealmWeather}
+                      className="rounded-xl border border-white/20 bg-white/10 p-2 text-left cursor-pointer truncate"
+                    >
+                      {activeWeather.icon} {activeWeather.name}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBattleOptions(false);
+                      setShowMiniGameModal((m) => !m);
+                    }}
+                    className="w-full rounded-xl border-2 border-[#1a162b] bg-gradient-to-r from-[#fde047] to-[#f59e0b] py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+                  >
+                    {showMiniGameModal ? 'Hide Boss Clash Drills' : '⚔️ Open Word Duel & Homophone Drill'}
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* TOP-RIGHT: SKEWED BOSS PLATE + ROUND DIAMOND (References #1, #2, #5) */}
+            {/* TOP-RIGHT: SKEWED BOSS PLATE + ROUND DIAMOND */}
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
                 <div className="-skew-x-12 rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#e11d48] via-[#be123c] to-[#881337] px-4 py-1 shadow-[0_4px_0_#1a162b]">
@@ -754,7 +927,7 @@ export const BattleView: React.FC = () => {
                     <span className="font-display text-xs sm:text-sm font-black text-white drop-shadow-[0_1.5px_0_#1a162b]">
                       {displayEnemyName}
                     </span>
-                    <span className="rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[10px] font-black text-[#4ade80]">
+                    <span className="rounded bg-[#1a162b] px-1.5 py-0.5 font-mono text-xs font-black text-[#4ade80]">
                       {enemyHpPct}%
                     </span>
                   </div>
@@ -784,9 +957,9 @@ export const BattleView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => restartBattle()}
-                  className="flex items-center gap-1 rounded-lg border border-white/30 bg-[#1a162b]/80 hover:bg-[#1a162b] px-2 py-0.5 text-[10px] font-black text-amber-200 cursor-pointer"
+                  className="flex items-center gap-1 rounded-lg border border-white/30 bg-[#1a162b]/80 hover:bg-[#1a162b] px-2.5 py-1 text-xs font-black text-amber-200 cursor-pointer"
                 >
-                  <RotateCcw className="h-3 w-3" />
+                  <RotateCcw className="h-3.5 w-3.5" />
                   <span>Reset</span>
                 </button>
               </div>
@@ -794,17 +967,16 @@ export const BattleView: React.FC = () => {
           </div>
 
           {/* ==================================================================
-              MAIN ARENA STAGE:
-              - Left: Explorer Avatar + Sidekick + Active Companion with Prodigy Floating HP Bar
-              - Center: Interactive 2x2 Elemental Word-Rune Grid with Glowing Energy Links
-              - Right: Guardian Boss + Elemental Sentinel with Prodigy Floating HP Bar
+              MAIN ARENA STAGE (#1 De-Cluttered Center Arena):
+              - Left: Explorer Avatar + Sidekick + Active Companion
+              - Center: Spacious Visual Breathing Room + Spoken Phrase & Turn Clash Event
+              - Right: Guardian Boss + Tactical Intent Bubble
           =================================================================== */}
           <div className="relative z-20 grid grid-cols-1 md:grid-cols-12 items-end gap-2 px-3 pb-3 pt-2 sm:px-6">
             {/* LEFT 4 COLS: PLAYER SQUAD ON STEPPED STONE PEDESTALS */}
             <div className="md:col-span-4 relative flex items-end justify-center gap-2 min-h-[230px]">
-              {/* Rear Left: Explorer Tamer Avatar + Sidekick Companion (References #1, #3, #5) */}
+              {/* Rear Left: Explorer Tamer Avatar + Sidekick Companion */}
               <div className="hidden sm:flex flex-col items-center gap-2 pb-4 opacity-95">
-                {/* Explorer Tamer Character */}
                 <div className="flex flex-col items-center">
                   <div
                     className="relative flex h-14 w-14 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] text-3xl shadow-[0_4px_0_#1a162b]"
@@ -817,12 +989,11 @@ export const BattleView: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 rounded-md border border-[#1a162b] bg-[#1e293b]/90 px-2 py-0.5 text-[9px] font-black text-white">
+                  <div className="mt-1 rounded-md border border-[#1a162b] bg-[#1e293b]/90 px-2 py-0.5 text-xs font-black text-white">
                     ★ Lv.{currentUser?.level || 8} Tamer
                   </div>
                 </div>
 
-                {/* Reserve Sidekick Companion (with Improvement #9 Tag-Team Combo Lunge) */}
                 {sidekickPet && (
                   <button
                     type="button"
@@ -838,7 +1009,7 @@ export const BattleView: React.FC = () => {
                     }`}
                   >
                     {tagTeamComboActive && (
-                      <span className="absolute -top-5 whitespace-nowrap rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.5 font-display text-[9px] font-black uppercase text-[#1a162b] shadow animate-bounce">
+                      <span className="absolute -top-5 whitespace-nowrap rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.5 font-display text-xs font-black text-[#1a162b] shadow animate-bounce">
                         ⚡ Tag-Team Assist!
                       </span>
                     )}
@@ -850,14 +1021,14 @@ export const BattleView: React.FC = () => {
                       facing="right"
                       isAttacking={sidekickAnim === 'lunge'}
                     />
-                    <div className="rounded-md border border-[#1a162b] bg-emerald-950/90 px-2 py-0.5 text-[9px] font-black text-emerald-300">
+                    <div className="rounded-md border border-[#1a162b] bg-emerald-950/90 px-2 py-0.5 text-xs font-black text-emerald-300">
                       Swap: {sidekickPet.name}
                     </div>
                   </button>
                 )}
               </div>
 
-              {/* Forward Main Caster: Active Companion + Prodigy Inline Floating HP Bar (Reference #3) */}
+              {/* Forward Main Caster: Active Companion + Inline Floating HP Bar */}
               <div className="relative flex flex-col items-center">
                 {floatingNumbers
                   .filter((f) => f.target === 'player')
@@ -880,49 +1051,48 @@ export const BattleView: React.FC = () => {
                   isHit={playerAnim === 'hit'}
                 />
 
-                {/* PRODIGY-STYLE INLINE FLOATING UNIT HUD BAR (Reference #3) */}
-                <div className="-mt-2 w-52 rounded-xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-1.5 text-white shadow-[0_4px_0_#1a162b]">
-                  <div className="flex items-center justify-between text-[10px] font-black mb-1">
-                    <span className="rounded bg-slate-800 px-1.5 py-0.2 text-sky-200 border border-white/15">
+                <div className="-mt-2 w-56 rounded-xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
+                  <div className="flex items-center justify-between text-xs font-black mb-1">
+                    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-sky-200 border border-white/15">
                       Weak to {playerWeakElem.icon}
                     </span>
-                    <span className="font-display text-xs text-[#fde047] truncate">
+                    <span className="font-display text-sm text-[#fde047] truncate">
                       {player.name}
                     </span>
                   </div>
-                  {/* Segmented HP Bar */}
-                  <div className="relative h-4 w-full overflow-hidden rounded-md border-2 border-[#1a162b] bg-slate-950">
+                  <div className="relative h-5 w-full overflow-hidden rounded-md border-2 border-[#1a162b] bg-slate-950">
                     <div
                       className="h-full bg-gradient-to-r from-[#22c55e] via-[#4ade80] to-[#86efac] transition-all duration-500"
                       style={{ width: `${playerHpPct}%` }}
                     />
-                    <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] font-black text-white drop-shadow-[0_1px_1px_#000]">
+                    <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-black text-white drop-shadow-[0_1px_1px_#000]">
                       {player.currentHp ?? player.stats.hp} / {player.maxHp ?? player.stats.hp}
                     </span>
                   </div>
-                  {/* Bottom Star Level & Status Pips + Efficiency #4 Collapsible Traits Pill */}
                   <div className="mt-1 flex items-center justify-between">
-                    <span className="rounded bg-[#0f172a] border border-amber-400/50 px-1.5 py-0.2 font-mono text-[10px] font-black text-[#fde047]">
-                      ★ {fullPlayerCreature.level || 8} · ❤️ Bond {petBonds[player.id] || 3}
+                    <span className="rounded bg-[#0f172a] border border-amber-400/50 px-1.5 py-0.5 font-mono text-xs font-black text-[#fde047]">
+                      ★ Lv.{fullPlayerCreature.level || 8} · ❤️ {petBonds[player.id] || 3}
                     </span>
                     <div className="flex items-center gap-1">
                       {(player.shield ?? 0) > 0 && (
-                        <span className="flex items-center gap-0.5 rounded bg-sky-500 px-1.5 py-0.2 font-mono text-[10px] font-black text-slate-950">
+                        <span className="flex items-center gap-0.5 rounded bg-sky-500 px-1.5 py-0.5 font-mono text-xs font-black text-slate-950">
                           🛡️ {player.shield}
                         </span>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setShowCompactTraits((v) => !v)}
-                        className="rounded bg-white/15 hover:bg-white/25 px-1.5 py-0.2 text-[9px] font-black text-amber-200 cursor-pointer"
-                        title="Toggle Passive Trait, Support Combo & Armor Details"
-                      >
-                        {showCompactTraits ? 'Hide' : 'ℹ️ Buffs'}
-                      </button>
+                      {preferredGradeBand !== 'k-2' && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCompactTraits((v) => !v)}
+                          className="rounded bg-white/15 hover:bg-white/25 px-2 py-0.5 text-xs font-black text-amber-200 cursor-pointer"
+                          title="Toggle Passive Trait, Support Combo & Armor Details"
+                        >
+                          {showCompactTraits ? 'Hide' : 'ℹ️ Buffs'}
+                        </button>
+                      )}
                     </div>
                   </div>
                   {showCompactTraits && (
-                    <div className="mt-1 pt-1 border-t border-white/15 space-y-0.5 text-[9px] font-black text-emerald-300">
+                    <div className="mt-1 pt-1 border-t border-white/15 space-y-0.5 text-xs font-black text-emerald-300">
                       <div className="flex items-center justify-between">
                         <span className="truncate">{companionTrait}</span>
                         <span className="text-amber-200">{equippedAccLabel.split(' ')[0]}</span>
@@ -934,137 +1104,65 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* CENTER 4 COLS: HEAD-TO-HEAD ELEMENTAL RUNE BOARD WITH GLOWING LINK BEAM (Reference #5) */}
-            <div className="md:col-span-4 flex flex-col items-center justify-center my-1">
-              <div className="relative rounded-2xl border-[4px] border-[#451a03] bg-[#5c3a21] p-2.5 shadow-[0_6px_0_#271306]">
-                <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-                  <span className="font-display text-[11px] font-black uppercase tracking-wider text-[#fde047]">
-                    🦴 Word Tablet Matrix
-                  </span>
-                  <span className="rounded bg-[#271306] px-1.5 py-0.5 font-mono text-[10px] font-black text-amber-200">
-                    {selectedWords.length}/4 Linked
+            {/* CENTER 4 COLS: SPACIOUS ARENA CENTER WITH SPOKEN PHRASE & TURN-EVENT CLASH (#1, #2, #13) */}
+            <div className="md:col-span-4 flex flex-col items-center justify-end my-1 gap-2">
+              {battleState.lastPlayerResolution && (
+                <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-[#fff8e7]/95 px-4 py-2 text-center shadow-[0_4px_0_#1a162b]">
+                  <div className="text-xs font-bold text-[#5d4037]">Last Spoken Cast:</div>
+                  <span className="font-display text-sm sm:text-base font-black text-[#1a162b] block truncate">
+                    “{battleState.lastPlayerResolution.combo.phrase}”
                   </span>
                 </div>
+              )}
 
-                {/* 2x2 Stone Checkerboard with Glowing Golden Energy Path */}
-                <div className="relative grid grid-cols-2 gap-2.5 rounded-xl bg-[#3e2723] p-2.5 border-2 border-[#271306]">
-                  {/* Glowing Golden Energy Line Connecting Selected Runes in Order */}
-                  <svg
-                    viewBox="0 0 180 170"
-                    className="pointer-events-none absolute inset-0 h-full w-full z-10"
+              {activeTerrain && (
+                <div className="w-full max-w-xs rounded-xl border-2 border-emerald-300 bg-emerald-950/90 px-3 py-1.5 text-center text-xs font-black text-emerald-200">
+                  <div>
+                    {activeTerrain.name} ({activeTerrain.turnsLeft}t)
+                  </div>
+                  <div className="text-xs text-[#fde047]">{activeTerrain.effect}</div>
+                </div>
+              )}
+
+              {/* Adaptive Tutor Coach Bar + Dedicated Read-Hint Audio Button (#13) */}
+              <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2.5 text-white shadow-[0_4px_0_#1a162b] space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-display text-xs font-black text-[#fde047]">
+                    🤖 {preferredGradeBand === 'k-2' ? 'Explorer Helper' : tutorInsight.badgeLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      juice.speakWord(
+                        preferredGradeBand === 'k-2'
+                          ? 'Tap one Action Word card below, or pair two cards, then press Cast!'
+                          : tutorInsight.coachTip
+                      )
+                    }
+                    className="flex items-center gap-1 rounded-lg border border-[#1a162b] bg-[#fde047] hover:bg-white px-2.5 py-1 text-xs font-black text-[#1a162b] cursor-pointer"
+                    title="Read Coach Hint Aloud"
                   >
-                    {selectedWordIds.length > 1 &&
-                      selectedWordIds.map((id, idx) => {
-                        if (idx === 0) return null;
-                        const prevId = selectedWordIds[idx - 1];
-                        const prevSlotIdx = runeSlots.findIndex((r) => r.word?.id === prevId);
-                        const currSlotIdx = runeSlots.findIndex((r) => r.word?.id === id);
-                        if (prevSlotIdx === -1 || currSlotIdx === -1) return null;
-                        const p1 = runeCoords[prevSlotIdx];
-                        const p2 = runeCoords[currSlotIdx];
-                        return (
-                          <g key={`${prevId}-${id}`}>
-                            <line
-                              x1={p1.x}
-                              y1={p1.y}
-                              x2={p2.x}
-                              y2={p2.y}
-                              stroke="#fef08a"
-                              strokeWidth="10"
-                              strokeLinecap="round"
-                              opacity="0.45"
-                            />
-                            <line
-                              x1={p1.x}
-                              y1={p1.y}
-                              x2={p2.x}
-                              y2={p2.y}
-                              stroke="#facc15"
-                              strokeWidth="4.5"
-                              strokeLinecap="round"
-                            />
-                          </g>
-                        );
-                      })}
-                  </svg>
-
-                  {runeSlots.map((slot) => {
-                    const word = slot.word;
-                    if (!word) return null;
-                    const orderIdx = selectedWordIds.indexOf(word.id);
-                    const isLinked = orderIdx !== -1;
-                    const elem = ELEMENTS[word.element] || ELEMENTS.fire;
-
-                    const isNextRecommended = !isLinked && slot.pos === nextRecommendedPos;
-
-                    return (
-                      <button
-                        key={slot.pos}
-                        type="button"
-                        onClick={() => handleToggleWordCard(word)}
-                        className={`relative z-20 flex flex-col items-center justify-center rounded-xl border-[3px] px-3 py-2 transition-all cursor-pointer min-w-[78px] ${
-                          isLinked
-                            ? `bg-gradient-to-b ${slot.bg} border-[#fef08a] scale-105 shadow-[0_0_16px_rgba(250,204,21,0.85)] text-white`
-                            : isNextRecommended
-                            ? 'bg-[#8c6446] border-[#fde047] ring-2 ring-[#fde047]/70 text-[#fff8e7]'
-                            : 'bg-[#78553a] hover:bg-[#8c6446] border-[#271306] text-[#fff8e7]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1 text-base">
-                          <span>{elem.icon}</span>
-                          <span className="font-mono text-[10px] font-black uppercase opacity-90">
-                            {slot.short}
-                          </span>
-                        </div>
-                        <span className="font-display text-xs font-black tracking-wide truncate max-w-[80px]">
-                          {word.word}
-                        </span>
-                        {isNextRecommended && (
-                          <span className="text-[8px] font-black uppercase text-[#fde047]">
-                            Next →
-                          </span>
-                        )}
-                        {isLinked && (
-                          <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#1a162b] bg-[#fde047] font-mono text-[10px] font-black text-[#1a162b]">
-                            {orderIdx + 1}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                    <Volume2 className="h-3.5 w-3.5" />
+                    <span>Read Hint</span>
+                  </button>
                 </div>
-
-                {/* Live Spoken Combo Callout Ribbon */}
-                {battleState.lastPlayerResolution && (
-                  <div className="mt-1.5 rounded-lg border-2 border-[#1a162b] bg-[#fff8e7] px-2.5 py-1 text-center">
-                    <span className="font-display text-[11px] font-black text-[#1a162b] block truncate">
-                      “{battleState.lastPlayerResolution.combo.phrase}”
-                    </span>
-                  </div>
-                )}
-
-                {/* Feature #7: Active Elemental Terrain Badge */}
-                {activeTerrain && (
-                  <div className="mt-1.5 rounded-lg border-2 border-emerald-300 bg-emerald-950/90 px-2.5 py-1 text-center text-[10px] font-black text-emerald-200">
-                    <div>
-                      {activeTerrain.name} ({activeTerrain.turnsLeft}t)
-                    </div>
-                    <div className="text-[9px] text-[#fde047]">{activeTerrain.effect}</div>
-                  </div>
-                )}
-
-                {/* Feature #5 (Word Duel), Feature #1 (Homophone Trap), Feature #13 (Syllables) & Adaptive Tutor Coach */}
-                <BattleMiniGameControls
-                  showSyllables={showSyllables}
-                  onToggleSyllables={() => setShowSyllables((s) => !s)}
-                  onTriggerBurst={() => {
-                    setProjectileBurst(true);
-                    setTimeout(() => setProjectileBurst(false), 600);
-                  }}
-                  onAddRewards={addRewards}
-                  onAddMistakeWord={addMistakeWord}
-                />
                 <AdaptiveTutorCoachBar insight={tutorInsight} />
+
+                {/* Turn-Triggered Boss Clash Event (every 3rd round or when opened via Options) (#2) */}
+                {(roundNumber % 3 === 0 || showMiniGameModal) && (
+                  <div className="pt-1 border-t border-white/15">
+                    <BattleMiniGameControls
+                      showSyllables={showSyllables}
+                      onToggleSyllables={() => setShowSyllables((s) => !s)}
+                      onTriggerBurst={() => {
+                        setProjectileBurst(true);
+                        setTimeout(() => setProjectileBurst(false), 600);
+                      }}
+                      onAddRewards={addRewards}
+                      onAddMistakeWord={addMistakeWord}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1238,142 +1336,201 @@ export const BattleView: React.FC = () => {
         </div>
 
         {/* ====================================================================
-            2. BOTTOM HYBRID COMMAND DOCK:
-               - Left: Classic Final Fantasy IV Royal-Blue Bevelled Command Menu with Glove Cursor (Reference #4)
-               - Center: Prodigy Spellbook Button + 4 Vertical Spell Cards with Corner Badges (Reference #3)
-               - Right: Prodigy "Spell Inspector" Card (Power Pips, Aim, Effect) + CAST Button (Reference #3)
+            2. UNIFIED SINGLE-INPUT SENTENCE BUILDER TRAY & 4 WORD TABLET CARDS
+               (Accessibility #1, #4, #5, #9, #13, #15)
            ==================================================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch">
-          {/* LEFT 3 COLS: FINAL FANTASY IV ROYAL-BLUE COMMAND WINDOW (Reference #4) */}
-          <div className="lg:col-span-3 rounded-2xl border-[3px] border-[#e2e8f0] bg-gradient-to-b from-[#1e3a8a] via-[#172554] to-[#0f172a] p-3 text-white shadow-[inset_0_0_0_2px_#1e293b,0_5px_0_#090714] flex flex-col justify-between">
-            <div className="flex items-center justify-between border-b border-blue-300/30 pb-1.5 mb-1.5">
-              <span className="font-mono text-[11px] font-black uppercase tracking-widest text-sky-300">
-                COMMAND · {player.name}
-              </span>
-              {isPlayerReadyToEvolve && (
+        <div className="rounded-3xl border-[4px] border-[#1a162b] bg-[#1e293b] p-3 text-white shadow-[0_7px_0_#090714] space-y-3">
+          {/* TOP ROW: VISUAL 4-SLOT SENTENCE BUILDER TRAY (#4) + KARAOKE HIGHLIGHT (#13) */}
+          <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#fef9c3] p-2.5 text-[#1a162b] shadow-inner space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-[#1a162b] px-2.5 py-1 font-display text-xs font-black uppercase text-[#fde047]">
+                  ✨ Sentence Builder Tray
+                </span>
+                <span className="text-xs font-bold text-[#5d4037]">
+                  {selectedWords.length > 0
+                    ? `“${activeAffixChip ? `[${activeAffixChip}] ` : ''}${previewCombo.phrase}”`
+                    : 'Tap 1, 2, or 4 Word Tablets below (or press keys 1–4) to build your spell!'}
+                </span>
+              </div>
+
+              {/* Quick Helper Actions: Fix Grammar Order (#4), Karaoke Read Aloud (#13), Auto-Weave, Clear */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {selectedWords.length >= 2 && (
+                  <button
+                    type="button"
+                    onClick={handleFixGrammarOrder}
+                    className="rounded-xl border-2 border-[#1a162b] bg-amber-300 hover:bg-amber-400 px-2.5 py-1 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
+                    title="Accessibility #4: Automatically sort your chosen words into natural English grammar order"
+                  >
+                    ⇄ Fix Grammar Order
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => setEvolvingCreatureId(fullPlayerCreature.id)}
-                  className="rounded bg-[#fde047] px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-950 animate-pulse cursor-pointer"
+                  onClick={handleKaraokeReadSentence}
+                  className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
+                    karaokeWordIdx !== null || isListeningVoice
+                      ? 'bg-rose-500 text-white animate-pulse'
+                      : 'bg-sky-200 hover:bg-sky-300 text-[#1a162b]'
+                  }`}
+                  title="Accessibility #13: Karaoke word-by-word read-aloud"
                 >
-                  ★ Evolve
+                  🔊 Read Sentence
                 </button>
-              )}
+
+                <button
+                  type="button"
+                  onClick={handleWeaveFullSentence}
+                  className="rounded-xl border-2 border-[#1a162b] bg-purple-200 hover:bg-purple-300 px-2.5 py-1 text-xs font-display font-black text-purple-950 shadow-[0_2px_0_#1a162b] cursor-pointer"
+                  title="Fill all 4 sentence slots automatically"
+                >
+                  ✨ Weave 4-Word
+                </button>
+
+                {selectedWords.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWordIds([])}
+                    className="rounded-xl border-2 border-[#1a162b] bg-white hover:bg-rose-100 px-2.5 py-1 text-xs font-display font-black text-rose-700 cursor-pointer"
+                  >
+                    ✕ Clear [Esc]
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-1 font-mono text-xs sm:text-sm font-bold">
-              {[
-                {
-                  id: 'attack',
-                  label: 'Attack (Verb)',
-                  action: () => handleSingleWordAction(equippedVerb),
-                },
-                {
-                  id: 'strike2',
-                  label: 'W.Strike (Adv+Verb)',
-                  action: handleQuick2WordStrike,
-                },
-                {
-                  id: 'shield2',
-                  label: 'B.Guard (Adj+Noun)',
-                  action: handleQuick2WordShield,
-                },
-                {
-                  id: 'ultimate',
-                  label: 'Recall 4-Word Ult',
-                  action: handleWeaveFullSentence,
-                },
-                {
-                  id: 'arsenal',
-                  label: 'Items / Loadout',
-                  action: goToLoadout,
-                },
-              ].map((cmd) => {
-                const isActive = hoveredCmd === cmd.id;
+            {/* 4 Numbered Visual Grammar Slots (#4 & #9) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(['adjective', 'noun', 'verb', 'adverb'] as PartOfSpeech[]).map((pos, idx) => {
+                const posMeta = getPartOfSpeechMeta(pos);
+                const wordAtSlot = selectedWords[idx] || null;
+                const isKaraokeActive = karaokeWordIdx === idx;
+                const wordMeta = wordAtSlot ? getPartOfSpeechMeta(wordAtSlot.partOfSpeech) : posMeta;
+
                 return (
-                  <button
-                    key={cmd.id}
-                    type="button"
-                    onMouseEnter={() => setHoveredCmd(cmd.id)}
+                  <div
+                    key={pos}
                     onClick={() => {
-                      setHoveredCmd(cmd.id);
-                      cmd.action();
+                      if (wordAtSlot) {
+                        handleToggleWordCard(wordAtSlot);
+                      } else {
+                        const eq = runeSlots.find((r) => r.pos === pos)?.word;
+                        if (eq) handleToggleWordCard(eq);
+                      }
                     }}
-                    className={`w-full flex items-center gap-2 rounded-lg px-2 py-1 text-left transition cursor-pointer ${
-                      isActive ? 'bg-blue-500/30 text-[#fde047]' : 'text-white hover:bg-white/10'
+                    className={`flex items-center justify-between rounded-xl border-2 px-3 py-2 transition cursor-pointer ${
+                      isKaraokeActive
+                        ? 'border-[#1a162b] bg-[#fde047] ring-4 ring-rose-500 scale-105'
+                        : wordAtSlot
+                        ? 'border-[#1a162b] bg-white shadow-[0_3px_0_#1a162b]'
+                        : 'border-dashed border-[#1a162b]/40 bg-amber-50/70 hover:bg-amber-100/80'
                     }`}
                   >
-                    <span className="w-4 text-sm">{isActive ? '👉' : ''}</span>
-                    <span className="drop-shadow-[1px_1px_0_#000]">{cmd.label}</span>
-                  </button>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 text-xs font-black uppercase text-[#5d4037]">
+                        <span>Slot {idx + 1}:</span>
+                        <span>
+                          {wordMeta.shape} {wordMeta.icon} {wordMeta.label}
+                        </span>
+                      </div>
+                      <div className="font-display text-sm sm:text-base font-black text-[#1a162b] truncate">
+                        {wordAtSlot ? (
+                          showSyllables ? (
+                            juice.splitIntoSyllables(wordAtSlot.word)
+                          ) : (
+                            wordAtSlot.word
+                          )
+                        ) : (
+                          <span className="text-stone-400 font-bold">
+                            + Tap {posMeta.label} ({posMeta.helperLabel})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {wordAtSlot && (
+                      <span className="ml-1 shrink-0 rounded-full bg-[#fde047] border border-[#1a162b] px-2 py-0.5 font-mono text-xs font-black text-[#1a162b]">
+                        ✓
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {/* CENTER 5 COLS: LEXICON FIELD GUIDE + 4 VERTICAL WORD TABLET CARDS (Reference #3) */}
-          <div className="lg:col-span-5 flex items-stretch gap-2">
-            {/* Chunky Leather Lexicon Field Guide Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setShowReserveDrawer((prev) => !prev)}
-              className="flex flex-col items-center justify-center gap-1 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#b45309] via-[#92400e] to-[#5c2d0c] px-3 py-2 text-white shadow-[0_5px_0_#1a162b] hover:brightness-110 cursor-pointer shrink-0 w-20"
-              title="Open K–8 Lexicon Field Guide"
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-[#fde68a] bg-[#fef3c7] text-2xl text-[#92400e] shadow-inner">
-                🦴
-              </div>
-              <span className="font-display text-[10px] font-black uppercase tracking-wider text-[#fef3c7] text-center leading-tight">
-                {showReserveDrawer ? 'Close Guide' : 'Field Guide'}
-              </span>
-              <span className="font-mono text-[9px] font-bold text-amber-200">
-                {allWords.length} Tablets
-              </span>
-            </button>
-
-            {/* 4 Vertical Word Tablet Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-              {runeSlots.map(({ pos, label, word }) => {
+          {/* MAIN ROW: 4 LARGE COLORBLIND-SAFE WORD TABLET CARDS (#9, #13, #15) + CAST ACTION COLUMN */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+            {/* 4 Large Word Tablet Cards (8 Cols) */}
+            <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+              {runeSlots.map(({ pos, word }, idx) => {
                 if (!word) return null;
                 const slotIndex = selectedWordIds.indexOf(word.id);
                 const isSelected = slotIndex !== -1;
+                const isKaraokeActive = isSelected && karaokeWordIdx === slotIndex;
                 const tierMeta = getGradeTierMeta(word.gradeTier);
                 const elemInfo = ELEMENTS[word.element] || ELEMENTS.fire;
+                const posMeta = getPartOfSpeechMeta(pos);
                 const pwr = word.powerBonus ?? word.forge?.powerBonus ?? tierMeta.powerBonus;
-
-                const cardPalette =
-                  pos === 'adjective'
-                    ? 'bg-[#fef3c7] border-[#f59e0b]'
-                    : pos === 'noun'
-                    ? 'bg-[#e0f2fe] border-[#0284c7]'
-                    : pos === 'verb'
-                    ? 'bg-[#ffe4e6] border-[#e11d48]'
-                    : 'bg-[#f3e8ff] border-[#9333ea]';
 
                 return (
                   <div
                     key={pos}
                     onClick={() => handleToggleWordCard(word)}
-                    className={`relative flex flex-col justify-between rounded-2xl border-[3px] p-2.5 transition-all cursor-pointer ${cardPalette} ${
-                      isSelected
-                        ? 'ring-4 ring-[#fde047] -translate-y-1.5 shadow-[0_7px_0_#1a162b]'
+                    className={`relative flex flex-col justify-between rounded-2xl border-[3px] p-3 transition-all cursor-pointer ${posMeta.cardBg} ${
+                      isKaraokeActive
+                        ? 'ring-4 ring-rose-500 scale-105 border-[#1a162b] shadow-[0_7px_0_#1a162b]'
+                        : isSelected
+                        ? 'ring-4 ring-[#fde047] -translate-y-1.5 border-[#1a162b] shadow-[0_7px_0_#1a162b]'
                         : 'border-[#1a162b] hover:-translate-y-1 shadow-[0_4px_0_#1a162b]'
                     }`}
                   >
-                    {/* Top Folded Page Corner & Grade Tier + Slow Phonetics (#13) */}
+                    {/* Top Bar: Colorblind Shape + Icon + Role (#9) & Keyboard Keycap Badge (#15) */}
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-mono text-[9px] font-black uppercase text-[#1a162b]/80">
-                        {label}
+                      <span
+                        className={`rounded-lg border px-2 py-0.5 font-display text-xs font-black ${posMeta.pillBg} ${posMeta.pillText} ${posMeta.cardBorder}`}
+                      >
+                        {posMeta.shape} {posMeta.icon} {posMeta.label}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <span
+                        className="rounded-md border-2 border-[#1a162b] bg-white px-1.5 py-0.5 font-mono text-xs font-black text-[#1a162b] shadow-2xs"
+                        title={`Press keyboard key ${idx + 1} to toggle`}
+                      >
+                        [{idx + 1}]
+                      </span>
+                    </div>
+
+                    {/* Plain-English Grammar Role Helper Subtitle (#9) */}
+                    <div className="mt-1 text-xs font-extrabold text-[#451a03]">
+                      Role: {posMeta.helperLabel}
+                    </div>
+
+                    {/* Central Word Display + Element Icon */}
+                    <div className="my-2 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/25 bg-white/90 py-2.5 px-2 text-center shadow-inner">
+                      <span className="text-2xl drop-shadow">{elemInfo.icon}</span>
+                      <span className="font-display text-base sm:text-lg font-black text-[#1a162b] break-words leading-tight mt-0.5">
+                        {showSyllables ? juice.splitIntoSyllables(word.word) : word.word}
+                      </span>
+                      {preferredGradeBand !== 'k-2' && (
+                        <span className="text-xs font-semibold text-stone-600 line-clamp-1 mt-0.5">
+                          “{word.definition}”
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Bottom Bar: Enlarged 36x36px Audio Buttons (#13) + Grade & Power */}
+                    <div className="flex items-center justify-between gap-1 pt-1">
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             juice.speakSlow(word.word);
                           }}
-                          className="flex h-6 px-1 items-center justify-center rounded-lg border border-[#1a162b] bg-sky-100 text-[9px] font-black text-[#1a162b] hover:bg-[#fde047] cursor-pointer"
-                          title="Slow Phonetics Read-Aloud"
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-[#1a162b] bg-sky-100 text-sm font-black text-[#1a162b] hover:bg-[#fde047] shadow-[0_2px_0_#1a162b] cursor-pointer"
+                          title="Slow Phonetics Read-Aloud (🐢)"
+                          aria-label={`Read ${word.word} slowly`}
                         >
                           🐢
                         </button>
@@ -1383,176 +1540,142 @@ export const BattleView: React.FC = () => {
                             e.stopPropagation();
                             juice.speakWord(`${word.word}. ${word.definition}`);
                           }}
-                          className="flex h-6 w-6 items-center justify-center rounded-lg border border-[#1a162b] bg-white/90 text-[#1a162b] hover:bg-[#fde047] cursor-pointer"
-                          title="Hear Word & Definition"
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-[#1a162b] bg-white text-[#1a162b] hover:bg-[#fde047] shadow-[0_2px_0_#1a162b] cursor-pointer"
+                          title="Hear Word & Meaning (🔊)"
+                          aria-label={`Hear ${word.word} and its definition`}
                         >
-                          <Volume2 className="h-3.5 w-3.5" />
+                          <Volume2 className="h-4 w-4" />
                         </button>
+                      </div>
+
+                      <div className="flex flex-col items-end">
+                        <span
+                          className={`rounded px-1.5 py-0.5 border border-[#1a162b] text-xs font-black ${tierMeta.badgeBg} ${tierMeta.badgeText}`}
+                        >
+                          {tierMeta.shortLabel}
+                        </span>
+                        <span className="font-mono text-xs font-black text-[#1a162b] mt-0.5">
+                          +{pwr} PWR
+                        </span>
                       </div>
                     </div>
 
-                    {/* Central Word Tablet Icon Illustration + Syllable Clapper (#13) */}
-                    <div className="my-1.5 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/75 py-2 text-center">
-                      <span className="text-2xl drop-shadow">{elemInfo.icon}</span>
-                      <span className="font-display text-sm font-black text-[#1a162b] truncate max-w-full px-1">
-                        {showSyllables ? juice.splitIntoSyllables(word.word) : word.word}
-                      </span>
-                    </div>
-
-                    {/* Bottom Corner Badge */}
-                    <div className="flex items-center justify-between text-[10px] font-black">
-                      <span
-                        className={`rounded px-1 py-0.2 border border-[#1a162b] ${tierMeta.badgeBg} ${tierMeta.badgeText}`}
-                      >
-                        {tierMeta.shortLabel}
-                      </span>
-                      <span className="font-mono text-[#1a162b]">+{pwr}</span>
-                    </div>
-
                     {isSelected && (
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.2 font-mono text-[9px] font-black text-[#1a162b] shadow">
-                        #{slotIndex + 1}
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2.5 py-0.5 font-mono text-xs font-black text-[#1a162b] shadow">
+                        Slot #{slotIndex + 1}
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-          </div>
 
-          {/* RIGHT 4 COLS: WORD TABLET INSPECTOR CARD & STRIKE BUTTON */}
-          <div className="lg:col-span-4 flex items-stretch gap-2 rounded-2xl border-[3px] border-[#2dd4bf] bg-[#fef9c3] p-3 text-[#1a162b] shadow-[0_5px_0_#0f766e]">
-            <div className="flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-1 border-b-2 border-[#eab308]/40 pb-1">
-                  <span className="font-display text-sm sm:text-base font-black text-[#1a162b] truncate">
-                    {selectedWords.length > 0
-                      ? `“${activeAffixChip ? `[${activeAffixChip}] ` : ''}${previewCombo.phrase}”`
-                      : 'Tap Word Tablets or Command to Weave'}
-                  </span>
-                  {/* Feature #17: Voice Read-Along Pronunciation Check */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      juice.click();
-                      setIsListeningVoice(true);
-                      setVoiceFeedback('🎙️ Listening to your sentence...');
-                      const phraseToRead =
-                        selectedWords.length > 0 ? previewCombo.phrase : 'Blazing flame ignites fiercely';
-                      juice.speakWord(phraseToRead);
-                      setTimeout(() => {
-                        setIsListeningVoice(false);
-                        setVoiceFeedback('🌟 Clear pronunciation! +15 🪙');
-                        addRewards({ coins: 15, tokens: 0, xp: 10 });
-                      }, 1200);
-                    }}
-                    className={`shrink-0 rounded-lg border-2 border-[#1a162b] px-2 py-0.5 text-[10px] font-black cursor-pointer ${
-                      isListeningVoice ? 'bg-rose-500 text-white animate-pulse' : 'bg-white hover:bg-amber-200 text-[#1a162b]'
-                    }`}
-                    title="Feature #17: Practice reading the sentence aloud"
-                  >
-                    🎙️ Read Aloud
-                  </button>
-                </div>
+            {/* RIGHT 4 COLS: SPELL POWER SUMMARY, FIELD GUIDE BUTTON & GIANT CAST BUTTON */}
+            <div className="lg:col-span-4 flex flex-col justify-between gap-2 rounded-2xl border-[3px] border-[#2dd4bf] bg-[#fef9c3] p-3 text-[#1a162b] shadow-[0_5px_0_#0f766e]">
+              <div className="space-y-1.5">
+                {/* Age-Tiered Affix Surge Chips (Hidden in K-2 Explorer Mode for simplicity - #5) */}
+                {preferredGradeBand !== 'k-2' && (
+                  <div className="flex flex-wrap items-center gap-1 border-b border-amber-300 pb-1.5">
+                    <span className="text-xs font-black uppercase text-[#451a03]">Affix Boost:</span>
+                    {['un-', 're-', 'hyper-', '-ful', '-less', '-ly'].map((affix) => (
+                      <button
+                        key={affix}
+                        type="button"
+                        onClick={() => {
+                          juice.click();
+                          setActiveAffixChip((prev) => (prev === affix ? null : affix));
+                        }}
+                        className={`rounded-lg px-2 py-0.5 font-mono text-xs font-black border border-[#1a162b] cursor-pointer ${
+                          activeAffixChip === affix
+                            ? 'bg-[#fde047] text-[#1a162b]'
+                            : 'bg-white text-[#5d4037] hover:bg-amber-100'
+                        }`}
+                      >
+                        {affix}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                {/* Feature #2: Snap-On Live Prefix & Suffix Combat Modifiers */}
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  <span className="text-[9px] font-black uppercase text-[#451a03]">Affix Surge:</span>
-                  {['un-', 're-', 'hyper-', '-ful', '-less', '-ly'].map((affix) => (
-                    <button
-                      key={affix}
-                      type="button"
-                      onClick={() => {
-                        juice.click();
-                        setActiveAffixChip((prev) => (prev === affix ? null : affix));
-                      }}
-                      className={`rounded px-1.5 py-0.2 font-mono text-[9px] font-black border border-[#1a162b] cursor-pointer ${
-                        activeAffixChip === affix
-                          ? 'bg-[#fde047] text-[#1a162b]'
-                          : 'bg-white/80 text-[#5d4037] hover:bg-amber-100'
-                      }`}
-                    >
-                      {affix}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Power Pips, Syntax, Compound Combo (#3), and Effect Rows */}
-                <div className="mt-1 space-y-0.5 text-xs font-bold">
-                  <div className="flex items-center gap-2">
-                    <Swords className="h-3.5 w-3.5 text-[#1a162b]" />
-                    <span className="w-14 font-black">Power:</span>
+                {/* Power Pips & Effect Summary */}
+                <div className="space-y-1 text-xs font-bold">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-black">
+                      <Swords className="h-4 w-4 text-[#1a162b]" />
+                      Spell Power:
+                    </span>
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map((pip) => (
                         <span
                           key={pip}
-                          className={`h-3 w-3.5 rounded-xs border border-[#1a162b] ${
+                          className={`h-3.5 w-4 rounded-xs border border-[#1a162b] ${
                             selectedWords.length > 0 && pip <= powerFilledPips
                               ? 'bg-[#1a162b]'
                               : 'bg-white/70'
                           }`}
                         />
                       ))}
-                      {activeAffixChip && (
-                        <span className="text-[10px] font-black text-purple-700">+20% Affix</span>
-                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Target className="h-3.5 w-3.5 text-[#1a162b]" />
-                    <span className="w-14 font-black">Syntax:</span>
-                    <span className="font-black text-emerald-800 truncate">
-                      {selectedWords.length === 4
-                        ? `Ultimate 4-Word + ${crossComboName}`
-                        : selectedWords.length >= 2
-                        ? '⚡ Compound Chain (1.5x)'
-                        : selectedWords.length === 1
-                        ? 'Single Strike'
-                        : `Next: ${nextRecommendedPos.toUpperCase()}`}
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-black">
+                      <Zap className="h-4 w-4 text-[#1a162b]" />
+                      Combo:
                     </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-3.5 w-3.5 text-[#1a162b]" />
-                    <span className="w-14 font-black">Effect:</span>
-                    <span className="truncate font-semibold text-[#451a03]">
+                    <span className="font-black text-emerald-800 truncate">
                       {voiceFeedback
                         ? voiceFeedback
-                        : selectedWords.length > 0
+                        : selectedWords.length === 4
+                        ? `Ultimate 4-Word + ${crossComboName}`
+                        : selectedWords.length >= 2
+                        ? `⚡ ${previewCombo.effectName} (1.5x)`
+                        : selectedWords.length === 1
                         ? previewCombo.effectName
-                        : 'Select 1, 2, or 4 Word Tablets'}
+                        : `Next: ${nextRecommendedPos.toUpperCase()}`}
                     </span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Strike & Clear Action Column */}
-            <div className="flex flex-col justify-between gap-1.5 shrink-0">
-              <button
-                type="button"
-                disabled={!previewCombo.valid || isBattleOver}
-                onClick={handleLaunchWordStrike}
-                className={`flex-1 flex flex-col items-center justify-center gap-1 rounded-xl border-[3px] px-4 py-2 font-display text-xs sm:text-sm font-black uppercase tracking-wider transition ${
-                  previewCombo.valid && !isBattleOver
-                    ? 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_4px_0_#1a162b] hover:brightness-105 cursor-pointer'
-                    : 'border-slate-400 bg-slate-300 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                <Swords className="h-5 w-5" />
-                <span>STRIKE</span>
-              </button>
-
-              {selectedWords.length > 0 && (
+              {/* Action Buttons Row: Field Guide Drawer + Loadout + Giant CAST Button */}
+              <div className="flex items-stretch gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setSelectedWordIds([])}
-                  className="rounded-lg border-2 border-[#1a162b] bg-white hover:bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-[#1a162b] cursor-pointer"
+                  onClick={() => setShowReserveDrawer((prev) => !prev)}
+                  className="flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b] bg-[#b45309] hover:bg-[#92400e] px-3 py-2 text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  title="Swap equipped Word Tablets from your Lexicon Field Guide"
                 >
-                  Clear
+                  <span className="text-base">🦴</span>
+                  <span className="font-display text-xs font-black uppercase text-[#fef3c7]">
+                    {showReserveDrawer ? 'Close' : 'Swap Words'}
+                  </span>
                 </button>
-              )}
+
+                {isPlayerReadyToEvolve && (
+                  <button
+                    type="button"
+                    onClick={() => setEvolvingCreatureId(fullPlayerCreature.id)}
+                    className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] px-2.5 py-2 font-display text-xs font-black uppercase text-[#1a162b] animate-pulse cursor-pointer"
+                  >
+                    ★ Evolve
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={!previewCombo.valid || isBattleOver}
+                  onClick={handleLaunchWordStrike}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-2xl border-[3px] px-4 py-3 font-display text-sm sm:text-base font-black uppercase tracking-wider transition ${
+                    previewCombo.valid && !isBattleOver
+                      ? 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_4px_0_#1a162b] hover:brightness-105 cursor-pointer'
+                      : 'border-slate-400 bg-slate-300 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  <Swords className="h-5 w-5" />
+                  <span>CAST SPELL! [Space]</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,4 +1,72 @@
-import type { Word, GradeTier, CatalogWords } from '../types.ts';
+import type { Word, GradeTier, CatalogWords, PartOfSpeech } from '../types.ts';
+
+export interface PartOfSpeechMeta {
+  pos: PartOfSpeech;
+  label: string;
+  shortLabel: string;
+  helperLabel: string;
+  icon: string;
+  shape: string;
+  cardBg: string;
+  cardBorder: string;
+  pillBg: string;
+  pillText: string;
+}
+
+export const PART_OF_SPEECH_META: Record<PartOfSpeech, PartOfSpeechMeta> = {
+  adjective: {
+    pos: 'adjective',
+    label: 'Adjective',
+    shortLabel: 'ADJ',
+    helperLabel: 'Describes',
+    icon: '🎨',
+    shape: '◆',
+    cardBg: 'bg-[#fef3c7]',
+    cardBorder: 'border-[#f59e0b]',
+    pillBg: 'bg-amber-200',
+    pillText: 'text-amber-950',
+  },
+  noun: {
+    pos: 'noun',
+    label: 'Noun',
+    shortLabel: 'NOUN',
+    helperLabel: 'Person / Thing',
+    icon: '🛡️',
+    shape: '■',
+    cardBg: 'bg-[#e0f2fe]',
+    cardBorder: 'border-[#0284c7]',
+    pillBg: 'bg-sky-200',
+    pillText: 'text-sky-950',
+  },
+  verb: {
+    pos: 'verb',
+    label: 'Verb',
+    shortLabel: 'VERB',
+    helperLabel: 'Action',
+    icon: '⚡',
+    shape: '▲',
+    cardBg: 'bg-[#ffe4e6]',
+    cardBorder: 'border-[#e11d48]',
+    pillBg: 'bg-rose-200',
+    pillText: 'text-rose-950',
+  },
+  adverb: {
+    pos: 'adverb',
+    label: 'Adverb',
+    shortLabel: 'ADV',
+    helperLabel: 'How It Acts',
+    icon: '🚀',
+    shape: '●',
+    cardBg: 'bg-[#f3e8ff]',
+    cardBorder: 'border-[#9333ea]',
+    pillBg: 'bg-purple-200',
+    pillText: 'text-purple-950',
+  },
+};
+
+export function getPartOfSpeechMeta(pos?: PartOfSpeech): PartOfSpeechMeta {
+  return PART_OF_SPEECH_META[pos || 'verb'] || PART_OF_SPEECH_META.verb;
+}
 
 export interface GradeTierMetadata {
   id: GradeTier;

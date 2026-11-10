@@ -52,6 +52,8 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
     masterMistakeWord,
     dyslexiaFriendly,
     setDyslexiaFriendly,
+    calmAnimations,
+    setCalmAnimations,
     sanctuaryTheme,
     setSanctuaryTheme,
     tutorInsight,
@@ -553,14 +555,56 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-2.5">
+        <div className="font-display font-black text-base text-[#1a162b]">
+          🎒 K–8 Age-Tiered UI Mode &amp; Complexity Scaling (#5)
+        </div>
+        <div className="text-xs font-semibold text-[#5d4037]">
+          Adjusts screen density, vocabulary level, and combat helper prompts for each grade band:
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {(
+            [
+              { id: 'k-2', label: '🌱 K–2 Explorer', desc: 'Calm UI · 1–2 Word Combos' },
+              { id: '3-5', label: '🧭 3–5 Adventurer', desc: '4-Word Sentences & Affixes' },
+              { id: '6-8', label: '🏛️ 6–8 Scholar', desc: 'Full RPG Stats & Roots' },
+              { id: 'all', label: '✨ All Grades', desc: 'Complete Catalog' },
+            ] as const
+          ).map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => {
+                setPreferredGradeBand(mode.id);
+                juice.click();
+              }}
+              className={`p-2.5 rounded-xl border-2 border-[#1a162b] text-left cursor-pointer transition ${
+                preferredGradeBand === mode.id
+                  ? 'bg-[#2e7d32] text-white shadow-[0_3px_0_#1a162b]'
+                  : 'bg-white text-[#1a162b] hover:bg-amber-50'
+              }`}
+            >
+              <div className="font-display font-black text-xs">{mode.label}</div>
+              <div
+                className={`text-xs font-semibold mt-0.5 ${
+                  preferredGradeBand === mode.id ? 'text-emerald-100' : 'text-[#5d4037]'
+                }`}
+              >
+                {mode.desc}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
           <div>
             <div className="font-display font-black text-sm text-[#1a162b]">
-              📖 Dyslexia-Friendly Readability (#18)
+              📖 Dyslexia-Friendly Font (#8)
             </div>
-            <div className="text-[11px] font-semibold text-[#5d4037]">
-              Wider letter spacing &amp; clear word intervals
+            <div className="text-xs font-semibold text-[#5d4037]">
+              Wider letter spacing &amp; upright plates
             </div>
           </div>
           <button
@@ -569,7 +613,7 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
               setDyslexiaFriendly(!dyslexiaFriendly);
               juice.click();
             }}
-            className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer ${
+            className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
               dyslexiaFriendly ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
             }`}
           >
@@ -577,11 +621,34 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
           </button>
         </div>
 
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
+          <div>
+            <div className="font-display font-black text-sm text-[#1a162b]">
+              🌿 Calm Animations (#14)
+            </div>
+            <div className="text-xs font-semibold text-[#5d4037]">
+              Reduces continuous bounce &amp; pulse motion
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCalmAnimations(!calmAnimations);
+              juice.click();
+            }}
+            className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
+              calmAnimations ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
+            }`}
+          >
+            {calmAnimations ? '✓ Active' : 'Enable'}
+          </button>
+        </div>
+
         <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-1.5">
           <div className="font-display font-black text-sm text-[#1a162b]">
-            🍂 Seasonal Sanctuary Theme (#20)
+            🍂 Sanctuary Theme
           </div>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="grid grid-cols-2 gap-1.5">
             {(
               [
                 { id: 'classic', label: '🌿 Summer' },
@@ -597,7 +664,7 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
                   setSanctuaryTheme(th.id);
                   juice.click();
                 }}
-                className={`px-2 py-1 rounded-lg border border-[#1a162b] text-[10px] font-black cursor-pointer ${
+                className={`px-2 py-1 rounded-lg border border-[#1a162b] text-xs font-black cursor-pointer ${
                   sanctuaryTheme === th.id
                     ? 'bg-[#1a162b] text-[#fde047]'
                     : 'bg-amber-50 text-[#1a162b]'

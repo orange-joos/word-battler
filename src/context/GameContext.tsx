@@ -113,6 +113,8 @@ export interface GameContextType {
   claimBounty: (bountyId: string) => void;
   dyslexiaFriendly: boolean;
   setDyslexiaFriendly: (val: boolean) => void;
+  calmAnimations: boolean;
+  setCalmAnimations: (val: boolean) => void;
   mistakeWords: string[];
   addMistakeWord: (word: string) => void;
   masterMistakeWord: (word: string) => void;
@@ -174,6 +176,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
   const [dyslexiaFriendly, setDyslexiaFriendly] = useState<boolean>(
     initialSave.dyslexiaFriendly
+  );
+  const [calmAnimations, setCalmAnimations] = useState<boolean>(
+    initialSave.calmAnimations
   );
   const [mistakeWords, setMistakeWords] = useState<string[]>(initialSave.mistakeWords);
   const [sanctuaryTheme, setSanctuaryTheme] = useState<
@@ -276,6 +281,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       petBonds,
       bountiesClaimed,
       dyslexiaFriendly,
+      calmAnimations,
       mistakeWords,
       sanctuaryTheme,
       ancientAmber,
@@ -294,6 +300,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     petBonds,
     bountiesClaimed,
     dyslexiaFriendly,
+    calmAnimations,
     mistakeWords,
     sanctuaryTheme,
     ancientAmber,
@@ -797,6 +804,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         claimBounty,
         dyslexiaFriendly,
         setDyslexiaFriendly,
+        calmAnimations,
+        setCalmAnimations,
         mistakeWords,
         addMistakeWord,
         masterMistakeWord,
@@ -813,7 +822,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetAll,
       }}
     >
-      <div className={dyslexiaFriendly ? 'tracking-wider leading-relaxed font-sans' : ''}>
+      <div
+        className={`${dyslexiaFriendly ? 'dyslexia-friendly tracking-wider leading-relaxed font-sans' : ''} ${
+          calmAnimations ? 'calm-animations' : ''
+        }`}
+      >
         {children}
       </div>
     </GameContext.Provider>

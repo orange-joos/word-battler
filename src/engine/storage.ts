@@ -24,6 +24,7 @@ export interface UnifiedProfileSave {
   petBonds: Record<string, number>;
   bountiesClaimed: Record<string, boolean>;
   dyslexiaFriendly: boolean;
+  calmAnimations: boolean;
   mistakeWords: string[];
   sanctuaryTheme: 'classic' | 'autumn' | 'frostfall' | 'starlight';
   ancientAmber: number;
@@ -80,6 +81,11 @@ export function loadUnifiedProfileSave(): UnifiedProfileSave {
       ? legacyGradeBand
       : 'all');
 
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return {
     version: 3,
     playerId:
@@ -98,6 +104,7 @@ export function loadUnifiedProfileSave(): UnifiedProfileSave {
     petBonds: v3.petBonds || v2.petBonds || { emberfox: 4, aquafin: 3 },
     bountiesClaimed: v3.bountiesClaimed || v2.bountiesClaimed || {},
     dyslexiaFriendly: Boolean(v3.dyslexiaFriendly ?? v2.dyslexiaFriendly ?? false),
+    calmAnimations: Boolean(v3.calmAnimations ?? prefersReducedMotion),
     mistakeWords: v3.mistakeWords ||
       v2.mistakeWords || ['Their / There', 'Affect / Effect', 'Ferocious'],
     sanctuaryTheme: v3.sanctuaryTheme || v2.sanctuaryTheme || 'classic',

@@ -110,8 +110,9 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
   // Treasure Chest state for 'chest' nodes (X-8)
   const [chestOpened, setChestOpened] = useState<boolean>(false);
 
-  // Consolidated Sub-View Mode
+  // Consolidated Sub-View Mode & Collapsible Side Activities Drawer (#10)
   const [expeditionSubView, setExpeditionSubView] = useState<ExpeditionSubView>('stage');
+  const [showSideActivities, setShowSideActivities] = useState<boolean>(false);
 
   useEffect(() => {
     setQuizIndex(0);
@@ -856,41 +857,79 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
             12-TILE DEEP QUARRY (#3) & CAMPFIRE CHRONICLES (#12)
         ==================================================================== */}
         <div className="lg:col-span-5 rounded-3xl border-[4px] border-[#1a162b] bg-white p-4 sm:p-5 shadow-[0_7px_0_#1a162b] space-y-4">
-          {/* Efficiency #3: Condensed 5-Pill Realm Activities Switcher + Universal Amber Badge (#10) */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="grid grid-cols-5 gap-1 flex-1 rounded-2xl border-2 border-[#1a162b] bg-[#1e293b] p-1">
-              {(
-                [
-                  { id: 'stage', label: `📍 ${selectedNode.code}` },
-                  { id: 'roaming', label: '⚡ Mythic' },
-                  { id: 'quarry', label: '⛏️ Quarry' },
-                  { id: 'campfire', label: '🔥 Story' },
-                  { id: 'relics', label: '🗝️ Vaults' },
-                ] as const
-              ).map((tabItem) => (
+          {/* Accessibility #10: Calm Stage Trail Header + Collapsible "🏕️ Side Activities" Toggle */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-1">
                 <button
-                  key={tabItem.id}
                   type="button"
                   onClick={() => {
                     juice.click();
-                    setExpeditionSubView(tabItem.id);
+                    setExpeditionSubView('stage');
+                    setShowSideActivities(false);
                   }}
-                  className={`rounded-xl py-1.5 px-1 font-display text-[10px] font-black uppercase transition cursor-pointer truncate ${
-                    expeditionSubView === tabItem.id
-                      ? 'bg-[#fde047] text-[#1a162b] shadow'
-                      : 'text-amber-100 hover:bg-white/10'
+                  className={`flex-1 rounded-xl border-2 border-[#1a162b] py-2 px-3 font-display text-xs font-black uppercase transition cursor-pointer ${
+                    expeditionSubView === 'stage'
+                      ? 'bg-[#fde047] text-[#1a162b] shadow-[0_3px_0_#1a162b]'
+                      : 'bg-slate-800 text-white hover:bg-slate-700'
                   }`}
                 >
-                  {tabItem.label}
+                  📍 Stage {selectedNode.code} Trail
                 </button>
-              ))}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    juice.click();
+                    setShowSideActivities((prev) => !prev);
+                  }}
+                  className={`rounded-xl border-2 border-[#1a162b] py-2 px-3 font-display text-xs font-black uppercase transition cursor-pointer ${
+                    showSideActivities || expeditionSubView !== 'stage'
+                      ? 'bg-emerald-400 text-[#1a162b] shadow-[0_3px_0_#1a162b]'
+                      : 'bg-[#1e293b] text-amber-200 hover:bg-slate-700'
+                  }`}
+                  title="Accessibility #10: Expand optional side activities (Wild Mythic, Quarry, Campfire Story, Vaults)"
+                >
+                  🏕️ Side Activities {showSideActivities ? '▲' : '▼'}
+                </button>
+              </div>
+
+              <span
+                className="shrink-0 rounded-xl border-2 border-[#1a162b] bg-amber-100 px-2.5 py-2 font-mono text-xs font-black text-[#78350f]"
+                title="Universal Ancient Amber Currency"
+              >
+                🦴 {ancientAmber}
+              </span>
             </div>
-            <span
-              className="shrink-0 rounded-xl border-2 border-[#1a162b] bg-amber-100 px-2.5 py-1.5 font-mono text-[10px] font-black text-[#78350f]"
-              title="Efficiency #10: Universal Ancient Amber Currency"
-            >
-              🦴 {ancientAmber}
-            </span>
+
+            {(showSideActivities || expeditionSubView !== 'stage') && (
+              <div className="grid grid-cols-4 gap-1.5 rounded-2xl border-2 border-[#1a162b] bg-[#1e293b] p-1.5">
+                {(
+                  [
+                    { id: 'roaming', label: '⚡ Wild Mythic' },
+                    { id: 'quarry', label: '⛏️ Deep Quarry' },
+                    { id: 'campfire', label: '🔥 Campfire' },
+                    { id: 'relics', label: '🗝️ Secret Vaults' },
+                  ] as const
+                ).map((tabItem) => (
+                  <button
+                    key={tabItem.id}
+                    type="button"
+                    onClick={() => {
+                      juice.click();
+                      setExpeditionSubView(tabItem.id);
+                    }}
+                    className={`rounded-xl py-1.5 px-2 font-display text-xs font-black uppercase transition cursor-pointer truncate ${
+                      expeditionSubView === tabItem.id
+                        ? 'bg-[#fde047] text-[#1a162b] shadow'
+                        : 'text-amber-100 hover:bg-white/10'
+                    }`}
+                  >
+                    {tabItem.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {expeditionSubView !== 'stage' && (
