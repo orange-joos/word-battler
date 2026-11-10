@@ -162,6 +162,8 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
 
   // Efficiency #1: Compact Explorer Pack Drawer toggle in Top-Right HUD
   const [showExplorerPack, setShowExplorerPack] = useState<boolean>(false);
+  // Declutter #10: Auto-collapsing Top-Center Quest Compass Pill
+  const [questCompassExpanded, setQuestCompassExpanded] = useState<boolean>(false);
 
   // Feature #14: Interactive Courtyard Training Dummy state
   const [dummyDamageText, setDummyDamageText] = useState<string | null>(null);
@@ -324,34 +326,37 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
     juice.fanfare();
   };
 
-  // Cel-Shaded JRPG Ribbon Signboard + Black-and-Gold Floor Rune Medallion
-  const renderIslandNameplate = (node: PrimaryHubNode, isSelected: boolean) => (
-    <div className="flex flex-col items-center -mt-2">
-      <div
-        className={`px-3 py-1 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs sm:text-sm tracking-wide transition-all whitespace-nowrap flex items-center gap-1.5 ${
-          isSelected
-            ? 'bg-gradient-to-b from-[#ffe57f] via-[#ffd54f] to-[#ffb300] text-[#1a162b] scale-105 shadow-[0_4px_0_#1a162b,0_0_18px_rgba(255,213,79,0.95)]'
-            : 'bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] text-[#fef08a] shadow-[0_4px_0_#1a162b]'
-        }`}
-      >
-        {/* Black & Gold Circular Rune Medallion (Bastion Reference #1) */}
-        <span className="w-5 h-5 rounded-full bg-[#1a162b] border-2 border-[#facc15] text-[#facc15] text-[10px] font-black flex items-center justify-center">
-          {node.number}
-        </span>
-        <span>{node.label}</span>
-        <span
-          className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase ${
-            isSelected ? 'bg-[#1a162b] text-[#ffd54f]' : 'bg-[#facc15] text-[#1a162b]'
+  // Declutter #9: Single clean Building Nameplate with subtle notification dot when an action is ready
+  const renderIslandNameplate = (node: PrimaryHubNode, isSelected: boolean) => {
+    const isActionReady =
+      node.id === 'word-world'
+        ? clearedAreasCount < 9
+        : node.id === 'lexishop'
+        ? (currentUser?.lexiCoins ?? 450) >= 60
+        : node.id === 'hatchery'
+        ? (currentUser?.fusionTokens ?? 14) >= 2
+        : true;
+
+    return (
+      <div className="flex items-center justify-center -mt-2">
+        <div
+          className={`px-3.5 py-1 rounded-xl border-[3px] border-[#1a162b] font-display font-black text-xs sm:text-sm tracking-wide transition-all whitespace-nowrap flex items-center gap-2 ${
+            isSelected
+              ? 'bg-gradient-to-b from-[#ffe57f] via-[#ffd54f] to-[#ffb300] text-[#1a162b] scale-105 shadow-[0_4px_0_#1a162b,0_0_18px_rgba(255,213,79,0.95)]'
+              : 'bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] text-[#fef08a] shadow-[0_4px_0_#1a162b]'
           }`}
         >
-          {node.badge}
-        </span>
+          <span>{node.label}</span>
+          {isActionReady && (
+            <span
+              className="h-2.5 w-2.5 rounded-full bg-emerald-400 border border-[#1a162b] shadow-[0_0_8px_#34d399] shrink-0"
+              title="Action Ready"
+            />
+          )}
+        </div>
       </div>
-      <span className="mt-0.5 px-2.5 py-0.2 rounded-full bg-[#1a162b]/90 text-amber-100 font-bold text-[10px] border border-amber-400/30 shadow">
-        {node.subtitle}
-      </span>
-    </div>
-  );
+    );
+  };
 
   // Isometric Architectural Landmarks for the 5 Hub Areas (Bastion Ref #1 + Citadel Ref #2)
   const renderIslandArtwork = (id: PrimaryHubNode['id']) => {
@@ -1705,91 +1710,37 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
       </svg>
 
       {/* =====================================================================
-          TOP-LEFT HUD — LIVE CUSTOM AVATAR, HP, LEXI-DEX MASTERY & ACTIVE PET
+          DECLUTTER #7 & #8: TRIMMED TOP-LEFT HUD (PLAYER LEVEL, ACTIVE COMPANION AVATAR & GOLD COINS ONLY)
       ====================================================================== */}
-      <div className="absolute top-3 left-3 z-30 flex flex-col gap-2">
-        <div className="flex items-start gap-2.5 bg-[#1a162b]/85 backdrop-blur-md p-2.5 rounded-2xl border-[3px] border-[#1a162b] shadow-[0_5px_0_#1a162b]">
-          {/* Live Customized Explorer Portrait (Issue #4 Fix) */}
+      <div className="absolute top-3 left-3 z-30 flex items-center gap-2.5 bg-[#1a162b]/90 backdrop-blur-md p-2 rounded-2xl border-[3px] border-[#1a162b] shadow-[0_5px_0_#1a162b]">
+        {/* Live Customized Explorer Portrait + Level Badge */}
+        <div
+          onClick={() => setIsCustomizingAvatar(true)}
+          title="Click to customize Explorer"
+          className="relative w-12 h-12 rounded-xl bg-gradient-to-b from-[#ffe082] to-[#ffb300] p-0.5 border-2 border-[#1a162b] shadow cursor-pointer shrink-0"
+        >
           <div
-            onClick={() => setIsCustomizingAvatar(true)}
-            title="Click to customize Explorer"
-            className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-b from-[#ffe082] to-[#ffb300] p-1 border-[3px] border-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer group shrink-0"
+            className="w-full h-full rounded-lg flex items-center justify-center overflow-hidden border border-[#1a162b] relative"
+            style={{ backgroundColor: avatarOutfit }}
           >
             <div
-              className="w-full h-full rounded-xl flex items-center justify-center overflow-hidden border-2 border-[#1a162b] relative"
-              style={{ backgroundColor: avatarOutfit }}
+              className="w-8 h-8 rounded-full border border-[#1a162b] flex items-center justify-center text-lg shadow-inner"
+              style={{ backgroundColor: avatarSkin }}
             >
-              <div
-                className="w-11 h-11 rounded-full border-2 border-[#1a162b] flex items-center justify-center text-2xl shadow-inner"
-                style={{ backgroundColor: avatarSkin }}
-              >
-                {avatarEmoji}
-              </div>
-              {currentUser?.avatarConfig?.headgearEmoji && (
-                <span className="absolute top-0 right-0.5 text-xs drop-shadow">
-                  {currentUser.avatarConfig.headgearEmoji}
-                </span>
-              )}
-            </div>
-            {/* Level Star Badge */}
-            <div className="absolute -bottom-1.5 -left-1.5 w-7 h-7 rounded-full bg-gradient-to-b from-[#ffee58] to-[#fbc02d] border-2 border-[#1a162b] flex items-center justify-center font-display font-black text-[11px] text-[#1a162b] shadow">
-              {currentUser?.level ?? 8}
-            </div>
-            {/* Name Plate */}
-            <div className="absolute -bottom-2 right-0 left-5 bg-[#ffb300] border-2 border-[#1a162b] rounded-md px-1.5 py-0.2 text-center">
-              <span className="font-display font-black text-[10px] text-[#1a162b] truncate block">
-                {currentUser?.displayName || 'Explorer'}
-              </span>
+              {avatarEmoji}
             </div>
           </div>
-
-          {/* HP & Real Campaign / Lexi-Dex Mastery Bars */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <span className="font-display font-black text-[11px] text-[#ffca28] w-8">
-                HP
-              </span>
-              <div className="relative w-28 sm:w-36 h-4.5 rounded-full bg-[#0d0b18] border-2 border-[#1a162b] overflow-hidden">
-                <div className="h-full w-full bg-gradient-to-r from-[#d32f2f] via-[#f44336] to-[#ff7961] rounded-full" />
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white tabular-nums drop-shadow-[0_1px_1px_#000]">
-                  {selectedPet.stats.hp} / {selectedPet.stats.hp}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="font-display font-black text-[10px] text-[#4fc3f7] w-8">
-                DEX
-              </span>
-              <div className="relative w-28 sm:w-36 h-4.5 rounded-full bg-[#0d0b18] border-2 border-[#1a162b] overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#0288d1] via-[#29b6f6] to-[#81d4fa] rounded-full"
-                  style={{ width: `${Math.min(100, Math.round((allWords.length / 95) * 100))}%` }}
-                />
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white tabular-nums drop-shadow-[0_1px_1px_#000]">
-                  {allWords.length} Words
-                </span>
-              </div>
-            </div>
-
-            {/* Coins & Gems */}
-            <div className="flex items-center gap-1.5 pt-0.5">
-              <div className="flex items-center gap-1 bg-[#263238] border-2 border-[#1a162b] rounded-full px-2.5 py-0.5 text-white font-black text-[11px] tabular-nums">
-                <span>🪙</span>
-                <span>{(currentUser?.lexiCoins ?? 450).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center gap-1 bg-[#263238] border-2 border-[#1a162b] rounded-full px-2.5 py-0.5 text-white font-black text-[11px] tabular-nums">
-                <span>💎</span>
-                <span>{(currentUser?.fusionTokens ?? 14).toLocaleString()}</span>
-              </div>
-            </div>
+          <div className="absolute -bottom-1 -right-1 rounded-full bg-[#ffee58] border-2 border-[#1a162b] px-1.5 py-0.2 font-display font-black text-[10px] text-[#1a162b] shadow">
+            Lv.{currentUser?.level ?? 8}
           </div>
         </div>
 
-        {/* Active Companion Selector Pill */}
+        {/* Active Companion Avatar (Click to Open Hatchery) */}
         <button
+          type="button"
           onClick={() => setActiveModal('hatchery')}
-          className="flex items-center gap-2 bg-[#fff8e7] hover:bg-[#ffe082] border-[3px] border-[#1a162b] rounded-2xl px-3 py-1 shadow-[0_4px_0_#1a162b] cursor-pointer transition-transform hover:scale-105 w-fit"
+          title={`Active Partner: ${selectedPet.name} (Click to open Hatchery)`}
+          className="flex items-center gap-1.5 rounded-xl border-2 border-[#1a162b] bg-[#fff8e7] hover:bg-[#ffe082] px-2.5 py-1 shadow cursor-pointer transition-transform hover:scale-105"
         >
           <CreatureSprite
             creatureId={selectedPet.forged?.sourceId || selectedPet.id}
@@ -1798,27 +1749,73 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             size="xs"
             animated={false}
           />
-          <div className="text-left leading-tight">
-            <div className="text-[9px] font-black uppercase text-[#5d4037]">
-              Partner · Lv.{selectedPet.level || 8}
-            </div>
-            <div className="font-display font-black text-xs text-[#1a162b]">
-              {selectedPet.name} ▾
-            </div>
-          </div>
+          <span className="font-display font-black text-xs text-[#1a162b] hidden sm:inline">
+            {selectedPet.name}
+          </span>
         </button>
+
+        {/* Primary Gold Coins Currency Only (#8 Consolidate Currencies) */}
+        <div
+          className="flex items-center gap-1.5 bg-[#263238] border-2 border-[#1a162b] rounded-full px-3 py-1 text-[#fde047] font-black text-xs tabular-nums shadow-inner"
+          title="Gold Lexi-Coins"
+        >
+          <span>🪙</span>
+          <span>{(currentUser?.lexiCoins ?? 450).toLocaleString()}</span>
+        </div>
       </div>
 
       {/* =====================================================================
-          TOP-CENTER FACETED CRYSTAL CREST ("Aetheria Sanctuary")
+          TOP-CENTER FACETED CRYSTAL CREST + AUTO-COLLAPSING QUEST COMPASS PILL (#10)
       ====================================================================== */}
-      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none">
-        <div className="relative px-7 sm:px-10 py-1.5 rounded-2xl bg-gradient-to-b from-[#334155] via-[#1e293b] to-[#0f172a] border-[4px] border-[#facc15] shadow-[0_5px_0_#1a162b] flex items-center gap-3">
-          <div className="w-3 h-3 rotate-45 bg-[#38bdf8] border-2 border-[#1a162b]" />
-          <h1 className="font-display font-black text-base sm:text-xl md:text-2xl text-[#fde047] tracking-wide drop-shadow-[0_2px_0_#1a162b] whitespace-nowrap">
+      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-1.5">
+        <div className="relative px-6 sm:px-8 py-1 rounded-2xl bg-gradient-to-b from-[#334155] via-[#1e293b] to-[#0f172a] border-[3px] border-[#facc15] shadow-[0_4px_0_#1a162b] flex items-center gap-2.5 pointer-events-none">
+          <div className="w-2.5 h-2.5 rotate-45 bg-[#38bdf8] border border-[#1a162b]" />
+          <h1 className="font-display font-black text-sm sm:text-lg md:text-xl text-[#fde047] tracking-wide drop-shadow-[0_2px_0_#1a162b] whitespace-nowrap">
             Aetheria Sky-Sanctuary
           </h1>
-          <div className="w-3 h-3 rotate-45 bg-[#38bdf8] border-2 border-[#1a162b]" />
+          <div className="w-2.5 h-2.5 rotate-45 bg-[#38bdf8] border border-[#1a162b]" />
+        </div>
+
+        {/* Declutter #10: Auto-Collapsing Top-Center Quest Compass Pill */}
+        <div className="flex flex-col items-center">
+          <button
+            type="button"
+            onClick={() => {
+              juice.click();
+              setQuestCompassExpanded((prev) => !prev);
+            }}
+            className="flex items-center gap-1.5 rounded-full border-2 border-[#1a162b] bg-gradient-to-r from-[#fef08a] via-[#fde047] to-[#f59e0b] px-3.5 py-1 font-display text-[11px] font-black text-[#1a162b] shadow-[0_3px_0_#1a162b] hover:scale-105 transition cursor-pointer"
+            title="Click to expand Quest Compass"
+          >
+            <span>🧭</span>
+            <span>Next: {nextRecommendedArea.name}</span>
+            <span className="text-[9px]">{questCompassExpanded ? '▲' : '▼'}</span>
+          </button>
+
+          {questCompassExpanded && (
+            <div className="mt-1.5 flex items-center gap-2.5 rounded-2xl border-[3px] border-[#1a162b] bg-[#1a162b]/95 px-3.5 py-2 text-white shadow-[0_5px_0_#000]">
+              <div className="text-left">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                  Recommended Realm ({nextRecommendedArea.gradeBand})
+                </div>
+                <div className="font-display text-xs font-black text-white">
+                  Explore {nextRecommendedArea.name} ({clearedAreasCount}/9 Cleared)
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  juice.click();
+                  setQuestCompassExpanded(false);
+                  setActiveZoneId(nextRecommendedArea.zoneId);
+                  setActiveModal('word-world');
+                }}
+                className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-[#facc15] px-3 py-1 font-display text-xs font-black uppercase text-[#1a162b] cursor-pointer shrink-0"
+              >
+                Go Now →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2033,30 +2030,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </button>
           );
         })}
-      </div>
-
-      {/* Accessibility #6: "🧭 Next Adventure" Golden Quest Compass Bar */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#fef08a] via-[#fde047] to-[#f59e0b] px-4 py-2 text-[#1a162b] shadow-[0_5px_0_#1a162b]">
-        <span className="text-lg">🧭</span>
-        <div className="text-left">
-          <div className="font-display text-xs font-black uppercase tracking-wider text-[#78350f]">
-            Quest Compass · Next Recommended Step
-          </div>
-          <div className="font-display text-xs sm:text-sm font-black text-[#1a162b]">
-            Explore {nextRecommendedArea.name} ({nextRecommendedArea.gradeBand})
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            juice.click();
-            setActiveZoneId(nextRecommendedArea.zoneId);
-            setActiveModal('word-world');
-          }}
-          className="ml-2 rounded-xl border-2 border-[#1a162b] bg-[#1a162b] hover:bg-slate-800 px-3 py-1.5 font-display text-xs font-black uppercase text-[#fde047] cursor-pointer"
-        >
-          Go Now →
-        </button>
       </div>
 
       {/* Toast Feedback Banner */}

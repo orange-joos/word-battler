@@ -25,7 +25,6 @@ import {
 import { CreatureSprite } from './CreatureSprite';
 import { juice } from '../engine/juice';
 import { Word } from '../types';
-import { ExpeditionActivities, type ExpeditionSubView } from './adventure/ExpeditionActivities';
 
 interface ElementalNodeMapProps {
   onCloseModal?: () => void;
@@ -52,13 +51,7 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     updatePetLoadout,
     levelUpPet,
     recruitWildCompanion,
-    activeWeather,
-    cycleRealmWeather,
-    ancientAmber,
-    addAncientAmber,
     addMistakeWord,
-    claimedMilestones,
-    claimStarMilestone,
     recruitedZones,
     markZoneRecruited,
   } = useGame();
@@ -71,6 +64,7 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
   // Improvement #1: Cloud-parting realm transition banner
   const [realmTransitionText, setRealmTransitionText] = useState<string | null>(null);
   const [recruitBanner, setRecruitBanner] = useState<string | null>(null);
+  const [bonusChallengeDone, setBonusChallengeDone] = useState<boolean>(false);
 
   const frontierNode =
     selectedBiome.nodes.find((n) => !nodeProgress[n.nodeId]?.cleared) ||
@@ -110,10 +104,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
   // Treasure Chest state for 'chest' nodes (X-8)
   const [chestOpened, setChestOpened] = useState<boolean>(false);
 
-  // Consolidated Sub-View Mode & Collapsible Side Activities Drawer (#10)
-  const [expeditionSubView, setExpeditionSubView] = useState<ExpeditionSubView>('stage');
-  const [showSideActivities, setShowSideActivities] = useState<boolean>(false);
-
   useEffect(() => {
     setQuizIndex(0);
     setSelectedOption(null);
@@ -125,16 +115,15 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     setTabletUnearthed(alreadyCleared);
     setChestOpened(alreadyCleared);
     setRecruitBanner(null);
-    setExpeditionSubView('stage');
+    setBonusChallengeDone(false);
   }, [selectedNode.nodeId, nodeProgress]);
 
   const getBiomeStars = (biome: ElementalBiomeTheme) =>
     biome.nodes.reduce((sum, n) => sum + (nodeProgress[n.nodeId]?.stars || 0), 0);
 
   const currentBiomeStars = getBiomeStars(selectedBiome);
-  const totalStarsAllRealms = ELEMENTAL_ADVENTURE_BIOMES.reduce(
-    (sum, b) => sum + getBiomeStars(b),
-    0
+  const currentBiomeIdx = ELEMENTAL_ADVENTURE_BIOMES.findIndex(
+    (b) => b.zoneId === selectedBiome.zoneId
   );
 
   const isNodeUnlocked = (node: AdventureStageNode): boolean => {
@@ -152,26 +141,17 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     setTimeout(() => setRealmTransitionText(null), 900);
   };
 
+  const handleStepRealm = (delta: -1 | 1) => {
+    const nextIdx =
+      (currentBiomeIdx + delta + ELEMENTAL_ADVENTURE_BIOMES.length) %
+      ELEMENTAL_ADVENTURE_BIOMES.length;
+    handleSwitchRealm(ELEMENTAL_ADVENTURE_BIOMES[nextIdx]);
+  };
+
   const handleSelectNode = (node: AdventureStageNode) => {
     juice.click();
     setSelectedNode(node);
     setActiveNodeId(node.nodeId);
-  };
-
-  // Improvement #3: Claim Star Milestone Chest (10★, 20★, 30★)
-  const handleClaimMilestone = (milestoneStars: 10 | 20 | 30) => {
-    const key = `${selectedBiome.zoneId}:${milestoneStars}`;
-    if (claimedMilestones.includes(key) || currentBiomeStars < milestoneStars) return;
-
-    claimStarMilestone(key);
-
-    const coins = milestoneStars === 30 ? 250 : milestoneStars === 20 ? 150 : 90;
-    const tokens = milestoneStars === 30 ? 4 : milestoneStars === 20 ? 2 : 1;
-    addRewards({ coins, tokens, xp: 60 });
-    if (milestoneStars === 30) {
-      levelUpPet(activePet.id, 1);
-    }
-    juice.fanfare();
   };
 
   // Improvement #4: Recruit Wild Companion on Mid-Boss / Boss Stage
@@ -514,68 +494,61 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
       )}
 
       {/* =====================================================================
-          1. TOP 9-ELEMENTAL REALMS SWITCHER RIBBON + STAR MILESTONE CHESTS
+          DECLUTTER #11: COMPACT ◀ CURRENT REALM ▶ SELECTOR & DROPDOWN BAR
       ====================================================================== */}
-      <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b] p-2.5 text-white shadow-[0_4px_0_#1a162b] space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+      <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b] px-3 py-2 text-white shadow-[0_4px_0_#1a162b]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* ◀ Current Realm ▶ Selector + Dropdown */}
           <div className="flex items-center gap-2">
-            <span className="rounded-lg bg-[#facc15] px-2.5 py-0.5 font-display text-xs font-black uppercase text-[#1a162b] border-2 border-[#1a162b]">
-              Word World Atlas
-            </span>
-            <span className="font-display text-sm sm:text-base font-black text-[#fde047]">
-              {selectedBiome.name} ({selectedBiome.gradeBand})
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
-            {/* Feature #4: Realm Weather & Elemental Tide Shift Pill */}
             <button
               type="button"
-              onClick={cycleRealmWeather}
-              title={`Active Tide: ${activeWeather.effectLabel} (Click to forecast next tide)`}
-              className="flex items-center gap-1 rounded-lg border-2 border-cyan-300 bg-cyan-950 hover:bg-cyan-900 px-2.5 py-0.5 text-[10px] font-black text-cyan-200 cursor-pointer"
+              onClick={() => handleStepRealm(-1)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-[#1a162b] bg-[#334155] hover:bg-[#475569] font-display text-sm font-black text-[#fde047] shadow-[0_2px_0_#1a162b] cursor-pointer"
+              title="Previous Realm"
             >
-              <span>{activeWeather.icon}</span>
-              <span>{activeWeather.name}</span>
+              ◀
             </button>
 
-            {/* Improvement #3: 3 Realm Star Milestone Chests (10★, 20★, 30★) */}
-            {([10, 20, 30] as const).map((ms) => {
-              const key = `${selectedBiome.zoneId}:${ms}`;
-              const isClaimed = claimedMilestones.includes(key);
-              const isReady = currentBiomeStars >= ms && !isClaimed;
-              return (
-                <button
-                  key={ms}
-                  type="button"
-                  onClick={() => handleClaimMilestone(ms)}
-                  className={`flex items-center gap-1 rounded-lg border-2 px-2 py-0.5 font-mono text-[10px] transition ${
-                    isClaimed
-                      ? 'border-emerald-400 bg-emerald-950 text-emerald-300'
-                      : isReady
-                      ? 'border-[#fde047] bg-gradient-to-b from-[#fde047] to-[#f59e0b] text-[#1a162b] animate-bounce cursor-pointer'
-                      : 'border-slate-600 bg-slate-800 text-slate-400'
-                  }`}
-                  title={`Claim ${ms}★ Realm Milestone Chest`}
-                >
-                  <span>{isClaimed ? '✓' : '🎁'}</span>
-                  <span>{ms}★ Chest</span>
-                </button>
-              );
-            })}
+            <select
+              aria-label="Select Elemental Realm"
+              value={selectedBiome.zoneId}
+              onChange={(e) => {
+                const found = ELEMENTAL_ADVENTURE_BIOMES.find((b) => b.zoneId === e.target.value);
+                if (found) handleSwitchRealm(found);
+              }}
+              className="rounded-xl border-2 border-[#fde047] bg-[#0f172a] px-3 py-1.5 font-display text-xs sm:text-sm font-black text-[#fde047] shadow-inner cursor-pointer focus:outline-none"
+            >
+              {ELEMENTAL_ADVENTURE_BIOMES.map((biome) => {
+                const elemMeta = ELEMENTS[biome.element] || ELEMENTS.grass;
+                const stars = getBiomeStars(biome);
+                return (
+                  <option key={biome.zoneId} value={biome.zoneId}>
+                    {biome.order}. {elemMeta.icon} {biome.name} ({biome.gradeBand}) — ★ {stars}/30
+                  </option>
+                );
+              })}
+            </select>
 
-            <span className="rounded-lg bg-[#0f172a] border border-amber-400/40 px-2.5 py-1 text-[#fde047]">
-              ★ {currentBiomeStars} / 30
-            </span>
-            <span className="hidden xl:inline rounded-lg bg-[#0f172a] border border-sky-400/40 px-2.5 py-1 text-sky-300">
-              🌍 {totalStarsAllRealms} / 270 ★
+            <button
+              type="button"
+              onClick={() => handleStepRealm(1)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-[#1a162b] bg-[#334155] hover:bg-[#475569] font-display text-sm font-black text-[#fde047] shadow-[0_2px_0_#1a162b] cursor-pointer"
+              title="Next Realm"
+            >
+              ▶
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-black">
+            <span className="rounded-xl bg-[#0f172a] border-2 border-amber-400/50 px-3 py-1 text-[#fde047]">
+              ★ {currentBiomeStars} / 30 Stars
             </span>
 
             {onToggleFullScreen && (
               <button
                 type="button"
                 onClick={onToggleFullScreen}
-                className="flex items-center gap-1 rounded-lg border-2 border-[#fde047] bg-[#334155] hover:bg-[#475569] px-2.5 py-1 text-[10px] font-black uppercase text-[#fde047] cursor-pointer"
+                className="flex items-center gap-1 rounded-xl border-2 border-[#fde047] bg-[#334155] hover:bg-[#475569] px-2.5 py-1 text-[10px] font-black uppercase text-[#fde047] cursor-pointer"
                 title="Toggle Full-Screen Adventure Map"
               >
                 {isFullScreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -583,42 +556,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
               </button>
             )}
           </div>
-        </div>
-
-        {/* 9 Elemental Area Tabs */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5">
-          {ELEMENTAL_ADVENTURE_BIOMES.map((biome) => {
-            const isSelected = biome.zoneId === selectedBiome.zoneId;
-            const elemMeta = ELEMENTS[biome.element] || ELEMENTS.grass;
-            const stars = getBiomeStars(biome);
-
-            return (
-              <button
-                key={biome.zoneId}
-                type="button"
-                onClick={() => handleSwitchRealm(biome)}
-                className={`flex flex-col items-center justify-between rounded-xl border-2 px-2 py-1.5 text-center transition-all cursor-pointer ${
-                  isSelected
-                    ? 'border-[#fde047] bg-gradient-to-b from-[#fef08a] to-[#facc15] text-[#1a162b] scale-105 shadow-[0_3px_0_#1a162b]'
-                    : 'border-[#1a162b] bg-[#334155] hover:bg-[#475569] text-white'
-                }`}
-              >
-                <div className="flex items-center gap-1 text-xs font-black">
-                  <span>{elemMeta.icon}</span>
-                  <span className="truncate">
-                    {biome.order}. {elemMeta.name}
-                  </span>
-                </div>
-                <span
-                  className={`mt-0.5 font-mono text-[10px] font-black ${
-                    isSelected ? 'text-[#92400e]' : 'text-[#fde047]'
-                  }`}
-                >
-                  ★ {stars}/30
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -812,140 +749,60 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                 );
               })}
 
-              {/* Feature #6: Secret Branching Side-Path Nodes (X-5B & X-8B) + Feature #7 Merchant Pin */}
-              <button
-                type="button"
-                onClick={() => {
-                  juice.click();
-                  setExpeditionSubView('relics');
-                }}
-                style={{ left: '84%', top: '52%' }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
-                title="Secret Branch Node X-5B & Mystery Riddle Gate"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#fde047] bg-gradient-to-b from-purple-700 to-indigo-950 text-xl shadow-[0_4px_0_#1a162b] group-hover:scale-110 transition">
-                  🗝️
-                </div>
-                <span className="mt-1 rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[9px] font-black text-[#fde047] border border-[#fde047]/50">
-                  {selectedBiome.order}-5B Secret
-                </span>
-              </button>
+              {/* Declutter #13: Only render Secret/Relic pins when their prerequisite stage (X-5 or X-8) is cleared */}
+              {Boolean(nodeProgress[selectedBiome.nodes[4]?.nodeId]?.cleared) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    juice.ding(760, 120);
+                    if (!bonusChallengeDone) {
+                      addRewards({ coins: 60, tokens: 1, xp: 30 });
+                      setBonusChallengeDone(true);
+                    }
+                  }}
+                  style={{ left: '84%', top: '52%' }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
+                  title="Discovered Secret Branch Node X-5B"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#fde047] bg-gradient-to-b from-purple-700 to-indigo-950 text-xl shadow-[0_4px_0_#1a162b] group-hover:scale-110 transition">
+                    🗝️
+                  </div>
+                  <span className="mt-1 rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[9px] font-black text-[#fde047] border border-[#fde047]/50">
+                    {selectedBiome.order}-5B Secret
+                  </span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  juice.click();
-                  setExpeditionSubView('relics');
-                }}
-                style={{ left: '16%', top: '28%' }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
-                title="Wandering Word Merchant & Side-Vault X-8B"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#fde047] bg-gradient-to-b from-amber-500 to-orange-700 text-xl shadow-[0_4px_0_#1a162b] group-hover:scale-110 transition">
-                  🐫
-                </div>
-                <span className="mt-1 rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[9px] font-black text-amber-200 border border-amber-400/50">
-                  {selectedBiome.order}-8B Caravan
-                </span>
-              </button>
+              {Boolean(nodeProgress[selectedBiome.nodes[7]?.nodeId]?.cleared) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    juice.ding(820, 120);
+                    if (!bonusChallengeDone) {
+                      addRewards({ coins: 60, tokens: 1, xp: 30 });
+                      setBonusChallengeDone(true);
+                    }
+                  }}
+                  style={{ left: '16%', top: '28%' }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
+                  title="Discovered Wandering Word Merchant X-8B"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#fde047] bg-gradient-to-b from-amber-500 to-orange-700 text-xl shadow-[0_4px_0_#1a162b] group-hover:scale-110 transition">
+                    🐫
+                  </div>
+                  <span className="mt-1 rounded bg-[#1a162b] px-1.5 py-0.2 font-mono text-[9px] font-black text-amber-200 border border-amber-400/50">
+                    {selectedBiome.order}-8B Caravan
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
 
         {/* ===================================================================
-            RIGHT 5 COLS: INTERACTIVE STAGE ENCOUNTER, ROAMING MYTHIC (#2),
-            12-TILE DEEP QUARRY (#3) & CAMPFIRE CHRONICLES (#12)
+            DECLUTTER #12: MERGED SINGLE FOCUSED STAGE CARD + 1 OPTIONAL BONUS CHALLENGE
         ==================================================================== */}
         <div className="lg:col-span-5 rounded-3xl border-[4px] border-[#1a162b] bg-white p-4 sm:p-5 shadow-[0_7px_0_#1a162b] space-y-4">
-          {/* Accessibility #10: Calm Stage Trail Header + Collapsible "🏕️ Side Activities" Toggle */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    juice.click();
-                    setExpeditionSubView('stage');
-                    setShowSideActivities(false);
-                  }}
-                  className={`flex-1 rounded-xl border-2 border-[#1a162b] py-2 px-3 font-display text-xs font-black uppercase transition cursor-pointer ${
-                    expeditionSubView === 'stage'
-                      ? 'bg-[#fde047] text-[#1a162b] shadow-[0_3px_0_#1a162b]'
-                      : 'bg-slate-800 text-white hover:bg-slate-700'
-                  }`}
-                >
-                  📍 Stage {selectedNode.code} Trail
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    juice.click();
-                    setShowSideActivities((prev) => !prev);
-                  }}
-                  className={`rounded-xl border-2 border-[#1a162b] py-2 px-3 font-display text-xs font-black uppercase transition cursor-pointer ${
-                    showSideActivities || expeditionSubView !== 'stage'
-                      ? 'bg-emerald-400 text-[#1a162b] shadow-[0_3px_0_#1a162b]'
-                      : 'bg-[#1e293b] text-amber-200 hover:bg-slate-700'
-                  }`}
-                  title="Accessibility #10: Expand optional side activities (Wild Mythic, Quarry, Campfire Story, Vaults)"
-                >
-                  🏕️ Side Activities {showSideActivities ? '▲' : '▼'}
-                </button>
-              </div>
-
-              <span
-                className="shrink-0 rounded-xl border-2 border-[#1a162b] bg-amber-100 px-2.5 py-2 font-mono text-xs font-black text-[#78350f]"
-                title="Universal Ancient Amber Currency"
-              >
-                🦴 {ancientAmber}
-              </span>
-            </div>
-
-            {(showSideActivities || expeditionSubView !== 'stage') && (
-              <div className="grid grid-cols-4 gap-1.5 rounded-2xl border-2 border-[#1a162b] bg-[#1e293b] p-1.5">
-                {(
-                  [
-                    { id: 'roaming', label: '⚡ Wild Mythic' },
-                    { id: 'quarry', label: '⛏️ Deep Quarry' },
-                    { id: 'campfire', label: '🔥 Campfire' },
-                    { id: 'relics', label: '🗝️ Secret Vaults' },
-                  ] as const
-                ).map((tabItem) => (
-                  <button
-                    key={tabItem.id}
-                    type="button"
-                    onClick={() => {
-                      juice.click();
-                      setExpeditionSubView(tabItem.id);
-                    }}
-                    className={`rounded-xl py-1.5 px-2 font-display text-xs font-black uppercase transition cursor-pointer truncate ${
-                      expeditionSubView === tabItem.id
-                        ? 'bg-[#fde047] text-[#1a162b] shadow'
-                        : 'text-amber-100 hover:bg-white/10'
-                    }`}
-                  >
-                    {tabItem.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {expeditionSubView !== 'stage' && (
-            <ExpeditionActivities
-              expeditionSubView={expeditionSubView}
-              selectedBiome={selectedBiome}
-              activePet={activePet}
-              onRecruitWildCompanion={recruitWildCompanion}
-              onAddRewards={addRewards}
-              onLevelUpPet={levelUpPet}
-              onAddAncientAmber={addAncientAmber}
-            />
-          )}
-
-          {expeditionSubView === 'stage' && (
-            <>
           <div className="flex items-center justify-between gap-2 border-b-2 border-amber-200 pb-3">
             <div>
               <div className="flex items-center gap-2">
@@ -971,7 +828,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
 
           {/* =================================================================
               ENCOUNTER TYPE A: COMBAT / MID-BOSS / GUARDIAN BOSS (1, 3, 5, 7, 10)
-              Includes Improvement #4 (Wild Companion Capture) & #10 (Distinct Sprites)
           ================================================================== */}
           {(selectedNode.type === 'combat' ||
             selectedNode.type === 'midboss' ||
@@ -1012,7 +868,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                 </div>
               </div>
 
-              {/* Improvement #4: Wild Companion Capture / Befriend Card on Stage X-5 & X-10 */}
               {(selectedNode.type === 'midboss' || selectedNode.type === 'boss') && (
                 <div className="rounded-2xl border-2 border-emerald-700 bg-emerald-50 p-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
@@ -1045,24 +900,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                   {recruitBanner}
                 </div>
               )}
-
-              <div className="rounded-2xl border-2 border-[#1a162b] bg-[#f8fafc] p-3 space-y-1.5">
-                <div className="font-display text-xs font-black uppercase text-[#1a162b]">
-                  ★ Stage Star Objectives:
-                </div>
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                  <span className="text-[#f59e0b]">★☆☆</span>
-                  <span>Defeat {selectedNode.enemyName} in Word Combat</span>
-                </div>
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                  <span className="text-[#f59e0b]">★★☆</span>
-                  <span>Win with at least 30% Companion HP remaining</span>
-                </div>
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                  <span className="text-[#f59e0b]">★★★</span>
-                  <span>Win with 60%+ HP using Word Tablet Combos!</span>
-                </div>
-              </div>
 
               <div className="flex items-center justify-between rounded-xl bg-amber-50 border-2 border-amber-300 px-3 py-2 text-xs font-black text-[#78350f]">
                 <span>Victory Rewards:</span>
@@ -1098,14 +935,13 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] hover:brightness-105 text-[#1a162b] font-display font-black text-base uppercase tracking-wider border-[3px] border-[#1a162b] shadow-[0_5px_0_#1a162b] flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Swords className="h-5 w-5" />
-                <span>Launch Stage {selectedNode.code} Battle →</span>
+                <span>▶ ENTER BATTLE</span>
               </button>
             </div>
           )}
 
           {/* =================================================================
               ENCOUNTER TYPE B: INTERACTIVE 6-TILE FOSSIL EXCAVATION MINI-GAME (X-4)
-              (Improvement #2: Hammer vs Brush Tool + Flawless Fossil Bonus)
           ================================================================== */}
           {selectedNode.type === 'digsite' && selectedNode.digSiteTablet && (
             <div className="space-y-3.5">
@@ -1121,7 +957,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
 
                 {!tabletUnearthed ? (
                   <>
-                    {/* Tool Selector: Hammer (2 layers) vs Precision Brush (1 layer) */}
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -1155,7 +990,6 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
                       </button>
                     </div>
 
-                    {/* 6-Tile Sedimentary Rock Matrix */}
                     <div className="grid grid-cols-3 gap-2 p-2.5 rounded-2xl bg-[#451a03] border-[3px] border-[#1a162b]">
                       {fossilGrid.map((layer, idx) => (
                         <button
@@ -1377,8 +1211,34 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
               )}
             </div>
           )}
-            </>
-          )}
+
+          {/* Declutter #12: 1 Focused Optional Bonus Challenge on the Stage Card */}
+          <div className="rounded-2xl border-2 border-[#1a162b] bg-[#fff8e7] p-3 flex items-center justify-between gap-2">
+            <div>
+              <div className="font-display text-xs font-black uppercase text-[#78350f]">
+                ✨ Optional Bonus Challenge
+              </div>
+              <div className="text-xs font-bold text-[#1a162b]">
+                Practice {selectedBiome.grammarFocus} (+60 🪙 Bonus)
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={bonusChallengeDone}
+              onClick={() => {
+                juice.fanfare();
+                addRewards({ coins: 60, tokens: 1, xp: 30 });
+                setBonusChallengeDone(true);
+              }}
+              className={`rounded-xl border-2 border-[#1a162b] px-3 py-1.5 font-display text-xs font-black uppercase shrink-0 ${
+                bonusChallengeDone
+                  ? 'bg-emerald-500 text-white cursor-default'
+                  : 'bg-[#fde047] hover:bg-[#facc15] text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer'
+              }`}
+            >
+              {bonusChallengeDone ? '✓ Claimed' : 'Claim +60 🪙'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
