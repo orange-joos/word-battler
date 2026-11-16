@@ -20,6 +20,10 @@ import type {
 import { ELEMENTS } from '../data/elements.ts';
 import { getAllWordsList } from './forge.ts';
 import { selectBossTacticalMove } from '../agents/bossTacticianAgent.ts';
+import {
+  evaluateWordEconomy,
+  evaluateWordPropertySynergies,
+} from './lexiconTrie.ts';
 
 export const PHASES = Object.freeze({
   PLAYER_TURN: 'PLAYER_TURN' as BattlePhase,
@@ -209,11 +213,21 @@ export function evaluateCombo(
     for (const w of [adj, noun, verb, adv]) {
       if (w.element === affinity) synergy += 3;
       synergy += w.powerBonus ?? w.forge?.powerBonus ?? 0;
+      synergy += evaluateWordEconomy(w.word).bonusDamage;
     }
+
+    const propSynergies = evaluateWordPropertySynergies([
+      adj.word,
+      noun.word,
+      verb.word,
+      adv.word,
+    ]);
+    const anagramShield = propSynergies.reduce((sum, s) => sum + (s.bonusShield || 0), 0);
 
     const phrase = `The ${adj.word} ${noun.word} ${verb.word}s ${adv.word}!`;
     const power = BASE_POWER + 12 + synergy;
-    const shieldGain = Math.round(10 + attacker.stats.defense * 0.8 + (noun.powerBonus ?? 2));
+    const shieldGain =
+      Math.round(10 + attacker.stats.defense * 0.8 + (noun.powerBonus ?? 2)) + anagramShield;
 
     return {
       valid: true,
@@ -254,6 +268,18 @@ export function evaluateCombo(
     synergy += shape.head.powerBonus ?? shape.head.forge?.powerBonus ?? 0;
     synergy += shape.modifier?.powerBonus ?? shape.modifier?.forge?.powerBonus ?? 0;
 
+    // Priority #2: Calibrated Letter Economy & Length Scaling bonus
+    synergy += evaluateWordEconomy(shape.head.word).bonusDamage;
+    if (shape.modifier) {
+      synergy += evaluateWordEconomy(shape.modifier.word).bonusDamage;
+    }
+
+    // Priority #3: Anagram Shielding synergy
+    const propSynergies = evaluateWordPropertySynergies(
+      shape.modifier ? [shape.modifier.word, shape.head.word] : [shape.head.word]
+    );
+    const anagramBonusShield = propSynergies.reduce((sum, s) => sum + (s.bonusShield || 0), 0);
+
     if (category === 'ATTACK') {
       const baseByPartOfSpeech: Record<PartOfSpeech, number> = {
         verb: 8,
@@ -264,10 +290,11 @@ export function evaluateCombo(
       power = BASE_POWER + baseByPartOfSpeech[shape.head.partOfSpeech] + synergy;
       if (shape.modifier?.partOfSpeech === 'adverb') power += 3;
       if (shape.modifier?.partOfSpeech === 'adjective') power += 2;
+      shieldGain = anagramBonusShield;
     } else if (category === 'DEFEND' && shape.head.partOfSpeech === 'noun') {
-      shieldGain = 14 + attacker.stats.defense + synergy;
+      shieldGain = 14 + attacker.stats.defense + synergy + anagramBonusShield;
     } else if (category === 'DEFEND' && shape.head.partOfSpeech === 'verb') {
-      shieldGain = 6 + Math.floor(attacker.stats.defense / 2) + synergy;
+      shieldGain = 6 + Math.floor(attacker.stats.defense / 2) + synergy + anagramBonusShield;
     }
   }
 
@@ -307,7 +334,7 @@ export function tickCreatureStatuses(creature: Creature): { message: string; hea
       const healed = Math.min(status.amount, (creature.maxHp ?? creature.stats.hp) - (creature.currentHp ?? 0));
       creature.currentHp = Math.min(creature.maxHp ?? creature.stats.hp, (creature.currentHp ?? 0) + status.amount);
       events.push({ message: `${creature.name} restored ${healed} HP from Regeneration.`, heal: healed });
-    } else if (['Burn', 'Chill', 'Thorn'].includes(status.name) && status.amount) {
+    } else if (['Burn', 'Chill', 'Thorn', 'Freeze', 'Bleed'].includes(status.name) && status.amount) {
       const damage = Math.min(status.amount, creature.currentHp ?? 0);
       creature.currentHp = Math.max(0, (creature.currentHp ?? 0) - status.amount);
       events.push({ message: `${creature.name} took ${damage} damage from ${status.name}.`, damage });
@@ -417,7 +444,7 @@ export function createBattle(options: {
       if (existing.stat && existing.amount) changeStat(target, existing.stat, -existing.amount);
       target.statuses = target.statuses.filter((entry) => entry !== existing);
     }
-    target.statuses.push({ ...status, id: `${status.name.toLowerCase().replace(/\\s+/g, '-')}-${Date.now()}-${++eventSequence}` });
+    target.statuses.push({ ...status, id: `${status.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${++eventSequence}` });
     if (status.stat && status.amount) changeStat(target, status.stat, status.amount);
     emit(
       status.type === 'buff' ? 'BUFF' : 'DEBUFF',
@@ -460,14 +487,21 @@ export function createBattle(options: {
       return { damage: 0, shieldGain: 0 };
     }
 
+    const activeWords = [combo.word1, combo.word2, combo.word3, combo.word4]
+      .filter((w): w is Word => Boolean(w))
+      .map((w) => w.word);
+    const wordSynergies = evaluateWordPropertySynergies(activeWords);
+    const hasRareLetterCrit = wordSynergies.some((s) => s.guaranteedCrit);
+
     let rawDamage = attacker.stats.attack + combo.power;
     if (attacker.infusionElement === head.element) rawDamage = Math.round(rawDamage * 1.15);
     if (attacker.empowered) {
       rawDamage = Math.round(rawDamage * 1.5);
       attacker.empowered = false;
     }
-    const canCrit = head.partOfSpeech === 'adverb' || modifier?.partOfSpeech === 'adverb';
-    const isCrit = canCrit && Math.random() < 0.4;
+    const canCrit =
+      hasRareLetterCrit || head.partOfSpeech === 'adverb' || modifier?.partOfSpeech === 'adverb';
+    const isCrit = hasRareLetterCrit || (canCrit && Math.random() < 0.4);
     if (isCrit) rawDamage = Math.round(rawDamage * CRIT_MULTIPLIER);
     if (head.partOfSpeech === 'adjective') rawDamage = Math.round(rawDamage * 1.05);
 
@@ -515,6 +549,27 @@ export function createBattle(options: {
         combo.category
       );
     }
+
+    // Priority #3: Apply Word Property Status Synergies (Freeze on >=3 vowels, Bleed on palindromes)
+    for (const syn of wordSynergies) {
+      if (syn.statusToApply) {
+        applyStatus(
+          defender,
+          attacker,
+          {
+            id: '',
+            name: syn.statusToApply.name,
+            type: 'debuff',
+            duration: syn.statusToApply.duration,
+            amount: syn.statusToApply.amount,
+            description: `is afflicted by ${syn.statusToApply.name} (${syn.name})!`,
+          },
+          phase,
+          combo.category
+        );
+      }
+    }
+
     return { damage, shieldGain: 0 };
   }
 

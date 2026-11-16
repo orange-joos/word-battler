@@ -7,6 +7,14 @@ import { ELEMENTAL_ADVENTURE_BIOMES } from '../../data/adventureNodesData';
 import { CreatureSprite } from '../CreatureSprite';
 import { juice } from '../../engine/juice';
 import type { Creature, ElementType, PartOfSpeech, Word } from '../../types';
+import { benchmarkTrieLookup } from '../../engine/lexiconTrie';
+import {
+  ROGUELIKE_RELICS,
+  STARTER_DECK_UNLOCK_TRACKS,
+  PLATFORM_ACHIEVEMENTS,
+  TUTORIAL_STEPS_3MIN,
+  loadAtomicCombatSnapshot,
+} from '../../engine/roguelikeLoop';
 
 export type SecondaryModalType = 'quests' | 'museum' | 'profile' | 'settings';
 
@@ -65,6 +73,21 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
   const [customSpellingDef, setCustomSpellingDef] = useState('');
   const [customSpellingPos, setCustomSpellingPos] = useState<PartOfSpeech>('adjective');
   const [customSpellingElem] = useState<ElementType>('fire');
+
+  // #1 Trie Benchmark, #9 High-Contrast & UI Scale, #10 Interactive 3-Minute Tutorial
+  const [trieBenchmarkResult, setTrieBenchmarkResult] = useState<{
+    iterations: number;
+    lexiconSize: number;
+    elapsedMs: number;
+    avgMicrosecondsPerLookup: number;
+  } | null>(null);
+  const [highContrastMode, setHighContrastMode] = useState<boolean>(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('contrast-125')
+  );
+  const [uiScalePct, setUiScalePct] = useState<number>(100);
+  const [tutorialStepIdx, setTutorialStepIdx] = useState<number>(0);
+  const [tutorialSkipped, setTutorialSkipped] = useState<boolean>(false);
+  const savedCombatSnapshot = loadAtomicCombatSnapshot();
 
   if (activeModal === 'quests') {
     return (
@@ -420,6 +443,135 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
           )}
         </div>
 
+        {/* #5 Roguelike Relics & Persistent Starter Deck Unlock Tracks */}
+        <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-3">
+          <div className="font-display font-black text-sm text-[#1a162b]">
+            🏺 Roguelike Run Relics &amp; Persistent Starter Deck Unlocks (#5)
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {ROGUELIKE_RELICS.slice(0, 6).map((relic, rIdx) => {
+              const unlocked = clearedAreasCount >= Math.floor(rIdx / 2);
+              return (
+                <div
+                  key={relic.id}
+                  className={`rounded-xl border-2 border-[#1a162b] p-2.5 ${
+                    unlocked ? 'bg-white' : 'bg-stone-200 opacity-65'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs font-black text-[#1a162b]">
+                    <span>
+                      {relic.icon} {relic.name}
+                    </span>
+                    <span className="uppercase text-[10px] text-amber-800">{relic.effectType}</span>
+                  </div>
+                  <div className="text-[11px] font-bold text-[#5d4037] mt-0.5">
+                    {relic.description}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            {STARTER_DECK_UNLOCK_TRACKS.map((deck) => {
+              const isDeckUnlocked = clearedAreasCount * 3 >= deck.requiredStars;
+              return (
+                <div
+                  key={deck.id}
+                  className={`rounded-xl border-2 border-[#1a162b] p-2.5 flex items-center justify-between gap-2 ${
+                    isDeckUnlocked ? 'bg-emerald-50' : 'bg-stone-100 opacity-75'
+                  }`}
+                >
+                  <div>
+                    <div className="font-display text-xs font-black text-[#1a162b]">
+                      {deck.icon} {deck.name}
+                    </div>
+                    <div className="text-[10px] font-bold text-[#5d4037]">
+                      {deck.bonusTrait} · {deck.description}
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-black border border-[#1a162b] ${
+                      isDeckUnlocked ? 'bg-[#4ade80] text-[#1a162b]' : 'bg-stone-300 text-stone-700'
+                    }`}
+                  >
+                    {isDeckUnlocked ? '✓ Unlocked' : `${deck.requiredStars} ★ Required`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* #8 Atomic Combat State Serialization & #10 Steamworks / Platform Achievements & Cloud Save */}
+        <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-display font-black text-sm text-[#1a162b]">
+                🎮 Steamworks / Platform Achievements &amp; Atomic Cloud Save (#8, #10)
+              </div>
+              <div className="text-xs font-bold text-[#5d4037]">
+                Steam Deck Native (1280×800) · Atomic FNV-1a Checksum Save Protection
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {savedCombatSnapshot && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCloseModal();
+                    setTab('battle');
+                  }}
+                  className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+                >
+                  ⚡ Resume Saved Round {savedCombatSnapshot.roundNumber} (CRC:{' '}
+                  {savedCombatSnapshot.checksum})
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const payload = JSON.stringify(
+                    {
+                      exportedAt: new Date().toISOString(),
+                      explorer: currentUser?.displayName || 'Aris',
+                      clearedAreasCount,
+                      vocabCount: allWords.length,
+                      atomicCombatSnapshot: savedCombatSnapshot,
+                    },
+                    null,
+                    2
+                  );
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(payload).catch(() => {});
+                  }
+                  juice.fanfare();
+                  onTriggerToast('☁️ Cloud Save JSON copied to clipboard with FNV-1a checksum!');
+                }}
+                className="rounded-xl border-2 border-[#1a162b] bg-[#1a162b] text-[#fde047] px-3 py-1.5 font-display text-xs font-black cursor-pointer"
+              >
+                ☁️ Export Cloud Save
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {PLATFORM_ACHIEVEMENTS.map((ach) => (
+              <div
+                key={ach.id}
+                className="rounded-xl border-2 border-[#1a162b] bg-amber-50/70 p-2 flex items-start gap-2"
+              >
+                <span className="text-xl">{ach.icon}</span>
+                <div>
+                  <div className="font-display text-xs font-black text-[#1a162b]">
+                    {ach.title}
+                  </div>
+                  <div className="text-[10px] font-bold text-[#5d4037]">{ach.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-3">
           <button
             onClick={() => {
@@ -444,8 +596,84 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
     );
   }
 
+  const currentTutorial = TUTORIAL_STEPS_3MIN[tutorialStepIdx] || TUTORIAL_STEPS_3MIN[0];
+
   return (
     <div className="space-y-4">
+      {/* #10 Interactive, Skippable 3-Minute Onboarding Tutorial */}
+      {!tutorialSkipped && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fef9c3] via-[#fde68a] to-[#fcd34d] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="rounded-lg bg-[#1a162b] px-2.5 py-1 font-display text-xs font-black uppercase text-[#fde047]">
+                🎓 3-Minute Interactive Tutorial ({tutorialStepIdx + 1}/{TUTORIAL_STEPS_3MIN.length})
+              </span>
+              <span className="font-mono text-xs font-black text-[#451a03]">
+                ⏱️ {currentTutorial.durationLabel}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTutorialSkipped(true)}
+              className="rounded-lg border border-[#1a162b] bg-white/80 hover:bg-white px-2.5 py-1 text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              Skip Tutorial ✕
+            </button>
+          </div>
+          <div className="rounded-xl border-2 border-[#1a162b] bg-white p-3 space-y-1.5">
+            <div className="font-display text-sm sm:text-base font-black text-[#1a162b]">
+              {currentTutorial.title}
+            </div>
+            <p className="text-xs font-bold text-[#4e342e]">{currentTutorial.body}</p>
+            <div className="text-xs font-black text-emerald-800">
+              🎯 Goal: {currentTutorial.interactivePrompt}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  juice.speakWord(`${currentTutorial.title}. ${currentTutorial.body}`)
+                }
+                className="rounded-xl border-2 border-[#1a162b] bg-sky-200 hover:bg-sky-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+              >
+                🔊 Read Step Aloud
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onCloseModal();
+                  setTab('battle');
+                }}
+                className="rounded-xl border-2 border-[#1a162b] bg-[#4ade80] hover:bg-emerald-400 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+              >
+                ⚔️ Practice in Arena
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={tutorialStepIdx === 0}
+                onClick={() => setTutorialStepIdx((i) => Math.max(0, i - 1))}
+                className="rounded-xl border-2 border-[#1a162b] bg-white px-3 py-1.5 font-display text-xs font-black text-[#1a162b] disabled:opacity-40 cursor-pointer"
+              >
+                ◀ Prev
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setTutorialStepIdx((i) => (i + 1) % TUTORIAL_STEPS_3MIN.length)
+                }
+                className="rounded-xl border-2 border-[#1a162b] bg-[#1a162b] text-[#fde047] px-3 py-1.5 font-display text-xs font-black cursor-pointer"
+              >
+                Next Step ▶
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2.5">
         <div>
           <div className="font-display font-black text-base text-[#1a162b]">
@@ -555,56 +783,15 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
         </div>
       </div>
 
-      <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-2.5">
-        <div className="font-display font-black text-base text-[#1a162b]">
-          🎒 K–8 Age-Tiered UI Mode &amp; Complexity Scaling (#5)
-        </div>
-        <div className="text-xs font-semibold text-[#5d4037]">
-          Adjusts screen density, vocabulary level, and combat helper prompts for each grade band:
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {(
-            [
-              { id: 'k-2', label: '🌱 K–2 Explorer', desc: 'Calm UI · 1–2 Word Combos' },
-              { id: '3-5', label: '🧭 3–5 Adventurer', desc: '4-Word Sentences & Affixes' },
-              { id: '6-8', label: '🏛️ 6–8 Scholar', desc: 'Full RPG Stats & Roots' },
-              { id: 'all', label: '✨ All Grades', desc: 'Complete Catalog' },
-            ] as const
-          ).map((mode) => (
-            <button
-              key={mode.id}
-              type="button"
-              onClick={() => {
-                setPreferredGradeBand(mode.id);
-                juice.click();
-              }}
-              className={`p-2.5 rounded-xl border-2 border-[#1a162b] text-left cursor-pointer transition ${
-                preferredGradeBand === mode.id
-                  ? 'bg-[#2e7d32] text-white shadow-[0_3px_0_#1a162b]'
-                  : 'bg-white text-[#1a162b] hover:bg-amber-50'
-              }`}
-            >
-              <div className="font-display font-black text-xs">{mode.label}</div>
-              <div
-                className={`text-xs font-semibold mt-0.5 ${
-                  preferredGradeBand === mode.id ? 'text-emerald-100' : 'text-[#5d4037]'
-                }`}
-              >
-                {mode.desc}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
+      {/* #9 Accessibility & Readability: Dyslexia Font, High-Contrast Palette, Calm Animations & UI Scaling */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border-[3px] border-[#1a162b]">
           <div>
-            <div className="font-display font-black text-sm text-[#1a162b]">
-              📖 Dyslexia-Friendly Font (#8)
+            <div className="font-display font-black text-xs text-[#1a162b]">
+              📖 Dyslexia-Friendly Font (#9)
             </div>
-            <div className="text-xs font-semibold text-[#5d4037]">
-              Wider letter spacing &amp; upright plates
+            <div className="text-[11px] font-semibold text-[#5d4037]">
+              Wider letter spacing
             </div>
           </div>
           <button
@@ -613,7 +800,7 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
               setDyslexiaFriendly(!dyslexiaFriendly);
               juice.click();
             }}
-            className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
+            className={`px-3 py-1.5 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
               dyslexiaFriendly ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
             }`}
           >
@@ -621,13 +808,40 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-white border-[3px] border-[#1a162b]">
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border-[3px] border-[#1a162b]">
           <div>
-            <div className="font-display font-black text-sm text-[#1a162b]">
-              🌿 Calm Animations (#14)
+            <div className="font-display font-black text-xs text-[#1a162b]">
+              👁️ High-Contrast Palette (#9)
             </div>
-            <div className="text-xs font-semibold text-[#5d4037]">
-              Reduces continuous bounce &amp; pulse motion
+            <div className="text-[11px] font-semibold text-[#5d4037]">
+              Sharper borders &amp; contrast
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !highContrastMode;
+              setHighContrastMode(next);
+              if (typeof document !== 'undefined') {
+                document.documentElement.classList.toggle('contrast-125', next);
+              }
+              juice.click();
+            }}
+            className={`px-3 py-1.5 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
+              highContrastMode ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
+            }`}
+          >
+            {highContrastMode ? '✓ Active' : 'Enable'}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border-[3px] border-[#1a162b]">
+          <div>
+            <div className="font-display font-black text-xs text-[#1a162b]">
+              🌿 Calm Animations (#9)
+            </div>
+            <div className="text-[11px] font-semibold text-[#5d4037]">
+              Reduces motion &amp; bounce
             </div>
           </div>
           <button
@@ -636,12 +850,77 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
               setCalmAnimations(!calmAnimations);
               juice.click();
             }}
-            className={`px-3 py-2 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
+            className={`px-3 py-1.5 rounded-xl border-2 border-[#1a162b] font-black text-xs cursor-pointer shrink-0 ${
               calmAnimations ? 'bg-emerald-500 text-white' : 'bg-[#ffd54f] text-[#1a162b]'
             }`}
           >
             {calmAnimations ? '✓ Active' : 'Enable'}
           </button>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-display font-black text-xs text-[#1a162b]">
+              🔍 UI Scaling (#9)
+            </span>
+            <span className="font-mono text-xs font-black text-emerald-700">{uiScalePct}%</span>
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {[95, 100, 108, 115].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => {
+                  setUiScalePct(pct);
+                  if (typeof document !== 'undefined') {
+                    document.documentElement.style.fontSize = `${pct}%`;
+                  }
+                  juice.click();
+                }}
+                className={`py-1 rounded-lg border border-[#1a162b] font-mono text-xs font-black cursor-pointer ${
+                  uiScalePct === pct
+                    ? 'bg-[#1a162b] text-[#fde047]'
+                    : 'bg-amber-50 text-[#1a162b]'
+                }`}
+              >
+                {pct}%
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* #1 Deterministic Trie Lexicon Lookup Benchmark + Sanctuary Theme */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="font-display font-black text-sm text-[#1a162b]">
+                ⚡ Deterministic Trie Lexicon Benchmark (#1)
+              </div>
+              <div className="text-xs font-semibold text-[#5d4037]">
+                CSW/TWL + K–8 Offline Fallback &amp; Profanity Guard
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const res = benchmarkTrieLookup(10000);
+                setTrieBenchmarkResult(res);
+                juice.ding(880, 100);
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer shrink-0"
+            >
+              Run 10k Lookups
+            </button>
+          </div>
+          {trieBenchmarkResult && (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-400 px-3 py-1.5 font-mono text-xs font-black text-emerald-900">
+              ✓ {trieBenchmarkResult.iterations.toLocaleString()} queries in{' '}
+              {trieBenchmarkResult.elapsedMs}ms ({trieBenchmarkResult.avgMicrosecondsPerLookup}µs/word ·{' '}
+              {trieBenchmarkResult.lexiconSize} words indexed)
+            </div>
+          )}
         </div>
 
         <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-1.5">

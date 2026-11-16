@@ -19,6 +19,18 @@ import { CreatureSprite } from './CreatureSprite';
 import { GRADE_TIERS, getGradeTierMeta, getPartOfSpeechMeta } from '../data/vocabDatabase';
 import { ZONE_BIOMES } from '../data/realms';
 import { AdaptiveTutorCoachBar } from './battle/BattleMiniGames';
+import {
+  evaluateWordEconomy,
+  evaluateWordPropertySynergies,
+  getGlobalLexiconTrie,
+  isProfaneOrSlur,
+} from '../engine/lexiconTrie';
+import {
+  getEnemyModifierForBoss,
+  evaluateEnemyModifierImpact,
+  saveAtomicCombatSnapshot,
+  clearAtomicCombatSnapshot,
+} from '../engine/roguelikeLoop';
 
 export const BattleView: React.FC = () => {
   const {
@@ -56,6 +68,12 @@ export const BattleView: React.FC = () => {
   // On-Demand Tutor Coach & Next-Slot Highlight (#2, #4)
   const [showCoachHint, setShowCoachHint] = useState<boolean>(false);
   const [highlightedSlotIdx, setHighlightedSlotIdx] = useState<number | null>(null);
+
+  // Multi-Modal Rapid Physical Keyboard Typing + Drag-and-Drop + Crit Screen Shake + Adaptive Music (#6, #7)
+  const [typedBuffer, setTypedBuffer] = useState<string>('');
+  const [draggedWordId, setDraggedWordId] = useState<string | null>(null);
+  const [isCritShaking, setIsCritShaking] = useState<boolean>(false);
+  const [combatMusicOn, setCombatMusicOn] = useState<boolean>(() => juice.isCombatMusicPlaying());
 
   // Karaoke-Style Word Highlighting index during TTS Read-Aloud
   const [karaokeWordIdx, setKaraokeWordIdx] = useState<number | null>(null);
@@ -127,15 +145,68 @@ export const BattleView: React.FC = () => {
     selectedWords[3] || null
   );
 
+  // Enemy Board Modifier (#4), Word Property Synergies (#3), and Letter/Length Economy (#2)
+  const enemyModifier = getEnemyModifierForBoss(enemy.id);
+  const modifierImpact = evaluateEnemyModifierImpact(
+    enemyModifier,
+    selectedWords.map((w) => w.word)
+  );
+  const activeSynergies = evaluateWordPropertySynergies(selectedWords.map((w) => w.word));
+  const maxLengthMultiplier = selectedWords.reduce(
+    (max, w) => Math.max(max, evaluateWordEconomy(w.word).lengthMultiplier),
+    1
+  );
+
   // Round counter derived from battle log
   const roundNumber = Math.max(1, Math.ceil((log?.length || 0) / 2) + 1);
 
   // Clear selections on battle change
   useEffect(() => {
     setSelectedWordIds([]);
+    setTypedBuffer('');
     setRewardClaimed(false);
     setShowCoachHint(false);
   }, [playerId, activeZoneId, enemy.id]);
+
+  // #8 Atomic Combat State Serialization & Auto-Save at the start of each combat round + #7 Adaptive Combat Music intensity
+  useEffect(() => {
+    if (isBattleOver) {
+      clearAtomicCombatSnapshot();
+      return;
+    }
+    saveAtomicCombatSnapshot({
+      zoneId: activeZoneId,
+      nodeId: activeNodeId,
+      playerId: player.id,
+      enemyId: enemy.id,
+      roundNumber,
+      playerHp: player.currentHp ?? player.stats.hp,
+      playerMaxHp: player.maxHp ?? player.stats.hp,
+      playerShield: player.shield ?? 0,
+      enemyHp: enemy.currentHp ?? enemy.stats.hp,
+      enemyMaxHp: enemy.maxHp ?? enemy.stats.hp,
+      enemyShield: enemy.shield ?? 0,
+      selectedWordIds,
+    });
+    const eHpRatio = (enemy.currentHp ?? enemy.stats.hp) / Math.max(1, enemy.maxHp ?? enemy.stats.hp);
+    juice.setCombatMusicIntensity(eHpRatio <= 0.45 || roundNumber >= 3);
+  }, [
+    roundNumber,
+    isBattleOver,
+    activeZoneId,
+    activeNodeId,
+    player.id,
+    player.currentHp,
+    player.maxHp,
+    player.shield,
+    player.stats.hp,
+    enemy.id,
+    enemy.currentHp,
+    enemy.maxHp,
+    enemy.shield,
+    enemy.stats.hp,
+    selectedWordIds,
+  ]);
 
   // Reward & Pet EXP on Victory + Companion Bond Increase
   useEffect(() => {
@@ -209,7 +280,13 @@ export const BattleView: React.FC = () => {
 
   const handleToggleWordCard = (word: Word) => {
     if (isBattleOver) return;
-    juice.click();
+    const isRemoving = selectedWordIds.includes(word.id);
+    if (isRemoving) {
+      juice.click();
+    } else {
+      // #7 Layered ascending pitch tone for each tile placed
+      juice.playLetterPitch(selectedWordIds.length);
+    }
     juice.speakWord(word.word);
     setHighlightedSlotIdx(null);
 
@@ -321,6 +398,18 @@ export const BattleView: React.FC = () => {
 
   const handleLaunchWordStrike = () => {
     if (isBattleOver || !previewCombo.valid || selectedWords.length === 0) return;
+    const isCritStrike =
+      selectedWords.length === 4 ||
+      activeSynergies.some((s) => s.guaranteedCrit) ||
+      maxLengthMultiplier >= 1.75;
+
+    // #7 Satisfying low-end sub-bass thud + screen shake on crits
+    juice.playSubmitThud(isCritStrike);
+    if (isCritStrike || selectedWords.length >= 3) {
+      setIsCritShaking(true);
+      setTimeout(() => setIsCritShaking(false), 420);
+    }
+
     if (selectedWords.length === 4) {
       setSidekickAnim('lunge');
       setTagTeamComboActive(true);
@@ -347,10 +436,11 @@ export const BattleView: React.FC = () => {
       selectedWords[3]?.id || null
     );
     setSelectedWordIds([]);
+    setTypedBuffer('');
     setShowCoachHint(false);
   };
 
-  // Keyboard Navigation (1-4 to toggle tablets, Space/Enter to Cast, Esc to clear/close)
+  // #6 Multi-Modal Keyboard Controls (1-4 to toggle tablets, rapid physical letter typing with Trie prefix autocomplete & Backspace safety, Space/Enter to Cast)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (
@@ -375,10 +465,48 @@ export const BattleView: React.FC = () => {
       } else if ((e.key === ' ' || e.key === 'Enter') && previewCombo.valid && selectedWords.length > 0 && !isBattleOver) {
         e.preventDefault();
         handleLaunchWordStrike();
-      } else if (e.key === 'Escape' || e.key === 'Backspace') {
-        if (showReserveDrawer) setShowReserveDrawer(false);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        // #6 Backspace safety: remove last typed letter first, or pop last placed word tile
+        if (typedBuffer.length > 0) {
+          setTypedBuffer((prev) => prev.slice(0, -1));
+        } else if (selectedWordIds.length > 0) {
+          setSelectedWordIds((prev) => prev.slice(0, -1));
+        }
+      } else if (e.key === 'Escape') {
+        if (typedBuffer.length > 0) setTypedBuffer('');
+        else if (showReserveDrawer) setShowReserveDrawer(false);
         else if (showCoachHint) setShowCoachHint(false);
         else if (selectedWordIds.length > 0) setSelectedWordIds([]);
+      } else if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !isBattleOver) {
+        const nextBuf = (typedBuffer + e.key).toLowerCase();
+        // #1 Profanity/slur filter check
+        if (isProfaneOrSlur(nextBuf)) {
+          setTypedBuffer('');
+          return;
+        }
+        juice.playLetterPitch(nextBuf.length - 1);
+        const equippedCards = [equippedAdj, equippedNoun, equippedVerb, equippedAdv].filter(
+          (w): w is Word => Boolean(w)
+        );
+        const matchingEquipped = equippedCards.filter((w) =>
+          w.word.toLowerCase().startsWith(nextBuf)
+        );
+        const trie = getGlobalLexiconTrie();
+        if (
+          matchingEquipped.length === 1 &&
+          (nextBuf.length >= 2 || matchingEquipped[0].word.toLowerCase() === nextBuf)
+        ) {
+          const targetWord = matchingEquipped[0];
+          if (!selectedWordIds.includes(targetWord.id)) {
+            handleToggleWordCard(targetWord);
+          }
+          setTypedBuffer('');
+        } else if (matchingEquipped.length > 0 || trie.hasPrefix(nextBuf)) {
+          setTypedBuffer(nextBuf);
+        } else {
+          setTypedBuffer('');
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -466,7 +594,11 @@ export const BattleView: React.FC = () => {
                - Pokémon Skewed Status Plates & Party Pips
                - Head-to-Head Hanging Wooden Turn Sign & Center Glowing 2x2 Rune Grid
            ==================================================================== */}
-        <div className="relative overflow-hidden rounded-3xl border-[4px] border-[#1a162b] shadow-[0_8px_0_#090714] min-h-[430px] sm:min-h-[460px] flex flex-col justify-between">
+        <div
+          className={`relative overflow-hidden rounded-3xl border-[4px] border-[#1a162b] shadow-[0_8px_0_#090714] min-h-[430px] sm:min-h-[460px] flex flex-col justify-between transition-transform ${
+            isCritShaking ? 'translate-x-1 -translate-y-0.5 ring-4 ring-[#fde047]' : ''
+          }`}
+        >
           {/* Dynamic 2.5D Storybook + Stadium SVG Backdrop */}
           <svg
             viewBox="0 0 1280 500"
@@ -651,6 +783,23 @@ export const BattleView: React.FC = () => {
                   <span>Map</span>
                 </button>
 
+                {/* #7 Adaptive Combat Music Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const playing = juice.toggleCombatMusic();
+                    setCombatMusicOn(playing);
+                  }}
+                  className={`flex items-center justify-center rounded-xl border-[3px] border-[#1a162b] px-2 py-1.5 text-xs font-black shadow-[0_3px_0_#1a162b] cursor-pointer ${
+                    combatMusicOn
+                      ? 'bg-[#fde047] text-[#1a162b]'
+                      : 'bg-[#1e293b]/90 text-slate-300 hover:bg-slate-800'
+                  }`}
+                  title="Toggle Adaptive Combat Synth Music"
+                >
+                  {combatMusicOn ? '🎵 On' : '🎵'}
+                </button>
+
                 {/* Single Clean Player Health Plate (#1) */}
                 <div className="w-52 sm:w-60 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -700,10 +849,10 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* TOP-RIGHT: SINGLE CLEAN BOSS HEALTH PLATE (#1) */}
+            {/* TOP-RIGHT: SINGLE CLEAN BOSS HEALTH PLATE (#1) + ENEMY BOARD MODIFIER (#4) */}
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
-                <div className="w-52 sm:w-60 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
+                <div className="w-56 sm:w-64 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 truncate">
                       <span>{enemyElem.icon}</span>
@@ -724,6 +873,27 @@ export const BattleView: React.FC = () => {
                       {enemy.currentHp ?? enemy.stats.hp} / {enemy.maxHp ?? enemy.stats.hp} HP
                       {(enemy.shield ?? 0) > 0 ? ` (+🛡️${enemy.shield})` : ''}
                     </span>
+                  </div>
+                  {/* #4 Enemy Board Modifier + #3 Active Status Badges */}
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[11px] font-black">
+                    <span
+                      className="rounded-md bg-slate-900/90 border border-amber-400/50 px-1.5 py-0.5 text-amber-200 truncate"
+                      title={`${enemyModifier.name}: ${enemyModifier.shortRule} (${enemyModifier.counterplayTip})`}
+                    >
+                      {enemyModifier.icon} {enemyModifier.name}
+                    </span>
+                    {enemy.statuses && enemy.statuses.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {enemy.statuses.map((st) => (
+                          <span
+                            key={st.name}
+                            className="rounded-md bg-sky-900 border border-sky-300 px-1.5 py-0.5 text-sky-200"
+                          >
+                            {st.name === 'Freeze' ? '❄️' : st.name === 'Bleed' ? '🩸' : '🔥'} {st.name} ({st.duration}t)
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1003,15 +1173,47 @@ export const BattleView: React.FC = () => {
           {/* TOP ROW: VISUAL 4-SLOT SENTENCE TRAY + ONLY 2 HELPER BUTTONS (🔊 Read Aloud & 💡 Help) (#4) */}
           <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#fef9c3] p-2.5 text-[#1a162b] shadow-inner space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="rounded-lg bg-[#1a162b] px-2.5 py-1 font-display text-xs font-black uppercase text-[#fde047]">
                   ✨ Sentence Tray
                 </span>
                 <span className="text-xs sm:text-sm font-black text-[#451a03]">
                   {selectedWords.length > 0
                     ? `“${previewCombo.phrase}”`
-                    : 'Tap Word Cards below (or press keys 1–4) to build your spell!'}
+                    : 'Tap, drag, or type Word Cards below (keys 1–4 or A–Z) to build your spell!'}
                 </span>
+
+                {/* #6 Live Rapid Keyboard Typing Buffer Pill */}
+                {typedBuffer.length > 0 && (
+                  <span className="rounded-lg border-2 border-[#1a162b] bg-indigo-600 px-2 py-0.5 font-mono text-xs font-black text-white shadow">
+                    ⌨️ {typedBuffer.toUpperCase()}…
+                  </span>
+                )}
+
+                {/* #2 & #9 Clear Visual Indicator for Exponential Length Multiplier */}
+                {maxLengthMultiplier > 1 && (
+                  <span className="rounded-lg border-2 border-[#1a162b] bg-emerald-500 px-2 py-0.5 font-mono text-xs font-black text-white shadow">
+                    ×{maxLengthMultiplier.toFixed(2)} Length
+                  </span>
+                )}
+
+                {/* #3 Active Word Property Synergies (❄️ Freeze, 🩸 Bleed, 🛡️ Anagram Shield, ⚡ Rare Crit) */}
+                {activeSynergies.map((syn) => (
+                  <span
+                    key={syn.id}
+                    className="rounded-lg border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.5 font-display text-xs font-black text-[#1a162b] shadow"
+                    title={syn.description}
+                  >
+                    {syn.name}
+                  </span>
+                ))}
+
+                {/* #4 Enemy Board Modifier Impact Note */}
+                {modifierImpact.note && (
+                  <span className="rounded-lg border border-[#1a162b] bg-amber-300 px-2 py-0.5 font-display text-xs font-black text-[#1a162b]">
+                    {modifierImpact.note}
+                  </span>
+                )}
               </div>
 
               {/* Collapsed Helper Buttons: Single 🔊 Read Aloud + Single 💡 Help (#4) */}
@@ -1044,7 +1246,7 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* 4 Numbered Visual Grammar Slots */}
+            {/* 4 Numbered Visual Grammar Slots (Supports Click & Drag-and-Drop #6) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(['adjective', 'noun', 'verb', 'adverb'] as PartOfSpeech[]).map((pos, idx) => {
                 const posMeta = getPartOfSpeechMeta(pos);
@@ -1056,6 +1258,16 @@ export const BattleView: React.FC = () => {
                 return (
                   <div
                     key={pos}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const droppedId = draggedWordId || e.dataTransfer.getData('text/plain');
+                      const foundWord = allWords.find((w) => w.id === droppedId);
+                      if (foundWord && !selectedWordIds.includes(foundWord.id)) {
+                        handleToggleWordCard(foundWord);
+                      }
+                      setDraggedWordId(null);
+                    }}
                     onClick={() => {
                       if (wordAtSlot) {
                         handleToggleWordCard(wordAtSlot);
@@ -1103,7 +1315,7 @@ export const BattleView: React.FC = () => {
 
           {/* MAIN ROW: 4 SIMPLIFIED 2-DATA-POINT WORD CARDS (#5) + STREAMLINED CAST PANEL (#6) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
-            {/* 4 Simplified Word Tablet Cards (8 Cols) — Only Word + Color-Coded Role Badge + 🔊 Speaker Icon (#5) */}
+            {/* 4 Simplified Word Tablet Cards (8 Cols) — Only Word + Color-Coded Role Badge + 🔊 Speaker Icon (#5, plus Drag-and-Drop #6) */}
             <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {runeSlots.map(({ pos, word }, idx) => {
                 if (!word) return null;
@@ -1116,6 +1328,12 @@ export const BattleView: React.FC = () => {
                 return (
                   <div
                     key={pos}
+                    draggable={!isBattleOver}
+                    onDragStart={(e) => {
+                      setDraggedWordId(word.id);
+                      e.dataTransfer.setData('text/plain', word.id);
+                    }}
+                    onDragEnd={() => setDraggedWordId(null)}
                     onClick={() => handleToggleWordCard(word)}
                     title={`${word.word} (${posMeta.label}): ${word.definition}`}
                     className={`relative flex flex-col justify-between rounded-2xl border-[3px] p-3 transition-all cursor-pointer ${posMeta.cardBg} ${
