@@ -15,6 +15,22 @@ import {
   TUTORIAL_STEPS_3MIN,
   loadAtomicCombatSnapshot,
 } from '../../engine/roguelikeLoop';
+import {
+  createDefaultSmartTileBag,
+  drawSmartTileHand,
+  purgeTileFromBag,
+  duplicateHighTierTileInBag,
+  applyPermanentStampToTile,
+  getBagViewerSummary,
+  type SmartTileBagState,
+} from '../../engine/smartTileBag';
+import { getDailyChallengeConfig } from '../../engine/seededRng';
+import {
+  loadLexiconCompendium,
+  generateShareableRunSummaryCard,
+  runHeadlessBalanceSimulation,
+  type HeadlessSimulationReport,
+} from '../../engine/compendiumAndSim';
 
 export type SecondaryModalType = 'quests' | 'museum' | 'profile' | 'settings';
 
@@ -88,6 +104,22 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
   const [tutorialStepIdx, setTutorialStepIdx] = useState<number>(0);
   const [tutorialSkipped, setTutorialSkipped] = useState<boolean>(false);
   const savedCombatSnapshot = loadAtomicCombatSnapshot();
+
+  // #11 & #15 In-Run Smart Letter Bag Customizer & Remaining vs. Discarded Viewer
+  const [customBag, setCustomBag] = useState<SmartTileBagState>(() =>
+    drawSmartTileHand(createDefaultSmartTileBag(), 8, 1, 'time-bomb')
+  );
+  const bagSummary = getBagViewerSummary(customBag);
+
+  // #16 Deterministic Seed & Daily Challenge Mode
+  const dailyChallenge = getDailyChallengeConfig();
+  const [customRunSeed, setCustomRunSeed] = useState<string>(dailyChallenge.seedString);
+
+  // #17 Lexicon Compendium & Shareable Run Summary Card
+  const compendium = loadLexiconCompendium();
+
+  // #20 1,000-Run Headless Balance Simulator Report
+  const [simReport, setSimReport] = useState<HeadlessSimulationReport | null>(null);
 
   if (activeModal === 'quests') {
     return (
@@ -572,6 +604,187 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
           </div>
         </div>
 
+        {/* #17 Lexicon Compendium & Shareable Run Summary Card */}
+        <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-display font-black text-sm text-[#1a162b]">
+                📖 Lexicon Compendium &amp; Shareable Run Summary Card (#17)
+              </div>
+              <div className="text-xs font-bold text-[#5d4037]">
+                Lifetime Milestones · Longest Word · Highest Single-Combo Damage · Rarest Words
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const card = generateShareableRunSummaryCard({
+                  explorerName: currentUser?.displayName || 'Aris',
+                  companionName: selectedPet.name,
+                  seedString: customRunSeed,
+                  realmsCleared: clearedAreasCount,
+                  compendium,
+                });
+                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                  navigator.clipboard.writeText(card.shareText).catch(() => {});
+                }
+                juice.fanfare();
+                onTriggerToast('📋 Shareable Run Summary Card copied to clipboard!');
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              📋 Copy Shareable Run Card
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 text-center">
+              <div className="text-[10px] font-black uppercase text-[#5d4037]">Longest Word</div>
+              <div className="font-display text-sm font-black text-[#1a162b] truncate">
+                {compendium.longestWordPlayed.toUpperCase()} ({compendium.longestWordPlayed.length}L)
+              </div>
+            </div>
+            <div className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 text-center">
+              <div className="text-[10px] font-black uppercase text-[#5d4037]">Max Combo Hit</div>
+              <div className="font-mono text-sm font-black text-rose-600">
+                {compendium.highestSingleComboDamage} HP
+              </div>
+            </div>
+            <div className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 text-center">
+              <div className="text-[10px] font-black uppercase text-[#5d4037]">Rarest Words</div>
+              <div className="font-display text-xs font-black text-indigo-800 truncate">
+                {compendium.rarestWordsDiscovered.slice(0, 2).join(', ')}
+              </div>
+            </div>
+            <div className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 text-center">
+              <div className="text-[10px] font-black uppercase text-[#5d4037]">Spells Cast</div>
+              <div className="font-mono text-sm font-black text-emerald-700">
+                {compendium.totalWordsCast} Casts
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* #11, #13 & #15 In-Run Smart Letter Bag Customization & Remaining vs. Discarded Viewer */}
+        <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-display font-black text-sm text-[#1a162b]">
+                🎒 In-Run Smart Letter Bag Customizer &amp; Viewer (#11, #13, #15)
+              </div>
+              <div className="text-xs font-bold text-[#5d4037]">
+                Remaining: <strong>{bagSummary.remainingCount}</strong> · Discarded:{' '}
+                <strong>{bagSummary.discardedCount}</strong> · Hand:{' '}
+                <strong>{bagSummary.handCount}</strong> · Vowel Ratio:{' '}
+                <strong>{bagSummary.vowelPercentage}%</strong> · Stamped:{' '}
+                <strong>{bagSummary.stampedTiles.length}</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomBag((prev) => drawSmartTileHand(prev, 8, 2, 'time-bomb'));
+                juice.click();
+                onTriggerToast('🎲 Drew 8-Tile Hand (Guaranteed ≥2 Vowels / Wildcard ★)!');
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-sky-200 hover:bg-sky-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              🎲 Draw 8-Tile Hand (Pity Timer)
+            </button>
+          </div>
+
+          {/* Current Hand Preview with Compound (QU/TH/ING), Wildcard (★) & Hazard Badges */}
+          <div className="flex flex-wrap gap-1.5">
+            {customBag.currentHand.map((tile) => (
+              <div
+                key={tile.id}
+                className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1.5 text-center shadow-[0_2px_0_#1a162b] ${
+                  tile.hazard === 'time-bomb'
+                    ? 'bg-rose-200 text-[#1a162b]'
+                    : tile.stamp !== 'none'
+                    ? 'bg-[#fde047] text-[#1a162b]'
+                    : tile.category === 'compound' || tile.category === 'wildcard'
+                    ? 'bg-purple-200 text-[#1a162b]'
+                    : 'bg-amber-50 text-[#1a162b]'
+                }`}
+              >
+                <div className="font-mono text-xs font-black">
+                  {tile.letters}{' '}
+                  <span className="text-[10px] text-stone-600">({tile.basePoints}pt)</span>
+                </div>
+                <div className="text-[9px] font-black uppercase">
+                  {tile.hazard === 'time-bomb'
+                    ? `💣 Bomb (${tile.hazardTurnsLeft}t)`
+                    : tile.stamp !== 'none'
+                    ? `✨ ${tile.stamp}`
+                    : tile.category}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCustomBag((prev) => {
+                  const target = prev.remainingPool[0] || prev.currentHand[0];
+                  return target ? purgeTileFromBag(prev, target.id) : prev;
+                });
+                juice.click();
+                onTriggerToast('🗑️ Purged weak tile from Letter Bag!');
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-rose-100 hover:bg-rose-200 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              🗑️ Purge Weak Tile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomBag((prev) => duplicateHighTierTileInBag(prev, 'QU'));
+                juice.click();
+                onTriggerToast('💎 Duplicated High-Tier Compound Tile "QU" in Bag!');
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-purple-200 hover:bg-purple-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              💎 Duplicate &quot;QU&quot; Tile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomBag((prev) => {
+                  const target =
+                    prev.remainingPool.find((t) => t.stamp === 'none') ||
+                    prev.currentHand.find((t) => t.stamp === 'none') ||
+                    prev.remainingPool[0];
+                  return target ? applyPermanentStampToTile(prev, target.id, 'gilded') : prev;
+                });
+                juice.fanfare();
+                onTriggerToast('✨ Stamped Permanent Gilded Tile (+4 DMG & +15 🪙)!');
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              ✨ Stamp Gilded &quot;S&quot;
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomBag((prev) => {
+                  const target =
+                    prev.remainingPool.find((t) => t.stamp === 'none') ||
+                    prev.currentHand.find((t) => t.stamp === 'none') ||
+                    prev.remainingPool[0];
+                  return target ? applyPermanentStampToTile(prev, target.id, 'lifesteal') : prev;
+                });
+                juice.fanfare();
+                onTriggerToast('🧛 Stamped Permanent Lifesteal Tile (+5 HP Leech)!');
+              }}
+              className="rounded-xl border-2 border-[#1a162b] bg-emerald-200 hover:bg-emerald-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer"
+            >
+              🧛 Stamp Lifesteal &quot;V&quot;
+            </button>
+          </div>
+        </div>
+
         <div className="flex gap-3">
           <button
             onClick={() => {
@@ -890,35 +1103,117 @@ export const HubSecondaryModalBody: React.FC<HubSecondaryModalBodyProps> = ({
         </div>
       </div>
 
-      {/* #1 Deterministic Trie Lexicon Lookup Benchmark + Sanctuary Theme */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="font-display font-black text-sm text-[#1a162b]">
-                ⚡ Deterministic Trie Lexicon Benchmark (#1)
-              </div>
-              <div className="text-xs font-semibold text-[#5d4037]">
-                CSW/TWL + K–8 Offline Fallback &amp; Profanity Guard
-              </div>
+      {/* #16 Deterministic Seeding & Daily Challenge Mode */}
+      <div className="p-4 rounded-2xl bg-[#fff8e7] border-[3px] border-[#1a162b] space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-display font-black text-sm text-[#1a162b]">
+              📅 Deterministic Seeding &amp; Daily Challenge Mode (#16)
             </div>
+            <div className="text-xs font-bold text-[#5d4037]">
+              Today&apos;s Seed: <code className="font-mono font-black">{dailyChallenge.seedString}</code> · Realm:{' '}
+              <strong>#{dailyChallenge.featuredRealmIndex + 1}</strong>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={customRunSeed}
+              onChange={(e) => setCustomRunSeed(e.target.value)}
+              className="rounded-xl border-2 border-[#1a162b] bg-white px-2.5 py-1 font-mono text-xs font-black text-[#1a162b] w-44"
+              aria-label="Run Seed String"
+            />
             <button
               type="button"
               onClick={() => {
-                const res = benchmarkTrieLookup(10000);
-                setTrieBenchmarkResult(res);
-                juice.ding(880, 100);
+                setCustomBag(
+                  drawSmartTileHand(createDefaultSmartTileBag(customRunSeed), 8, 1, 'time-bomb')
+                );
+                juice.fanfare();
+                onTriggerToast(`🌱 Applied Deterministic Seed: ${customRunSeed}!`);
               }}
-              className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer shrink-0"
+              className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-3 py-1 font-display text-xs font-black text-[#1a162b] cursor-pointer"
             >
-              Run 10k Lookups
+              🌱 Apply Seed
             </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {dailyChallenge.modifiers.map((mod) => (
+            <div
+              key={mod.id}
+              className="rounded-xl border-2 border-[#1a162b] bg-white p-2.5 flex items-start gap-2"
+            >
+              <span className="text-xl">{mod.icon}</span>
+              <div>
+                <div className="font-display text-xs font-black text-[#1a162b]">
+                  {mod.name}{' '}
+                  <span className="text-emerald-700">
+                    (×{mod.scoreMultiplier.toFixed(2)} Score)
+                  </span>
+                </div>
+                <div className="text-[11px] font-bold text-[#5d4037]">{mod.description}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* #1 Deterministic Trie Lexicon Lookup Benchmark + #20 1,000-Run Headless Balance Simulator + Sanctuary Theme */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-4 rounded-2xl bg-white border-[3px] border-[#1a162b] space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-display font-black text-sm text-[#1a162b]">
+                ⚡ Trie Lexicon (#1) &amp; 1,000-Bot Simulator (#20)
+              </div>
+              <div className="text-xs font-semibold text-[#5d4037]">
+                CSW/TWL Trie + 1,000-Battle Greedy vs. Scholar Bot CI
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const res = benchmarkTrieLookup(10000);
+                  setTrieBenchmarkResult(res);
+                  juice.ding(880, 100);
+                }}
+                className="rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-amber-300 px-2.5 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer shrink-0"
+              >
+                10k Trie
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const report = runHeadlessBalanceSimulation(500, customRunSeed);
+                  setSimReport(report);
+                  juice.fanfare();
+                }}
+                className="rounded-xl border-2 border-[#1a162b] bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1.5 font-display text-xs font-black text-[#1a162b] cursor-pointer shrink-0"
+              >
+                🤖 Run 1,000 Bots
+              </button>
+            </div>
           </div>
           {trieBenchmarkResult && (
             <div className="rounded-xl bg-emerald-50 border border-emerald-400 px-3 py-1.5 font-mono text-xs font-black text-emerald-900">
               ✓ {trieBenchmarkResult.iterations.toLocaleString()} queries in{' '}
               {trieBenchmarkResult.elapsedMs}ms ({trieBenchmarkResult.avgMicrosecondsPerLookup}µs/word ·{' '}
               {trieBenchmarkResult.lexiconSize} words indexed)
+            </div>
+          )}
+          {simReport && (
+            <div className="rounded-xl bg-indigo-50 border border-indigo-400 px-3 py-1.5 font-mono text-[11px] font-black text-indigo-950 space-y-0.5">
+              <div>
+                ✓ {simReport.totalSimulations.toLocaleString()} Battles in {simReport.elapsedMs}ms · Zero Soft-Locks:{' '}
+                {simReport.zeroSoftLocksVerified ? 'YES' : 'NO'}
+              </div>
+              <div>
+                Greedy 3–4L Win: {simReport.greedyBot.winRatePct}% ({simReport.greedyBot.avgDamagePerTurn}{' '}
+                dmg/t) vs. Scholar Anagram Win: {simReport.optimalScholarBot.winRatePct}% (
+                {simReport.optimalScholarBot.avgDamagePerTurn} dmg/t)
+              </div>
             </div>
           )}
         </div>

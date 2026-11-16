@@ -31,6 +31,35 @@ import {
   saveAtomicCombatSnapshot,
   clearAtomicCombatSnapshot,
 } from '../engine/roguelikeLoop';
+import {
+  createDefaultSmartTileBag,
+  drawSmartTileHand,
+  applyPermanentStampToTile,
+  computeLiveCombatPreview,
+  getMultiPhaseBossConstraint,
+  type SmartTileBagState,
+} from '../engine/smartTileBag';
+import {
+  loadLexiconCompendium,
+  recordCastInCompendium,
+} from '../engine/compendiumAndSim';
+import { floatingNumberPool } from '../engine/objectPool';
+import {
+  getTactileTileMaterial,
+  getDualTierTypographyClasses,
+  SEMANTIC_COLOR_GRAMMAR,
+  computeReactiveLightingState,
+  computeBoardLinkedTelegraphs,
+  computeTileBankTilt,
+  buildScoringCascadeSteps,
+  generateInlineLootDrops,
+  detectAffixLigatures,
+  computeAnticipatoryRelicStates,
+  selectBestMatchingTileFromRack,
+  computeNextTurnDrawOdds,
+  extractChainedKeywords,
+  type InlineLootDropItem,
+} from '../engine/tactileContainedUi';
 
 export const BattleView: React.FC = () => {
   const {
@@ -74,6 +103,22 @@ export const BattleView: React.FC = () => {
   const [draggedWordId, setDraggedWordId] = useState<string | null>(null);
   const [isCritShaking, setIsCritShaking] = useState<boolean>(false);
   const [combatMusicOn, setCombatMusicOn] = useState<boolean>(() => juice.isCombatMusicPlaying());
+
+  // #11 Smart Tile Bag with Vowel Pity Timer + #13 Compound/Wildcard/Hazard Tiles + #18 Rack Shuffle Order
+  const [tileBag, setTileBag] = useState<SmartTileBagState>(() =>
+    drawSmartTileHand(createDefaultSmartTileBag(), 8, 1, 'time-bomb')
+  );
+  const [rackOrder, setRackOrder] = useState<number[]>([0, 1, 2, 3]);
+
+  // #26 2.5D Spring Cursor Tilt + #27 Paced Left-to-Right Scoring Cascade + #29 Inline Loot Drops + #33 Duplicate Cycle + #34 Bag Odds Drawer + #35 Hover-Locked Keywords
+  const [hoveredCardTilt, setHoveredCardTilt] = useState<Record<number, string>>({});
+  const [activeCascadeIdx, setActiveCascadeIdx] = useState<number | null>(null);
+  const [flaringRelicId, setFlaringRelicId] = useState<string | null>(null);
+  const [dupCycleOffset, setDupCycleOffset] = useState<number>(0);
+  const [showBagOddsDrawer, setShowBagOddsDrawer] = useState<boolean>(false);
+  const [showKeywordDrawer, setShowKeywordDrawer] = useState<boolean>(false);
+  const [keywordLocked, setKeywordLocked] = useState<boolean>(false);
+  const [inlineLootDrops, setInlineLootDrops] = useState<InlineLootDropItem[]>([]);
 
   // Karaoke-Style Word Highlighting index during TTS Read-Aloud
   const [karaokeWordIdx, setKaraokeWordIdx] = useState<number | null>(null);
@@ -160,13 +205,78 @@ export const BattleView: React.FC = () => {
   // Round counter derived from battle log
   const roundNumber = Math.max(1, Math.ceil((log?.length || 0) / 2) + 1);
 
+  // #14 Multi-Phase Boss Rule Constraint & #12 Live Combat Preview Breakdown
+  const bossPhaseConstraint = getMultiPhaseBossConstraint(
+    enemy.id,
+    enemy.currentHp ?? enemy.stats.hp,
+    enemy.maxHp ?? enemy.stats.hp,
+    roundNumber
+  );
+  const livePreview = computeLiveCombatPreview({
+    words: selectedWords.map((w) => w.word),
+    validGrammar: previewCombo.valid,
+    baseComboPower: previewCombo.power,
+    playerAttack: player.stats.attack,
+    enemyDefense: enemy.stats.defense,
+    enemyHp: enemy.currentHp ?? enemy.stats.hp,
+    enemyMaxHp: enemy.maxHp ?? enemy.stats.hp,
+    enemyShield: enemy.shield ?? 0,
+    handTiles: tileBag.currentHand,
+    bossConstraint: bossPhaseConstraint,
+  });
+
+  // #24 Reactive Combat Lighting & Vignettes
+  const reactiveLighting = computeReactiveLightingState({
+    placedWords: selectedWords.map((w) => w.word),
+    playerHp: player.currentHp ?? player.stats.hp,
+    playerMaxHp: player.maxHp ?? player.stats.hp,
+  });
+
+  // #25 Board-Linked Enemy Telegraphs projected onto the 4 rack slots
+  const rackTelegraphs = computeBoardLinkedTelegraphs({
+    rackWords: [
+      equippedAdj?.word || null,
+      equippedNoun?.word || null,
+      equippedVerb?.word || null,
+      equippedAdv?.word || null,
+    ],
+    enemyModifier,
+    bannedVowel: bossPhaseConstraint.bannedVowel,
+  });
+
+  // #32 Anticipatory Relic Rail states ('idle' | 'arming' | 'flaring')
+  const anticipatoryRelics = computeAnticipatoryRelicStates(selectedWords.map((w) => w.word));
+
+  // #34 Slide-Out Tactile Tile Bag Next-Turn Draw Odds
+  const nextTurnDrawOdds = computeNextTurnDrawOdds(tileBag);
+
+  // #35 Chained Keyword Tooltips
+  const chainedKeywords = extractChainedKeywords([
+    enemyModifier.name,
+    bossPhaseConstraint.badgeLabel,
+    ...activeSynergies.map((s) => s.name),
+    ...livePreview.specialTileBonuses.map((b) => b.label),
+  ]);
+
   // Clear selections on battle change
   useEffect(() => {
     setSelectedWordIds([]);
     setTypedBuffer('');
     setRewardClaimed(false);
     setShowCoachHint(false);
-  }, [playerId, activeZoneId, enemy.id]);
+    setRackOrder([0, 1, 2, 3]);
+    setInlineLootDrops(generateInlineLootDrops(activeNodeId, player.name));
+    setTileBag((prev) => drawSmartTileHand(prev, 8, 1, 'time-bomb'));
+  }, [playerId, activeZoneId, enemy.id, activeNodeId, player.name]);
+
+  // #11 Draw fresh Vowel-Pity-Guaranteed hand on each new round
+  useEffect(() => {
+    if (roundNumber > 1 && !isBattleOver) {
+      setTileBag((prev) =>
+        drawSmartTileHand(prev, 8, roundNumber, roundNumber % 2 === 0 ? 'time-bomb' : 'poisoned')
+      );
+    }
+  }, [roundNumber, isBattleOver]);
 
   // #8 Atomic Combat State Serialization & Auto-Save at the start of each combat round + #7 Adaptive Combat Music intensity
   useEffect(() => {
@@ -218,7 +328,7 @@ export const BattleView: React.FC = () => {
     }
   }, [isBattleOver, winner, player.id, rewardClaimed, addRewards, levelUpPet, increasePetBond]);
 
-  // Combat event animations + TTS
+  // Combat event animations + TTS + #19 Object-Pooled Floating Numbers
   useEffect(() => {
     if (!battleState.events || battleState.events.length === 0) return;
 
@@ -246,33 +356,45 @@ export const BattleView: React.FC = () => {
           }, 550);
         }
 
-        const fId = ++floatSeq.current;
+        const pooled = floatingNumberPool.acquire();
+        pooled.id = ++floatSeq.current;
+        pooled.target = isEnemyTarget ? 'enemy' : 'player';
+        pooled.text = `-${ev.amount} HP`;
+        pooled.color = 'text-red-600 border-[#1a162b] bg-[#fff8e7]';
+
         setFloatingNumbers((prev) => [
           ...prev,
           {
-            id: fId,
-            target: isEnemyTarget ? 'enemy' : 'player',
-            text: `-${ev.amount} HP`,
-            color: 'text-red-600 border-[#1a162b] bg-[#fff8e7]',
+            id: pooled.id,
+            target: pooled.target,
+            text: pooled.text,
+            color: pooled.color,
           },
         ]);
         setTimeout(() => {
-          setFloatingNumbers((prev) => prev.filter((item) => item.id !== fId));
+          setFloatingNumbers((prev) => prev.filter((item) => item.id !== pooled.id));
+          floatingNumberPool.release(pooled);
         }, 1200);
       } else if (ev.type === 'SHIELD' && ev.amount) {
         const isPlayerTarget = ev.attackerId === player.id;
-        const fId = ++floatSeq.current;
+        const pooled = floatingNumberPool.acquire();
+        pooled.id = ++floatSeq.current;
+        pooled.target = isPlayerTarget ? 'player' : 'enemy';
+        pooled.text = `+${ev.amount} SHIELD`;
+        pooled.color = 'text-sky-600 border-[#1a162b] bg-[#fff8e7]';
+
         setFloatingNumbers((prev) => [
           ...prev,
           {
-            id: fId,
-            target: isPlayerTarget ? 'player' : 'enemy',
-            text: `+${ev.amount} SHIELD`,
-            color: 'text-sky-600 border-[#1a162b] bg-[#fff8e7]',
+            id: pooled.id,
+            target: pooled.target,
+            text: pooled.text,
+            color: pooled.color,
           },
         ]);
         setTimeout(() => {
-          setFloatingNumbers((prev) => prev.filter((item) => item.id !== fId));
+          setFloatingNumbers((prev) => prev.filter((item) => item.id !== pooled.id));
+          floatingNumberPool.release(pooled);
         }, 1200);
       }
     });
@@ -396,12 +518,53 @@ export const BattleView: React.FC = () => {
     }, wordsToRead.length * 420 + 250);
   };
 
+  const handleShuffleRack = () => {
+    juice.click();
+    setRackOrder((prev) => {
+      const next = [...prev];
+      for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [next[i], next[j]] = [next[j], next[i]];
+      }
+      if (next.every((v, idx) => v === prev[idx])) {
+        return [...prev].reverse();
+      }
+      return next;
+    });
+  };
+
   const handleLaunchWordStrike = () => {
     if (isBattleOver || !previewCombo.valid || selectedWords.length === 0) return;
     const isCritStrike =
       selectedWords.length === 4 ||
       activeSynergies.some((s) => s.guaranteedCrit) ||
       maxLengthMultiplier >= 1.75;
+
+    // #27 Choreograph Paced Left-to-Right Scoring Cascade across placed tiles & relics
+    const cascadeSteps = buildScoringCascadeSteps(selectedWords.map((w) => w.word));
+    cascadeSteps.forEach((step) => {
+      setTimeout(() => {
+        setActiveCascadeIdx(step.stepIndex);
+        if (step.triggeredRelicId) {
+          setFlaringRelicId(step.triggeredRelicId);
+        }
+        juice.playLetterPitch(step.pitchSemitoneIndex);
+      }, step.delayMs);
+    });
+    const totalCascadeDuration =
+      cascadeSteps.length > 0 ? cascadeSteps[cascadeSteps.length - 1].delayMs + 140 : 120;
+    setTimeout(() => {
+      setActiveCascadeIdx(null);
+      setFlaringRelicId(null);
+    }, totalCascadeDuration);
+
+    // #17 Record cast in lifetime Lexicon Compendium
+    recordCastInCompendium(
+      loadLexiconCompendium(),
+      selectedWords.map((w) => w.word),
+      previewCombo.phrase,
+      livePreview.projectedDamage
+    );
 
     // #7 Satisfying low-end sub-bass thud + screen shake on crits
     juice.playSubmitThud(isCritStrike);
@@ -437,10 +600,11 @@ export const BattleView: React.FC = () => {
     );
     setSelectedWordIds([]);
     setTypedBuffer('');
+    setDupCycleOffset(0);
     setShowCoachHint(false);
   };
 
-  // #6 Multi-Modal Keyboard Controls (1-4 to toggle tablets, rapid physical letter typing with Trie prefix autocomplete & Backspace safety, Space/Enter to Cast)
+  // #6, #18 & #33 Simultaneous Keyboard + Mouse Harmony (1-4 to toggle tablets, Tab to cycle duplicate prefix matches or Shuffle Rack, Esc to Recall All, Backspace safety, Space/Enter to Cast)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (
@@ -450,7 +614,15 @@ export const BattleView: React.FC = () => {
       ) {
         return;
       }
-      if (e.key === '1' && equippedAdj) {
+      if (e.key === 'Tab' && !isBattleOver) {
+        e.preventDefault();
+        if (typedBuffer.length > 0) {
+          setDupCycleOffset((prev) => prev + 1);
+          juice.click();
+        } else {
+          handleShuffleRack();
+        }
+      } else if (e.key === '1' && equippedAdj) {
         e.preventDefault();
         handleToggleWordCard(equippedAdj);
       } else if (e.key === '2' && equippedNoun) {
@@ -467,7 +639,7 @@ export const BattleView: React.FC = () => {
         handleLaunchWordStrike();
       } else if (e.key === 'Backspace') {
         e.preventDefault();
-        // #6 Backspace safety: remove last typed letter first, or pop last placed word tile
+        // #6 & #18 Backspace safety: remove last typed letter first, or pop last placed word tile
         if (typedBuffer.length > 0) {
           setTypedBuffer((prev) => prev.slice(0, -1));
         } else if (selectedWordIds.length > 0) {
@@ -475,7 +647,11 @@ export const BattleView: React.FC = () => {
         }
       } else if (e.key === 'Escape') {
         if (typedBuffer.length > 0) setTypedBuffer('');
-        else if (showReserveDrawer) setShowReserveDrawer(false);
+        else if (showBagOddsDrawer) setShowBagOddsDrawer(false);
+        else if (showKeywordDrawer) {
+          setShowKeywordDrawer(false);
+          setKeywordLocked(false);
+        } else if (showReserveDrawer) setShowReserveDrawer(false);
         else if (showCoachHint) setShowCoachHint(false);
         else if (selectedWordIds.length > 0) setSelectedWordIds([]);
       } else if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !isBattleOver) {
@@ -489,20 +665,23 @@ export const BattleView: React.FC = () => {
         const equippedCards = [equippedAdj, equippedNoun, equippedVerb, equippedAdv].filter(
           (w): w is Word => Boolean(w)
         );
-        const matchingEquipped = equippedCards.filter((w) =>
-          w.word.toLowerCase().startsWith(nextBuf)
+        // #33 Pluck highest-scoring matching tile from rack (respecting Tab duplicate cycle offset)
+        const pluckResult = selectBestMatchingTileFromRack(
+          equippedCards,
+          nextBuf,
+          selectedWordIds,
+          dupCycleOffset
         );
         const trie = getGlobalLexiconTrie();
         if (
-          matchingEquipped.length === 1 &&
-          (nextBuf.length >= 2 || matchingEquipped[0].word.toLowerCase() === nextBuf)
+          pluckResult.bestMatch &&
+          (pluckResult.duplicateCount === 1 || nextBuf.length >= 3 || pluckResult.bestMatch.word.toLowerCase() === nextBuf) &&
+          nextBuf.length >= 2
         ) {
-          const targetWord = matchingEquipped[0];
-          if (!selectedWordIds.includes(targetWord.id)) {
-            handleToggleWordCard(targetWord);
-          }
+          handleToggleWordCard(pluckResult.bestMatch);
           setTypedBuffer('');
-        } else if (matchingEquipped.length > 0 || trie.hasPrefix(nextBuf)) {
+          setDupCycleOffset(0);
+        } else if (pluckResult.duplicateCount > 0 || trie.hasPrefix(nextBuf)) {
           setTypedBuffer(nextBuf);
         } else {
           setTypedBuffer('');
@@ -597,8 +776,15 @@ export const BattleView: React.FC = () => {
         <div
           className={`relative overflow-hidden rounded-3xl border-[4px] border-[#1a162b] shadow-[0_8px_0_#090714] min-h-[430px] sm:min-h-[460px] flex flex-col justify-between transition-transform ${
             isCritShaking ? 'translate-x-1 -translate-y-0.5 ring-4 ring-[#fde047]' : ''
-          }`}
+          } ${reactiveLighting.lowHpVignetteActive ? 'crimson-low-hp-vignette' : ''}`}
         >
+          {/* #24 Reactive Combat Lighting: Ambient background dim when 6+ letter word spotlight is active */}
+          {reactiveLighting.spotlightActive && (
+            <div
+              className="pointer-events-none absolute inset-0 z-10 bg-slate-950 transition-opacity duration-300"
+              style={{ opacity: reactiveLighting.ambientDimOpacity }}
+            />
+          )}
           {/* Dynamic 2.5D Storybook + Stadium SVG Backdrop */}
           <svg
             viewBox="0 0 1280 500"
@@ -836,7 +1022,7 @@ export const BattleView: React.FC = () => {
               <div className="relative rounded-2xl border-[3px] border-[#451a03] bg-gradient-to-b from-[#b45309] via-[#92400e] to-[#78350f] px-6 py-1.5 text-center shadow-[0_5px_0_#270e02]">
                 <span className="absolute -left-2.5 -top-1 text-base select-none">🌿</span>
                 <span className="absolute -right-2.5 -top-1 text-base select-none">🌿</span>
-                <div className="font-display text-sm sm:text-base font-black text-white drop-shadow-[0_1.5px_0_#1a162b]">
+                <div className={`${getDualTierTypographyClasses('boss-banner')} text-sm sm:text-base font-black text-white drop-shadow-[0_1.5px_0_#1a162b]`}>
                   {isBattleOver
                     ? winner === player.id
                       ? '🏆 Realm Cleared!'
@@ -849,38 +1035,65 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* TOP-RIGHT: SINGLE CLEAN BOSS HEALTH PLATE (#1) + ENEMY BOARD MODIFIER (#4) */}
+            {/* TOP-RIGHT: SINGLE CLEAN BOSS HEALTH PLATE (#1) + ENEMY BOARD MODIFIER (#4) + GHOST HP & LETHAL SHATTER (#31) */}
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
                 <div className="w-56 sm:w-64 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 truncate">
                       <span>{enemyElem.icon}</span>
-                      <span className="font-display text-xs sm:text-sm font-black text-rose-300 truncate">
+                      <span className={`${getDualTierTypographyClasses('boss-banner')} text-xs sm:text-sm font-black text-rose-300 truncate`}>
                         {displayEnemyName}
                       </span>
                     </div>
                     <span className="shrink-0 font-mono text-xs font-black text-amber-300">
-                      {enemyStageBadge}
+                      {livePreview.wouldDefeatEnemy ? '💀 LETHAL!' : enemyStageBadge}
                     </span>
                   </div>
-                  <div className="relative h-5 w-full overflow-hidden rounded-lg border-2 border-[#1a162b] bg-slate-950">
+                  <div
+                    className={`relative h-5 w-full overflow-hidden rounded-lg border-2 border-[#1a162b] bg-slate-950 transition-all ${
+                      livePreview.wouldDefeatEnemy ? 'lethal-shatter-bar' : ''
+                    }`}
+                  >
+                    {/* #12 & #31 Pulsing Ghost HP Segment showing exact post-armor damage before submitting */}
                     <div
-                      className="h-full bg-gradient-to-r from-[#e11d48] via-[#f43f5e] to-[#fb7185] transition-all duration-500"
+                      className={`absolute inset-y-0 left-0 bg-amber-400/85 transition-all duration-300 ${
+                        livePreview.isValid && livePreview.projectedDamage > 0 ? 'animate-pulse' : ''
+                      }`}
                       style={{ width: `${enemyHpPct}%` }}
+                    />
+                    <div
+                      className="relative h-full bg-gradient-to-r from-[#e11d48] via-[#f43f5e] to-[#fb7185] transition-all duration-300"
+                      style={{
+                        width: `${
+                          livePreview.isValid && livePreview.projectedEnemyHpDropPct > 0
+                            ? livePreview.projectedEnemyHpAfterPct
+                            : enemyHpPct
+                        }%`,
+                      }}
                     />
                     <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-black text-white drop-shadow-[0_1px_1px_#000]">
                       {enemy.currentHp ?? enemy.stats.hp} / {enemy.maxHp ?? enemy.stats.hp} HP
-                      {(enemy.shield ?? 0) > 0 ? ` (+🛡️${enemy.shield})` : ''}
+                      {livePreview.isValid && livePreview.projectedDamage > 0
+                        ? ` (−${livePreview.projectedDamage}${livePreview.wouldDefeatEnemy ? ' 💀' : ''})`
+                        : (enemy.shield ?? 0) > 0
+                        ? ` (+🛡️${enemy.shield})`
+                        : ''}
                     </span>
                   </div>
-                  {/* #4 Enemy Board Modifier + #3 Active Status Badges */}
+                  {/* #4 Enemy Board Modifier + #14 Multi-Phase Boss Rule + #3 Active Status Badges */}
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[11px] font-black">
                     <span
                       className="rounded-md bg-slate-900/90 border border-amber-400/50 px-1.5 py-0.5 text-amber-200 truncate"
                       title={`${enemyModifier.name}: ${enemyModifier.shortRule} (${enemyModifier.counterplayTip})`}
                     >
                       {enemyModifier.icon} {enemyModifier.name}
+                    </span>
+                    <span
+                      className="rounded-md bg-fuchsia-950/90 border border-fuchsia-400/60 px-1.5 py-0.5 text-fuchsia-200 truncate"
+                      title={bossPhaseConstraint.description}
+                    >
+                      {bossPhaseConstraint.icon} {bossPhaseConstraint.badgeLabel}
                     </span>
                     {enemy.statuses && enemy.statuses.length > 0 && (
                       <div className="flex items-center gap-1">
@@ -1102,34 +1315,20 @@ export const BattleView: React.FC = () => {
             </div>
           </div>
 
-          {/* VICTORY / DEFEAT OVERLAY MODAL */}
-          {isBattleOver && (
+          {/* DEFEAT OVERLAY ONLY (Victory uses #29 Inline Post-Combat Loot Drops on the cleared letter board below!) */}
+          {isBattleOver && winner !== player.id && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#1a162b]/85 p-4 backdrop-blur-xs">
               <div className="w-full max-w-md rounded-3xl border-[4px] border-[#1a162b] bg-[#fff8e7] p-6 text-center shadow-[0_10px_0_#1a162b] space-y-4">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] bg-[#ffd54f]">
                   <Award className="h-10 w-10 text-[#1a162b]" />
                 </div>
-                <h3 className="font-display text-2xl sm:text-3xl font-black text-[#1a162b]">
-                  {winner === player.id ? '🎉 The Monsters Are Defeated!' : '⚡ Try Again, Tamer!'}
+                <h3 className={`${getDualTierTypographyClasses('boss-banner')} text-2xl sm:text-3xl font-black text-[#1a162b]`}>
+                  ⚡ Try Again, Tamer!
                 </h3>
                 <p className="text-xs sm:text-sm font-bold text-[#4e342e]">
-                  {winner === player.id
-                    ? `${player.name} cleared Stage ${activeNodeId} in ${biome.title}! Earned ★ Stars, +65 Lexi-Coins, +1 Fusion Gem, and +1 Pet Level!`
-                    : `${enemy.name} held Stage ${activeNodeId} this time. Weave a 4-Tablet Ultimate Sentence or exploit its ${enemyWeakElem.name} weakness!`}
+                  {`${enemy.name} held Stage ${activeNodeId} this time. Weave a 4-Tablet Ultimate Sentence or exploit its ${enemyWeakElem.name} weakness!`}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                  {winner === player.id && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        juice.fanfare();
-                        advanceToNextNode();
-                      }}
-                      className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] hover:brightness-110 px-4 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
-                    >
-                      ⚔️ Fight Next Stage →
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => restartBattle()}
@@ -1140,12 +1339,6 @@ export const BattleView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const parts = activeNodeId.split('-');
-                      const zNum = Number(parts[0] || 1);
-                      const sNum = Number(parts[1] || 1);
-                      if (winner === player.id && sNum < 10) {
-                        setActiveNodeId(`${zNum}-${sNum + 1}`);
-                      }
                       setReturnToWordWorldMap(true);
                       setTab('hub');
                     }}
@@ -1167,15 +1360,122 @@ export const BattleView: React.FC = () => {
         </div>
 
         {/* ====================================================================
-            2. STREAMLINED SENTENCE BUILDER TRAY & 4 WORD TABLET CARDS (#4, #5, #6)
+            2. STREAMLINED SENTENCE BUILDER TRAY & 4 TACTILE WORD TABLET CARDS
+               (#21 Materiality, #22 Dual Typography, #23 Semantic Colors, #24 Spotlight,
+                #25 Telegraphs, #26 Spring 2.5D Tilt, #27 Cascade, #29 Inline Loot Drops,
+                #30 Affix Ligatures, #31 Finisher, #32 Relic Rail, #34 Bag Odds, #35 Keywords)
            ==================================================================== */}
         <div className="rounded-3xl border-[4px] border-[#1a162b] bg-[#1e293b] p-3 text-white shadow-[0_7px_0_#090714] space-y-3">
-          {/* TOP ROW: VISUAL 4-SLOT SENTENCE TRAY + ONLY 2 HELPER BUTTONS (🔊 Read Aloud & 💡 Help) (#4) */}
-          <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#fef9c3] p-2.5 text-[#1a162b] shadow-inner space-y-2">
+          {/* #29 INLINE POST-COMBAT LOOT DROPS ON CLEARED LETTER BOARD */}
+          {isBattleOver && winner === player.id ? (
+            <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#fef9c3] via-[#fde68a] to-[#fcd34d] p-4 text-[#1a162b] shadow-[0_5px_0_#1a162b] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="rounded-lg bg-[#1a162b] px-2.5 py-0.5 font-display text-xs font-black uppercase text-[#fde047]">
+                    🏆 Stage {activeNodeId} Cleared · Inline Loot Drops (#29)
+                  </span>
+                  <h3 className={`${getDualTierTypographyClasses('boss-banner')} text-lg sm:text-xl font-black text-[#1a162b] mt-1`}>
+                    🎉 {enemy.name} Defeated! Click Loot Tokens on the Board to Collect:
+                  </h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      juice.fanfare();
+                      advanceToNextNode();
+                    }}
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] hover:brightness-110 px-4 py-2 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    ⚔️ Fight Next Stage →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const parts = activeNodeId.split('-');
+                      const zNum = Number(parts[0] || 1);
+                      const sNum = Number(parts[1] || 1);
+                      if (sNum < 10) {
+                        setActiveNodeId(`${zNum}-${sNum + 1}`);
+                      }
+                      setReturnToWordWorldMap(true);
+                      setTab('hub');
+                    }}
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#38bdf8] to-[#0284c7] hover:brightness-110 px-3.5 py-2 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    🗺️ Node Map
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => restartBattle()}
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-white hover:bg-amber-100 px-3 py-2 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                  >
+                    Replay
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {inlineLootDrops.map((loot) => {
+                  const sem = SEMANTIC_COLOR_GRAMMAR[loot.semanticCategory];
+                  return (
+                    <button
+                      key={loot.id}
+                      type="button"
+                      onClick={() => {
+                        if (loot.claimed) return;
+                        setInlineLootDrops((prev) =>
+                          prev.map((item) => (item.id === loot.id ? { ...item, claimed: true } : item))
+                        );
+                        if (loot.type === 'gold-pouch') {
+                          addRewards({ coins: 35, tokens: 1, xp: 20 });
+                        } else if (loot.type === 'tile-stamp') {
+                          setTileBag((prev) => {
+                            const target = prev.remainingPool[0] || prev.currentHand[0];
+                            return target ? applyPermanentStampToTile(prev, target.id, 'gilded') : prev;
+                          });
+                        } else {
+                          increasePetBond(player.id, 1);
+                        }
+                        juice.fanfare();
+                      }}
+                      className={`spring-tile-motion flex items-center justify-between rounded-2xl border-[3px] border-[#1a162b] p-3 text-left cursor-pointer ${
+                        loot.claimed ? 'bg-emerald-200 opacity-85' : 'tile-mat-ivory hover:-translate-y-1'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">{loot.icon}</span>
+                        <div>
+                          <div className="font-display text-xs sm:text-sm font-black text-[#1a162b]">
+                            {loot.title}
+                          </div>
+                          <div className="text-[11px] font-bold text-[#5d4037]">{loot.subtitle}</div>
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-lg border border-[#1a162b] px-2 py-0.5 text-[10px] font-black uppercase ${
+                          loot.claimed ? 'bg-emerald-600 text-white' : `${sem.badgeBg} ${sem.badgeText}`
+                        }`}
+                      >
+                        {loot.claimed ? '✓ Collected' : 'Pick Up'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* TOP ROW: VISUAL 4-SLOT SENTENCE TRAY + ANTICIPATORY RELIC RAIL (#32) + HELPERS */}
+          <div
+            className={`rounded-2xl border-[3px] border-[#1a162b] p-2.5 text-[#1a162b] transition-all space-y-2 ${
+              previewCombo.valid ? 'valid-ligature-tray' : 'bg-[#fef9c3]/90 shadow-inner'
+            } ${reactiveLighting.spotlightActive ? 'combat-spotlight-tray' : ''}`}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="rounded-lg bg-[#1a162b] px-2.5 py-1 font-display text-xs font-black uppercase text-[#fde047]">
-                  ✨ Sentence Tray
+                  {previewCombo.valid ? '🔗 Valid Spell Ignited' : '✨ Sentence Tray'}
                 </span>
                 <span className="text-xs sm:text-sm font-black text-[#451a03]">
                   {selectedWords.length > 0
@@ -1183,41 +1483,140 @@ export const BattleView: React.FC = () => {
                     : 'Tap, drag, or type Word Cards below (keys 1–4 or A–Z) to build your spell!'}
                 </span>
 
-                {/* #6 Live Rapid Keyboard Typing Buffer Pill */}
+                {/* #6 & #33 Live Rapid Keyboard Typing Buffer Pill */}
                 {typedBuffer.length > 0 && (
                   <span className="rounded-lg border-2 border-[#1a162b] bg-indigo-600 px-2 py-0.5 font-mono text-xs font-black text-white shadow">
-                    ⌨️ {typedBuffer.toUpperCase()}…
+                    ⌨️ {typedBuffer.toUpperCase()}… (Tab cycles duplicates)
                   </span>
                 )}
 
-                {/* #2 & #9 Clear Visual Indicator for Exponential Length Multiplier */}
+                {/* #2, #9 & #23 Strict Semantic Color Coding: Amber = Multipliers */}
                 {maxLengthMultiplier > 1 && (
-                  <span className="rounded-lg border-2 border-[#1a162b] bg-emerald-500 px-2 py-0.5 font-mono text-xs font-black text-white shadow">
+                  <span
+                    className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR.multiplier.badgeBg} ${SEMANTIC_COLOR_GRAMMAR.multiplier.badgeText} px-2 py-0.5 font-mono text-xs font-black shadow`}
+                  >
                     ×{maxLengthMultiplier.toFixed(2)} Length
                   </span>
                 )}
 
-                {/* #3 Active Word Property Synergies (❄️ Freeze, 🩸 Bleed, 🛡️ Anagram Shield, ⚡ Rare Crit) */}
+                {/* #12 & #23 Strict Semantic Color Coding: Crimson = Raw Attack */}
+                {livePreview.isValid && livePreview.projectedDamage > 0 && (
+                  <span
+                    className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR['raw-attack'].badgeBg} ${SEMANTIC_COLOR_GRAMMAR['raw-attack'].badgeText} px-2 py-0.5 font-mono text-xs font-black shadow`}
+                    title={`Base Tile Points: ${livePreview.baseTilePoints} · Length Mult: ×${livePreview.maxLengthMultiplier.toFixed(2)} · Relics: ${livePreview.activeRelicTriggers.map((r) => `${r.icon} ${r.name}`).join(', ') || 'None'}`}
+                  >
+                    🎯 −{livePreview.projectedDamage} HP ({livePreview.baseTilePoints}pts)
+                  </span>
+                )}
+
+                {/* #13 Special, Compound (QU/TH/ING) & Hazard Tile Bonuses */}
+                {livePreview.specialTileBonuses.map((bonus) => (
+                  <span
+                    key={bonus.label}
+                    className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR['vowel-heal'].badgeBg} ${SEMANTIC_COLOR_GRAMMAR['vowel-heal'].badgeText} px-2 py-0.5 font-display text-xs font-black shadow`}
+                  >
+                    {bonus.label}
+                  </span>
+                ))}
+
+                {/* #3 Active Word Property Synergies */}
                 {activeSynergies.map((syn) => (
                   <span
                     key={syn.id}
-                    className="rounded-lg border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.5 font-display text-xs font-black text-[#1a162b] shadow"
+                    className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR.block.badgeBg} ${SEMANTIC_COLOR_GRAMMAR.block.badgeText} px-2 py-0.5 font-display text-xs font-black shadow`}
                     title={syn.description}
                   >
                     {syn.name}
                   </span>
                 ))}
 
-                {/* #4 Enemy Board Modifier Impact Note */}
-                {modifierImpact.note && (
-                  <span className="rounded-lg border border-[#1a162b] bg-amber-300 px-2 py-0.5 font-display text-xs font-black text-[#1a162b]">
-                    {modifierImpact.note}
+                {/* #4 Enemy Board Modifier Impact Note + #14 Boss Phase Constraint Note */}
+                {(modifierImpact.note || livePreview.bossPhaseNote) && (
+                  <span
+                    className={`rounded-lg border border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR['hex-poison'].badgeBg} ${SEMANTIC_COLOR_GRAMMAR['hex-poison'].badgeText} px-2 py-0.5 font-display text-xs font-black`}
+                  >
+                    {livePreview.bossPhaseNote || modifierImpact.note}
                   </span>
                 )}
               </div>
 
-              {/* Collapsed Helper Buttons: Single 🔊 Read Aloud + Single 💡 Help (#4) */}
-              <div className="flex items-center gap-2">
+              {/* #32 Anticipatory Relic Rail + #34 Bag Odds + #35 Hover-Locked Keywords + Shuffle / Read Aloud / Help */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* #32 Anticipatory Relic Rail (pulses on arming, flares with ring when triggered) */}
+                <div className="hidden sm:flex items-center gap-1 rounded-xl border-2 border-[#1a162b] bg-[#1a162b]/90 px-2 py-0.5">
+                  {anticipatoryRelics.map((rel) => {
+                    const isCascadeFlaring = flaringRelicId === rel.id;
+                    const isFlaring = rel.state === 'flaring' || isCascadeFlaring;
+                    const isArming = rel.state === 'arming';
+                    return (
+                      <span
+                        key={rel.id}
+                        title={`${rel.name}: ${rel.description} (${rel.progressLabel})`}
+                        className={`rounded-lg px-1.5 py-0.5 text-xs font-black transition-all ${
+                          isFlaring
+                            ? 'bg-[#fde047] text-[#1a162b] ring-2 ring-emerald-400 scale-110'
+                            : isArming
+                            ? 'bg-amber-500/30 text-amber-200 animate-pulse'
+                            : 'text-slate-400 opacity-75'
+                        }`}
+                      >
+                        {rel.icon}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* #34 Slide-Out Tactile Tile Bag Odds Drawer Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setShowBagOddsDrawer((prev) => !prev)}
+                  className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
+                    showBagOddsDrawer
+                      ? 'bg-[#fde047] text-[#1a162b]'
+                      : 'bg-emerald-200 hover:bg-emerald-300 text-[#1a162b]'
+                  }`}
+                  title="Peek inside Tactile Tile Bag & live next-turn Vowel/Consonant draw odds (#34)"
+                >
+                  🎒 Bag ({nextTurnDrawOdds.nextDrawVowelPct}% V)
+                </button>
+
+                {/* #35 Chained Keyword Tooltips & Hover-Lock Trigger */}
+                <button
+                  type="button"
+                  onMouseEnter={() => setShowKeywordDrawer(true)}
+                  onMouseLeave={() => {
+                    if (!keywordLocked) setShowKeywordDrawer(false);
+                  }}
+                  onClick={() => {
+                    setKeywordLocked((prev) => !prev);
+                    setShowKeywordDrawer(true);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setKeywordLocked((prev) => !prev);
+                    setShowKeywordDrawer(true);
+                  }}
+                  className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
+                    keywordLocked
+                      ? 'bg-rose-500 text-white'
+                      : showKeywordDrawer
+                      ? 'bg-[#fde047] text-[#1a162b]'
+                      : 'bg-stone-200 hover:bg-stone-300 text-[#1a162b]'
+                  }`}
+                  title="Hover to inspect Chained Keyword Tooltips; click or right-click to Hover-Lock (#35)"
+                >
+                  {keywordLocked ? '📌 Locked' : '📌 Terms'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShuffleRack}
+                  className="rounded-xl border-2 border-[#1a162b] bg-violet-200 hover:bg-violet-300 px-2.5 py-1 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
+                  title="Shuffle Word Rack order (Hotkey: Tab)"
+                >
+                  🔀 Shuffle
+                </button>
+
                 <button
                   type="button"
                   onClick={handleKaraokeReadSentence}
@@ -1246,14 +1645,132 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* 4 Numbered Visual Grammar Slots (Supports Click & Drag-and-Drop #6) */}
+            {/* #34 SLIDE-OUT TACTILE TILE BAG DRAWER (VOWELS / CONSONANTS / SPECIALS + NEXT-TURN DRAW ODDS) */}
+            {showBagOddsDrawer && (
+              <div className="rounded-xl border-2 border-[#1a162b] bg-[#1e293b] p-2.5 text-white space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-black">
+                  <span className="text-[#fde047]">
+                    🎒 Tactile Tile Bag Drawer (#34) — {nextTurnDrawOdds.totalRemaining} Tiles Remaining
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                    <span className="rounded bg-emerald-500/20 border border-emerald-400 px-2 py-0.5 text-emerald-200">
+                      Vowel Draw: {nextTurnDrawOdds.nextDrawVowelPct}% (Pity Guaranteed)
+                    </span>
+                    <span className="rounded bg-sky-500/20 border border-sky-400 px-2 py-0.5 text-sky-200">
+                      Consonant: {nextTurnDrawOdds.nextDrawConsonantPct}%
+                    </span>
+                    <span className="rounded bg-amber-500/20 border border-amber-400 px-2 py-0.5 text-amber-200">
+                      Compound/Wild: {nextTurnDrawOdds.nextDrawSpecialPct}%
+                    </span>
+                    <span className="rounded bg-purple-500/20 border border-purple-400 px-2 py-0.5 text-purple-200">
+                      Stamped: {nextTurnDrawOdds.nextDrawStampedPct}%
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                  <div className="rounded-lg border border-emerald-400/40 bg-slate-900/90 p-2">
+                    <div className="font-black text-emerald-300 mb-1">
+                      Vowels ({nextTurnDrawOdds.vowelTiles.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {nextTurnDrawOdds.vowelTiles.slice(0, 12).map((t) => (
+                        <span
+                          key={t.id}
+                          className="tile-mat-ivory font-tile-face rounded px-1.5 py-0.5 text-[10px] font-black text-[#1a162b]"
+                        >
+                          {t.letters}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-sky-400/40 bg-slate-900/90 p-2">
+                    <div className="font-black text-sky-300 mb-1">
+                      Consonants ({nextTurnDrawOdds.consonantTiles.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {nextTurnDrawOdds.consonantTiles.slice(0, 12).map((t) => (
+                        <span
+                          key={t.id}
+                          className={`${
+                            t.stamp !== 'none' ? 'tile-mat-gilded' : 'tile-mat-bone'
+                          } font-tile-face rounded px-1.5 py-0.5 text-[10px] font-black text-[#1a162b]`}
+                        >
+                          {t.letters}
+                          {t.stamp !== 'none' ? '✨' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-amber-400/40 bg-slate-900/90 p-2">
+                    <div className="font-black text-amber-300 mb-1">
+                      Compound &amp; Wildcards ({nextTurnDrawOdds.specialTiles.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {nextTurnDrawOdds.specialTiles.map((t) => (
+                        <span
+                          key={t.id}
+                          className="tile-mat-amber font-tile-face rounded px-1.5 py-0.5 text-[10px] font-black text-[#1a162b]"
+                        >
+                          {t.letters} ({t.basePoints}pt)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* #35 CHAINED KEYWORD TOOLTIPS & HOVER-LOCK STACK */}
+            {showKeywordDrawer && (
+              <div className="rounded-xl border-2 border-[#1a162b] bg-[#1e293b] p-2.5 text-white space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-black text-[#fde047]">
+                  <span>
+                    📌 Chained Keyword Reference Stack (#35) {keywordLocked ? '· Hover-Locked' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKeywordLocked(false);
+                      setShowKeywordDrawer(false);
+                    }}
+                    className="rounded bg-white/15 hover:bg-rose-500 px-2 py-0.5 text-[10px] text-white cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {chainedKeywords.map((kw) => {
+                    const sem = SEMANTIC_COLOR_GRAMMAR[kw.semanticCategory];
+                    return (
+                      <div
+                        key={kw.id}
+                        className={`rounded-lg border ${sem.borderClass} bg-slate-900/95 p-2 text-xs`}
+                      >
+                        <div className="flex items-center gap-1.5 font-black text-white">
+                          <span>{kw.icon}</span>
+                          <span>{kw.term}</span>
+                        </div>
+                        <p className="text-[11px] font-semibold text-slate-300 mt-0.5">
+                          {kw.summary}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 4 Numbered Visual Grammar Slots (Supports Click, Drag-and-Drop #6, Paced Scoring Cascade #27, & Affix Ligature Brackets #30) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(['adjective', 'noun', 'verb', 'adverb'] as PartOfSpeech[]).map((pos, idx) => {
                 const posMeta = getPartOfSpeechMeta(pos);
                 const wordAtSlot = selectedWords[idx] || null;
                 const isKaraokeActive = karaokeWordIdx === idx;
+                const isCascadePopping = activeCascadeIdx === idx;
                 const isNextSlotHighlighted = highlightedSlotIdx === idx;
                 const wordMeta = wordAtSlot ? getPartOfSpeechMeta(wordAtSlot.partOfSpeech) : posMeta;
+                const ligature = wordAtSlot ? detectAffixLigatures(wordAtSlot.word) : null;
+                const slotEcon = wordAtSlot ? evaluateWordEconomy(wordAtSlot.word) : null;
 
                 return (
                   <div
@@ -1276,14 +1793,16 @@ export const BattleView: React.FC = () => {
                         if (eq) handleToggleWordCard(eq);
                       }
                     }}
-                    className={`flex items-center justify-between rounded-xl border-2 px-3 py-2 transition cursor-pointer ${
-                      isKaraokeActive
+                    className={`spring-tile-motion flex items-center justify-between rounded-xl border-2 px-3 py-2 cursor-pointer ${
+                      isCascadePopping
+                        ? 'border-[#1a162b] tile-mat-gilded -translate-y-2 scale-105 ring-4 ring-emerald-400'
+                        : isKaraokeActive
                         ? 'border-[#1a162b] bg-[#fde047] ring-4 ring-rose-500 scale-105'
                         : isNextSlotHighlighted
                         ? 'border-[#1a162b] bg-[#fde047] ring-4 ring-amber-400 scale-105 animate-pulse'
                         : wordAtSlot
-                        ? 'border-[#1a162b] bg-white shadow-[0_3px_0_#1a162b]'
-                        : 'border-dashed border-[#1a162b]/40 bg-amber-50/70 hover:bg-amber-100/80'
+                        ? 'border-[#1a162b] tile-mat-ivory'
+                        : 'border-dashed border-[#1a162b]/40 bg-amber-50/60 hover:bg-amber-100/80'
                     }`}
                   >
                     <div className="min-w-0">
@@ -1292,9 +1811,15 @@ export const BattleView: React.FC = () => {
                           {idx + 1}. {wordMeta.shape} {wordMeta.icon} {wordMeta.label}
                         </span>
                       </div>
-                      <div className="font-display text-sm sm:text-base font-black text-[#1a162b] truncate">
+                      <div className={`${getDualTierTypographyClasses('tile-face')} text-sm sm:text-base font-black text-[#1a162b] truncate`}>
                         {wordAtSlot ? (
-                          wordAtSlot.word
+                          ligature && ligature.hasAffix && previewCombo.valid ? (
+                            <span title={`Affix Ligature Detected: ${ligature.formattedWithBrackets}`}>
+                              {ligature.formattedWithBrackets}
+                            </span>
+                          ) : (
+                            wordAtSlot.word
+                          )
                         ) : (
                           <span className="text-stone-400 font-bold">
                             + {posMeta.helperLabel}
@@ -1302,9 +1827,9 @@ export const BattleView: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    {wordAtSlot && (
+                    {wordAtSlot && slotEcon && (
                       <span className="ml-1 shrink-0 rounded-full bg-[#fde047] border border-[#1a162b] px-2 py-0.5 font-mono text-xs font-black text-[#1a162b]">
-                        ✓
+                        +{slotEcon.rawLetterPoints}pt
                       </span>
                     )}
                   </div>
@@ -1313,17 +1838,25 @@ export const BattleView: React.FC = () => {
             </div>
           </div>
 
-          {/* MAIN ROW: 4 SIMPLIFIED 2-DATA-POINT WORD CARDS (#5) + STREAMLINED CAST PANEL (#6) */}
+          {/* MAIN ROW: 4 TACTILE MATERIAL WORD CARDS (#5, #21, #22, #25, #26) + STREAMLINED CAST / FINISHER PANEL (#6, #31) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
-            {/* 4 Simplified Word Tablet Cards (8 Cols) — Only Word + Color-Coded Role Badge + 🔊 Speaker Icon (#5, plus Drag-and-Drop #6) */}
+            {/* 4 Tactile Material Word Tablet Cards (8 Cols) */}
             <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {runeSlots.map(({ pos, word }, idx) => {
-                if (!word) return null;
+              {rackOrder.map((origIdx) => {
+                const slot = runeSlots[origIdx];
+                if (!slot || !slot.word) return null;
+                const { pos, word } = slot;
                 const slotIndex = selectedWordIds.indexOf(word.id);
                 const isSelected = slotIndex !== -1;
                 const isKaraokeActive = isSelected && karaokeWordIdx === slotIndex;
-                const isNextSlotHighlighted = !isSelected && highlightedSlotIdx === idx;
+                const isNextSlotHighlighted = !isSelected && highlightedSlotIdx === origIdx;
                 const posMeta = getPartOfSpeechMeta(pos);
+                const telegraph = rackTelegraphs[origIdx];
+                const material = getTactileTileMaterial({
+                  word: word.word,
+                  isLockedByEnemy: telegraph?.threatActive && enemyModifier.id === 'locked-consonants',
+                });
+                const tiltTransform = hoveredCardTilt[origIdx] || '';
 
                 return (
                   <div
@@ -1334,18 +1867,50 @@ export const BattleView: React.FC = () => {
                       e.dataTransfer.setData('text/plain', word.id);
                     }}
                     onDragEnd={() => setDraggedWordId(null)}
+                    onMouseMove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const relX = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+                      const relY = ((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1;
+                      const tilt = computeTileBankTilt(relX, relY);
+                      setHoveredCardTilt((prev) => ({ ...prev, [origIdx]: tilt.cssTransform }));
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredCardTilt((prev) => {
+                        const copy = { ...prev };
+                        delete copy[origIdx];
+                        return copy;
+                      });
+                    }}
                     onClick={() => handleToggleWordCard(word)}
-                    title={`${word.word} (${posMeta.label}): ${word.definition}`}
-                    className={`relative flex flex-col justify-between rounded-2xl border-[3px] p-3 transition-all cursor-pointer ${posMeta.cardBg} ${
+                    style={tiltTransform ? { transform: tiltTransform } : undefined}
+                    title={`${word.word} (${posMeta.label} · ${material.name}): ${word.definition}`}
+                    className={`spring-tile-motion relative flex flex-col justify-between rounded-2xl border-[3px] p-3 cursor-pointer ${material.cssClass} ${
                       isKaraokeActive
-                        ? 'ring-4 ring-rose-500 scale-105 border-[#1a162b] shadow-[0_7px_0_#1a162b]'
+                        ? 'ring-4 ring-rose-500 scale-105 border-[#1a162b]'
                         : isNextSlotHighlighted
-                        ? 'ring-4 ring-amber-400 scale-105 border-[#1a162b] shadow-[0_7px_0_#1a162b]'
+                        ? 'ring-4 ring-amber-400 scale-105 border-[#1a162b]'
                         : isSelected
-                        ? 'ring-4 ring-[#fde047] -translate-y-1.5 border-[#1a162b] shadow-[0_7px_0_#1a162b]'
-                        : 'border-[#1a162b] hover:-translate-y-1 shadow-[0_4px_0_#1a162b]'
+                        ? 'ring-4 ring-[#fde047] -translate-y-1.5 border-[#1a162b]'
+                        : 'border-[#1a162b] hover:-translate-y-1'
                     }`}
                   >
+                    {/* #25 Board-Linked Enemy Telegraph Badge projected onto the rack slot */}
+                    {telegraph && telegraph.shortLabel && (
+                      <div
+                        title={telegraph.tooltip}
+                        className={`mb-1 flex items-center justify-between rounded-lg border border-[#1a162b] px-2 py-0.5 text-[10px] font-black ${
+                          telegraph.threatActive
+                            ? `${SEMANTIC_COLOR_GRAMMAR[telegraph.semanticCategory].badgeBg} ${SEMANTIC_COLOR_GRAMMAR[telegraph.semanticCategory].badgeText}`
+                            : 'bg-emerald-200 text-[#1a162b]'
+                        }`}
+                      >
+                        <span>
+                          {telegraph.icon} {telegraph.shortLabel}
+                        </span>
+                        <span className="opacity-80">{material.name.split(' ')[0]}</span>
+                      </div>
+                    )}
+
                     {/* Data Point 1: Color-Coded Role Badge + 🔊 Speaker Button */}
                     <div className="flex items-center justify-between gap-1">
                       <span
@@ -1368,9 +1933,9 @@ export const BattleView: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Data Point 2: Bold Word Centerpiece */}
-                    <div className="my-2 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/95 py-4 px-2 text-center shadow-inner">
-                      <span className="font-display text-lg sm:text-xl font-black text-[#1a162b] break-words leading-tight">
+                    {/* Data Point 2: High-Legibility Dual-Tier Slab Word Centerpiece (#22) */}
+                    <div className="my-2 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/25 bg-white/95 py-3.5 px-2 text-center shadow-inner">
+                      <span className={`${getDualTierTypographyClasses('tile-face')} text-lg sm:text-xl font-black text-[#1a162b] break-words leading-tight`}>
                         {word.word}
                       </span>
                     </div>
@@ -1385,21 +1950,25 @@ export const BattleView: React.FC = () => {
               })}
             </div>
 
-            {/* RIGHT 4 COLS: STREAMLINED ACTION PANEL (#6) — Giant ⚡ CAST SPELL Button + Small Pet Skill & Clear Buttons */}
+            {/* RIGHT 4 COLS: STREAMLINED ACTION PANEL (#6, #31) — Giant ⚡ CAST SPELL / 💀 EXECUTE FINISHER Button */}
             <div className="lg:col-span-4 flex flex-col justify-between gap-2.5 rounded-2xl border-[3px] border-[#2dd4bf] bg-[#fef9c3] p-3 text-[#1a162b] shadow-[0_5px_0_#0f766e]">
-              {/* Big, Unmistakable ⚡ CAST SPELL Button */}
+              {/* Big, Unmistakable ⚡ CAST SPELL or 💀 EXECUTE FINISHER Button (#31) */}
               <button
                 type="button"
                 disabled={!previewCombo.valid || isBattleOver}
                 onClick={handleLaunchWordStrike}
-                className={`flex-1 flex items-center justify-center gap-2.5 rounded-2xl border-[3px] px-5 py-4 font-display text-base sm:text-lg font-black uppercase tracking-wider transition ${
+                className={`spring-tile-motion flex-1 flex items-center justify-center gap-2.5 rounded-2xl border-[3px] px-5 py-4 font-display text-base sm:text-lg font-black uppercase tracking-wider ${
                   previewCombo.valid && !isBattleOver
-                    ? 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_5px_0_#1a162b] hover:brightness-105 cursor-pointer'
+                    ? livePreview.wouldDefeatEnemy
+                      ? 'border-[#1a162b] bg-gradient-to-r from-[#e11d48] via-[#f59e0b] to-[#fde047] text-white shadow-[0_5px_0_#1a162b] hover:brightness-110 cursor-pointer animate-pulse'
+                      : 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_5px_0_#1a162b] hover:brightness-105 cursor-pointer'
                     : 'border-slate-400 bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
               >
                 <Zap className="h-6 w-6 fill-current" />
-                <span>⚡ CAST SPELL</span>
+                <span>
+                  {livePreview.wouldDefeatEnemy ? '💀 EXECUTE FINISHER!' : '⚡ CAST SPELL'}
+                </span>
               </button>
 
               {/* Small Pet Skill, Swap Words, & Clear Buttons */}

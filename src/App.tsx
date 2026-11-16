@@ -61,7 +61,7 @@ const AppContent: React.FC = () => {
   if (tab === 'hub' || tab === 'shop') {
     return (
       <div className="w-screen h-screen overflow-hidden bg-[#59b8fa] text-slate-800 flex flex-col font-sans select-none">
-        <div className="relative h-full min-h-screen w-full overflow-hidden">
+        <div key={tab} className="relative h-full min-h-screen w-full overflow-hidden tabletop-scroll-transition">
           <OverworldMap
             onOpenGuide={() => setIsGuideOpen(true)}
             initialPanel={tab === 'shop' ? 'shop' : null}
@@ -79,7 +79,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-[#2a170b] text-slate-800 flex flex-col font-sans select-none">
-      <div className="flex-1 overflow-hidden">
+      <div key={tab} className="flex-1 overflow-hidden tabletop-scroll-transition">
         {tab === 'battle' ? (
           <BattleView />
         ) : tab === 'loadout' ? (
