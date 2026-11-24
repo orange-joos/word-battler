@@ -11,9 +11,10 @@ import { GuideModal } from './components/GuideModal';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StarterPetSelection } from './components/StarterPetSelection';
 import { TutorialScreen } from './components/TutorialScreen';
+import { GameNavigationDock } from './components/GameNavigationDock';
 
 const AppContent: React.FC = () => {
-  const { tab, gameState, setActiveScreen } = useGame();
+  const { tab, gameState, setActiveScreen, dyslexiaFriendly, calmAnimations } = useGame();
   const { currentUser, isCustomizingAvatar, setIsCustomizingAvatar } = useAuth();
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -58,10 +59,15 @@ const AppContent: React.FC = () => {
     return <TutorialScreen />;
   }
 
+  const a11yClasses = `${dyslexiaFriendly ? 'dyslexia-friendly' : ''} ${
+    calmAnimations ? 'calm-animations' : ''
+  }`;
+
   if (tab === 'hub' || tab === 'shop') {
     return (
-      <div className="w-screen h-screen overflow-hidden bg-[#59b8fa] text-slate-800 flex flex-col font-sans select-none">
-        <div key={tab} className="relative h-full min-h-screen w-full overflow-hidden tabletop-scroll-transition">
+      <div className={`w-screen h-screen overflow-hidden bg-[#59b8fa] text-slate-800 flex flex-col font-sans select-none ${a11yClasses}`}>
+        <GameNavigationDock />
+        <div key={tab} className="relative flex-1 w-full overflow-hidden tabletop-scroll-transition">
           <OverworldMap
             onOpenGuide={() => setIsGuideOpen(true)}
             initialPanel={tab === 'shop' ? 'shop' : null}
@@ -78,7 +84,8 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-[#2a170b] text-slate-800 flex flex-col font-sans select-none">
+    <div className={`w-screen h-screen overflow-hidden bg-[#2a170b] text-slate-800 flex flex-col font-sans select-none ${a11yClasses}`}>
+      <GameNavigationDock />
       <div key={tab} className="flex-1 overflow-hidden tabletop-scroll-transition">
         {tab === 'battle' ? (
           <BattleView />

@@ -666,6 +666,19 @@ export const WordForgeView: React.FC = () => {
                       <span className="rounded-lg bg-emerald-500/20 border border-emerald-400 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-300">
                         ✨ Valid {preview.kind} Blueprint!
                       </span>
+                      {preview.kind === 'creature-fusion' && 'stats' in preview.result && (
+                        <div className="flex justify-center py-1">
+                          <CreatureSprite
+                            creatureId={preview.result.forged?.sourceId || preview.result.id}
+                            stage={preview.result.stage || 2}
+                            element={preview.result.element}
+                            secondaryElement={preview.result.infusionElement || preview.result.allowedElements?.[1]}
+                            isPrismatic
+                            mood="happy"
+                            size="lg"
+                          />
+                        </div>
+                      )}
                       <div className="font-display text-3xl font-black text-[#fde047]">
                         {'word' in preview.result ? preview.result.word : preview.result.name}
                       </div>
@@ -678,7 +691,11 @@ export const WordForgeView: React.FC = () => {
                         className="mt-2 inline-flex items-center gap-2 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] px-8 py-3 font-display text-sm sm:text-base font-black uppercase tracking-wider text-[#1a162b] shadow-[0_5px_0_#1a162b] hover:brightness-110 active:translate-y-1 transition cursor-pointer"
                       >
                         <Hammer className="h-5 w-5" />
-                        <span>Chisel Word Tablet &amp; Equip!</span>
+                        <span>
+                          {preview.kind === 'creature-fusion'
+                            ? 'Splice Hybrid Companion!'
+                            : 'Chisel Word Tablet & Equip!'}
+                        </span>
                       </button>
                     </div>
                   ) : (

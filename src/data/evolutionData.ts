@@ -208,6 +208,64 @@ export const PRESET_EVOLUTIONS: Record<string, EvolutionStage[]> = {
       statBoosts: { hp: 34, attack: 14, defense: 10, speed: 10 },
     },
   ],
+  aquafin: [
+    {
+      stage: 1,
+      name: 'Aquafin',
+      spriteEmoji: '🐬',
+      minLevel: 1,
+      title: 'Tidecrest Dolphin',
+      description: 'A playful river companion that rides curling waves and guards its friends.',
+      statBoosts: { hp: 0, attack: 0, defense: 0, speed: 0 },
+    },
+    {
+      stage: 2,
+      name: 'Tidalphin',
+      spriteEmoji: '🐬🌊',
+      minLevel: 10,
+      title: 'Coral Whirlpool Knight',
+      description: 'Armored in living pearl and hydro-fins, it weaves cascading noun barriers across the lagoon.',
+      statBoosts: { hp: 24, attack: 7, defense: 10, speed: 6 },
+    },
+    {
+      stage: 3,
+      name: 'Leviathor Sovereign',
+      spriteEmoji: '🐋👑',
+      minLevel: 20,
+      title: 'Abyssal Ocean Monarch',
+      description: 'Commands oceanic whirlpools and tsunami verbs that wash away any grammatical obstacle.',
+      statBoosts: { hp: 36, attack: 11, defense: 14, speed: 9 },
+    },
+  ],
+  dusklynx: [
+    {
+      stage: 1,
+      name: 'Dusklynx',
+      spriteEmoji: '🐈‍⬛',
+      minLevel: 1,
+      title: 'Twilight Prowler',
+      description: 'A gentle dusk prowler that slips through starlit shadows to protect its team.',
+      statBoosts: { hp: 0, attack: 0, defense: 0, speed: 0 },
+    },
+    {
+      stage: 2,
+      name: 'Umbrapanther',
+      spriteEmoji: '🐆🌙',
+      minLevel: 10,
+      title: 'Eclipse Stalker',
+      description: 'Cloaked in crescent-moon energy, it strikes with silent adverbs and cryptic prefixes.',
+      statBoosts: { hp: 21, attack: 10, defense: 6, speed: 9 },
+    },
+    {
+      stage: 3,
+      name: 'Nyxalkyrie Prime',
+      spriteEmoji: '🐉🌌',
+      minLevel: 20,
+      title: 'Starlit Void Guardian',
+      description: 'Acelestial shadow-panther wreathed in nebula constellations and ancient Greek roots.',
+      statBoosts: { hp: 32, attack: 14, defense: 10, speed: 12 },
+    },
+  ],
 };
 
 /**
@@ -260,15 +318,33 @@ export function getEvolutionBranch(creature: Creature): EvolutionStage[] {
   if (PRESET_EVOLUTIONS[cleanId]) {
     return PRESET_EVOLUTIONS[cleanId];
   }
-  // Check matching prefixes
-  if (cleanId.includes('fox') || cleanId.includes('pyro')) {
+  // Check matching prefixes or starter IDs
+  if (cleanId.includes('fox') || cleanId.includes('pyro') || cleanId === 'starter-fire') {
     return PRESET_EVOLUTIONS.emberfox;
   }
-  if (cleanId.includes('pup') || cleanId.includes('rime') || cleanId.includes('frost')) {
+  if (cleanId.includes('aqua') || cleanId.includes('fin') || cleanId.includes('tidal') || cleanId === 'starter-water') {
+    return PRESET_EVOLUTIONS.aquafin;
+  }
+  if (cleanId.includes('pup') || cleanId.includes('rime') || cleanId.includes('frost') || cleanId === 'starter-ice') {
     return PRESET_EVOLUTIONS.rimepup;
   }
-  if (cleanId.includes('sprout') || cleanId.includes('flora') || cleanId.includes('leaf')) {
+  if (cleanId.includes('sprout') || cleanId.includes('flora') || cleanId.includes('leaf') || cleanId === 'starter-grass') {
     return PRESET_EVOLUTIONS.verdantsprout;
+  }
+  if (cleanId.includes('volt') || cleanId.includes('spark') || cleanId === 'starter-electric') {
+    return PRESET_EVOLUTIONS.voltowl;
+  }
+  if (cleanId.includes('terra') || cleanId.includes('boulder') || cleanId === 'starter-earth') {
+    return PRESET_EVOLUTIONS.terraturtle;
+  }
+  if (cleanId.includes('zephyr') || cleanId.includes('gale') || cleanId === 'starter-air') {
+    return PRESET_EVOLUTIONS.zephyrkit;
+  }
+  if (cleanId.includes('glimmer') || cleanId.includes('lumini') || cleanId === 'starter-light') {
+    return PRESET_EVOLUTIONS.glimmerfae;
+  }
+  if (cleanId.includes('dusk') || cleanId.includes('umbra') || cleanId.includes('lynx') || cleanId === 'starter-shadow') {
+    return PRESET_EVOLUTIONS.dusklynx;
   }
   return getProceduralEvolutionBranch(creature);
 }

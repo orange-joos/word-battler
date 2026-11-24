@@ -22,6 +22,7 @@ import {
 import { EvolutionSequenceModal } from './EvolutionSequenceModal';
 import { CreatureSprite } from './CreatureSprite';
 import { getGradeTierMeta } from '../data/vocabDatabase';
+import { PET_ACCESSORIES_CATALOG } from '../engine/progression';
 
 type ArsenalTab = 'companion-roster' | 'word-catalog';
 type RoleTab = 'all' | 'noun' | 'verb' | 'modifiers';
@@ -99,6 +100,11 @@ export const LoadoutView: React.FC = () => {
     trainPetWithCoins,
     evolvePet,
     setTab,
+    petAccessories,
+    equipPetAccessory,
+    petBonds,
+    increasePetBond,
+    feedPetStatTreat,
   } = useGame();
   const { currentUser } = useAuth();
 
@@ -117,6 +123,9 @@ export const LoadoutView: React.FC = () => {
 
   const [evolvingPetId, setEvolvingPetId] = useState<string | null>(null);
   const [trainFeedback, setTrainFeedback] = useState<string | null>(null);
+  const [petMood, setPetMood] = useState<'idle' | 'happy'>('idle');
+  const [petSpeechBubble, setPetSpeechBubble] = useState<string | null>(null);
+  const [prismaticPetIds, setPrismaticPetIds] = useState<Record<string, boolean>>({});
 
   const allTamerPets = creatures.filter((c) => !c.id.startsWith('boss_'));
   const bossDiscoveryCreatures = creatures.filter((c) => c.id.startsWith('boss_'));
@@ -385,8 +394,15 @@ export const LoadoutView: React.FC = () => {
                   </button>
                 </div>
 
+                {/* Pet Speech Bubble when cuddled, fed, or chatted with (#7) */}
+                {petSpeechBubble && (
+                  <div className="my-1.5 rounded-2xl border-2 border-[#1a162b] bg-[#fff8e7] px-3.5 py-2 text-center text-xs font-black text-[#1a162b] shadow-[0_3px_0_#1a162b] animate-bounce">
+                    💬 <strong>{selectedPet.name}:</strong> “{petSpeechBubble}”
+                  </div>
+                )}
+
                 {/* Staggered 4 Elemental Cylinder Pedestals */}
-                <div className="relative my-3 grid grid-cols-2 gap-x-4 gap-y-5 items-end justify-items-center py-2">
+                <div className="relative my-2 grid grid-cols-2 gap-x-4 gap-y-5 items-end justify-items-center py-2">
                   {squadPedestalPets.map((pet, idx) => {
                     const isLead = pet.id === selectedPet.id;
                     const isSupport = !isLead && pet.id === supportPet.id;
@@ -403,7 +419,7 @@ export const LoadoutView: React.FC = () => {
                       >
                         {isLead && (
                           <span className="mb-1 rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2.5 py-0.5 font-display text-[10px] font-black uppercase text-[#1a162b] shadow">
-                            ★ LEAD
+                            ★ LEAD · ❤️ Bond {petBonds[pet.id] || 1}/10
                           </span>
                         )}
                         {isSupport && (
@@ -417,6 +433,10 @@ export const LoadoutView: React.FC = () => {
                             creatureId={pet.forged?.sourceId || pet.id}
                             stage={pet.stage || 1}
                             element={pet.element}
+                            secondaryElement={pet.infusionElement}
+                            accessoryId={petAccessories[pet.id]}
+                            isPrismatic={Boolean(prismaticPetIds[pet.id] || (petBonds[pet.id] || 1) >= 5)}
+                            mood={isLead ? petMood : 'idle'}
                             size="lg"
                           />
                         </div>
@@ -449,7 +469,7 @@ export const LoadoutView: React.FC = () => {
                   })}
                 </div>
 
-                {/* Compact 3-Stage Evolution Preview + Train & Evolve Bar for Active Lead */}
+                {/* Compact Pet Sanctuary Care, Wearable Accessories & Evolution Bar (#5, #6, #7) */}
                 <div className="space-y-2 rounded-2xl border-[3px] border-[#1a162b] bg-[#0f172a]/90 p-3 text-white shadow-[0_4px_0_#090714]">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -457,14 +477,14 @@ export const LoadoutView: React.FC = () => {
                         {selectedPet.name} · Stage {selectedPet.stage || 1}/3 (Lv.{selectedPet.level || 8})
                       </div>
                       <div className="text-[11px] font-bold text-sky-200">
-                        HP {selectedPet.stats.hp} · ATK {selectedPet.stats.attack} · DEF {selectedPet.stats.defense}
+                        HP {selectedPet.stats.hp} · ATK {selectedPet.stats.attack} · DEF {selectedPet.stats.defense} · ❤️ Bond {petBonds[selectedPet.id] || 1}/10
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleTrainPet(selectedPet)}
-                        className="flex items-center gap-1 rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-[#facc15] px-3 py-1.5 font-display text-xs font-black text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                        className="flex items-center gap-1 rounded-xl border-2 border-[#1a162b] bg-[#fde047] hover:bg-[#facc15] px-2.5 py-1.5 font-display text-xs font-black text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
                       >
                         <TrendingUp className="h-3.5 w-3.5" />
                         <span>Train (50 🪙)</span>
@@ -479,6 +499,108 @@ export const LoadoutView: React.FC = () => {
                           <span>Evolve!</span>
                         </button>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Interactive Pet Care Actions (#7: Pet & Cuddle, Feed Vocab Berry, Chat Sentence, Toggle Holo Shimmer) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1 border-t border-white/15">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        juice.ding(880, 140);
+                        increasePetBond(selectedPet.id, 1);
+                        setPetMood('happy');
+                        setPetSpeechBubble(`Purr! That tickles! (+1 ❤️ Bond)`);
+                        setTimeout(() => setPetMood('idle'), 2200);
+                      }}
+                      className="rounded-xl border border-pink-400/60 bg-pink-500/20 hover:bg-pink-500/35 px-2 py-1 text-[11px] font-black text-pink-200 cursor-pointer"
+                    >
+                      ✋ Pet &amp; Cuddle
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        juice.fanfare();
+                        feedPetStatTreat(selectedPet.id, 'attack');
+                        increasePetBond(selectedPet.id, 1);
+                        setPetMood('happy');
+                        setPetSpeechBubble(`Yum! Vocab Berry boosted my Attack! (+1 ATK)`);
+                        setTimeout(() => setPetMood('idle'), 2200);
+                      }}
+                      className="rounded-xl border border-emerald-400/60 bg-emerald-500/20 hover:bg-emerald-500/35 px-2 py-1 text-[11px] font-black text-emerald-200 cursor-pointer"
+                    >
+                      🍎 Vocab Treat
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const adjW = getWordById(petLoadout.adjective)?.word || 'brave';
+                        const nounW = getWordById(petLoadout.noun)?.word || 'flame';
+                        const verbW = getWordById(petLoadout.verb)?.word || 'shine';
+                        const advW = getWordById(petLoadout.adverb)?.word || 'brightly';
+                        const sentence = `The ${adjW} ${nounW} ${verbW}s ${advW}!`;
+                        setPetMood('happy');
+                        setPetSpeechBubble(sentence);
+                        juice.speakWord(sentence);
+                        setTimeout(() => setPetMood('idle'), 2400);
+                      }}
+                      className="rounded-xl border border-sky-400/60 bg-sky-500/20 hover:bg-sky-500/35 px-2 py-1 text-[11px] font-black text-sky-200 cursor-pointer"
+                    >
+                      💬 Speak Loadout
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        juice.click();
+                        setPrismaticPetIds((prev) => ({
+                          ...prev,
+                          [selectedPet.id]: !prev[selectedPet.id],
+                        }));
+                      }}
+                      className={`rounded-xl border px-2 py-1 text-[11px] font-black cursor-pointer ${
+                        prismaticPetIds[selectedPet.id]
+                          ? 'border-[#fde047] bg-[#fde047] text-[#1a162b]'
+                          : 'border-amber-400/50 bg-amber-500/20 text-amber-200'
+                      }`}
+                    >
+                      ✨ Holo Variant
+                    </button>
+                  </div>
+
+                  {/* Wearable Pet Accessories Wardrobe (#5) */}
+                  <div className="pt-1 border-t border-white/15 space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-sky-200">
+                      <span>🎩 Wearable Pet Gear (Renders Live on Pet):</span>
+                      {petAccessories[selectedPet.id] && (
+                        <button
+                          type="button"
+                          onClick={() => equipPetAccessory(selectedPet.id, '')}
+                          className="text-rose-300 hover:underline cursor-pointer"
+                        >
+                          Remove Gear
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
+                      {PET_ACCESSORIES_CATALOG.map((acc) => {
+                        const isEquipped = petAccessories[selectedPet.id] === acc.id;
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            onClick={() => equipPetAccessory(selectedPet.id, isEquipped ? '' : acc.id)}
+                            title={`${acc.name} (${acc.bonusLabel})`}
+                            className={`flex flex-col items-center rounded-lg border p-1 text-[10px] font-black transition cursor-pointer ${
+                              isEquipped
+                                ? 'border-[#fde047] bg-[#fde047] text-[#1a162b]'
+                                : 'border-white/20 bg-white/10 hover:bg-white/20 text-white'
+                            }`}
+                          >
+                            <span>{acc.icon}</span>
+                            <span className="truncate max-w-full">{acc.name.split(' ')[0]}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -615,6 +737,9 @@ export const LoadoutView: React.FC = () => {
                                 creatureId={pet.forged?.sourceId || pet.id}
                                 stage={pet.stage || 1}
                                 element={pet.element}
+                                secondaryElement={pet.infusionElement}
+                                accessoryId={petAccessories[pet.id]}
+                                isPrismatic={Boolean(prismaticPetIds[pet.id] || (petBonds[pet.id] || 1) >= 5)}
                                 size="md"
                               />
                             </div>

@@ -143,6 +143,9 @@ function comboShape(word1: Word, word2: Word | null): {
   if (word1.partOfSpeech === 'adverb' && word2.partOfSpeech === 'verb') {
     return { category: 'ATTACK', head: word2, modifier: word1 };
   }
+  if (word1.partOfSpeech === 'noun' && word2.partOfSpeech === 'verb') {
+    return { category: 'ATTACK', head: word2, modifier: word1 };
+  }
 
   if (word1.partOfSpeech === 'noun' && word2.partOfSpeech === 'adjective') {
     return {
@@ -165,7 +168,7 @@ function comboShape(word1: Word, word2: Word | null): {
     category: intrinsicCategory(word2) || intrinsicCategory(word1),
     head: word2,
     modifier: word1,
-    error: 'Try one word, adjective + noun for defense, or adverb + verb for a strike.',
+    error: 'Try one word, Adjective + Noun (Shield), Adverb + Verb (Strike), or Noun + Verb!',
   };
 }
 
@@ -247,6 +250,43 @@ export function evaluateCombo(
         `${attacker.name} weaves a complete sentence: “${phrase}” (+${power} Power & +${shieldGain} Shield!)`,
       ],
     };
+  }
+
+  // 3-CARD SENTENCE CLAUSE: [Adjective + Noun + Verb] or [Noun + Verb + Adverb]
+  if (word1 && word2 && word3 && !word4) {
+    const trio = [word1, word2, word3];
+    const hasNoun = trio.find((w) => w.partOfSpeech === 'noun');
+    const hasVerb = trio.find((w) => w.partOfSpeech === 'verb');
+    const hasAdj = trio.find((w) => w.partOfSpeech === 'adjective');
+    const hasAdv = trio.find((w) => w.partOfSpeech === 'adverb');
+
+    if (hasNoun && hasVerb && (hasAdj || hasAdv)) {
+      const affinity = attacker.elementAffinity || attacker.element;
+      let synergy = 4;
+      for (const w of trio) {
+        if (w.element === affinity) synergy += 2;
+        synergy += w.powerBonus ?? w.forge?.powerBonus ?? 0;
+        synergy += evaluateWordEconomy(w.word).bonusDamage;
+      }
+      const phrase = hasAdj
+        ? `The ${hasAdj.word} ${hasNoun.word} ${hasVerb.word}s!`
+        : `The ${hasNoun.word} ${hasVerb.word}s ${hasAdv!.word}!`;
+      const power = BASE_POWER + 9 + synergy;
+      const shieldGain = Math.round(6 + attacker.stats.defense * 0.5);
+      return {
+        valid: true,
+        category: 'ATTACK',
+        phrase,
+        word1,
+        word2,
+        word3,
+        power,
+        shieldGain,
+        effectName: '3-Word Clause Strike',
+        tacticalOutcome: 'Combines a subject noun and action verb with a modifier for a balanced Strike + Shield!',
+        reasons: [`${attacker.name} casts 3-Word Clause: “${phrase}” (+${power} Power & +${shieldGain} Shield!)`],
+      };
+    }
   }
 
   const shape = comboShape(word1, word2);

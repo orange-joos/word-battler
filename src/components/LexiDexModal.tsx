@@ -17,6 +17,7 @@ import { GradeTier, PartOfSpeech, Creature } from '../types';
 import { GRADE_TIERS, getGradeTierMeta } from '../data/vocabDatabase';
 import { CreatureSprite } from './CreatureSprite';
 import { juice } from '../engine/juice';
+import { loadLexiconCompendium } from '../engine/compendiumAndSim';
 
 interface LexiDexModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
     restartBattle,
     updatePetLoadout,
     useCreatureInBattle,
+    petAccessories,
   } = useGame();
 
   const [activeTab, setActiveTab] = useState<'grimoire' | 'beastiary' | 'roots'>('grimoire');
@@ -46,6 +48,8 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
 
   if (!isOpen) return null;
 
+  const compendium = loadLexiconCompendium();
+  const castedSet = new Set(compendium.rarestWordsDiscovered.map((w: string) => w.toLowerCase()));
   const allWords = getAllWordsList(words);
   const activePet = creatures.find((c) => c.id === playerId) || creatures[0];
   const companionCreatures = creatures.filter((c) => !c.id.startsWith('boss_'));
@@ -206,6 +210,16 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                 </div>
               </div>
 
+              {/* Sticker-Book Collection Progress Bar (#8) */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border-2 border-[#5a2e12] bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 px-4 py-2.5 text-xs font-black text-[#5a2e12]">
+                <span>
+                  🏅 Sticker Book Mastery: ★ Discovered · ★★ Cast or Equipped · ★★★ Gold Holo Foil (Forged / 7+ Letters / Mastered)
+                </span>
+                <span className="rounded-lg bg-[#5a2e12] px-2.5 py-1 text-amber-200">
+                  ✨ {allWords.filter((w) => Boolean(w.forge) || w.word.length >= 7 || castedSet.has(w.word.toLowerCase())).length} Gold Foil Stickers Unlocked
+                </span>
+              </div>
+
               {/* Word Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredWords.map((word) => {
@@ -213,21 +227,49 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                   const elInfo = ELEMENTS[word.element] || ELEMENTS.fire;
                   const pwr = word.powerBonus ?? word.forge?.powerBonus ?? tierMeta.powerBonus;
                   const isEquipped = activePet.loadout?.[word.partOfSpeech] === word.id;
+                  const wasCast = castedSet.has(word.word.toLowerCase());
+                  const isGoldFoil = Boolean(word.forge) || (wasCast && word.word.length >= 6) || word.word.length >= 8;
+                  const masteryStars = isGoldFoil ? 3 : isEquipped || wasCast ? 2 : 1;
 
                   return (
                     <div
                       key={word.id}
-                      className={`flex flex-col justify-between rounded-2xl border-2 p-3.5 transition ${
-                        isEquipped
+                      className={`relative overflow-hidden flex flex-col justify-between rounded-2xl border-2 p-3.5 transition ${
+                        isGoldFoil
+                          ? 'border-amber-500 bg-gradient-to-br from-amber-50 via-white to-yellow-100 shadow-md ring-2 ring-amber-300/70'
+                          : isEquipped
                           ? 'border-emerald-600 bg-emerald-50/90 shadow-md'
                           : 'border-[#d6bfa3] bg-white hover:border-amber-500'
                       }`}
                     >
-                      <div>
+                      {isGoldFoil && (
+                        <div className="pointer-events-none absolute inset-0 holo-foil-shimmer opacity-45" />
+                      )}
+                      <div className="relative z-10">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="rounded bg-stone-200 px-1.5 py-0.5 text-[9px] font-black uppercase text-stone-700">
-                            {word.partOfSpeech}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="rounded bg-stone-200 px-1.5 py-0.5 text-[9px] font-black uppercase text-stone-700">
+                              {word.partOfSpeech}
+                            </span>
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[9px] font-black ${
+                                masteryStars === 3
+                                  ? 'bg-amber-400 text-slate-950 border border-amber-700'
+                                  : masteryStars === 2
+                                  ? 'bg-sky-100 text-sky-900 border border-sky-300'
+                                  : 'bg-stone-100 text-stone-600'
+                              }`}
+                              title={
+                                masteryStars === 3
+                                  ? '3-Star Gold Holo Foil Sticker!'
+                                  : masteryStars === 2
+                                  ? '2-Star Silver Sticker (Equipped or Cast in Battle)'
+                                  : '1-Star Bronze Sticker (Cast in battle or forge to upgrade!)'
+                              }
+                            >
+                              {'★'.repeat(masteryStars)}{'☆'.repeat(3 - masteryStars)} {masteryStars === 3 ? 'HOLO' : ''}
+                            </span>
+                          </div>
                           <span
                             className={`rounded border px-1.5 py-0.5 text-[9px] font-black uppercase ${tierMeta.badgeBg} ${tierMeta.badgeText} ${tierMeta.badgeBorder}`}
                           >
@@ -264,7 +306,7 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                         )}
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between border-t border-stone-200 pt-2">
+                      <div className="relative z-10 mt-3 flex items-center justify-between border-t border-stone-200 pt-2">
                         <span className="text-[10px] font-black text-stone-700">
                           {elInfo.icon} {elInfo.name}
                         </span>

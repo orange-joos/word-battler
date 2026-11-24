@@ -7,6 +7,9 @@ import { WORLD_TIERS } from '../src/data/worldTiers.ts';
 import { HUB_DESTINATIONS } from '../src/data/hubDestinations.ts';
 import { INITIAL_CREATURES, INITIAL_WORDS } from '../src/data/initialData.ts';
 import { ARCHETYPE_OPTIONS } from '../src/types/auth.ts';
+import { getEvolutionBranch } from '../src/data/evolutionData.ts';
+import { evaluateCombo } from '../src/engine/combat.ts';
+import { PET_ACCESSORIES_CATALOG, getEffectiveCreatureStats } from '../src/engine/progression.ts';
 
 const wordSlots = ['verb', 'noun', 'adjective', 'adverb'];
 const sampleWords = wordSlots.map((partOfSpeech) => ({
@@ -102,5 +105,37 @@ test('Air content includes an avatar, companion, and usable vocabulary loadout',
   assert.ok(airPet);
   for (const wordId of Object.values(airPet.loadout)) {
     assert.ok(catalogWords.some((word) => word.id === wordId), `Missing Air companion word: ${wordId}`);
+  }
+});
+
+test('all 9 starter pets have handcrafted 3-stage evolution trees including Aquafin and Dusklynx', () => {
+  for (const element of ELEMENT_TYPES) {
+    const starter = createStarterCreature(element, sampleWords);
+    const branch = getEvolutionBranch(starter);
+    assert.equal(branch.length, 3, `Expected 3 evolution stages for ${element}`);
+    assert.notEqual(branch[1].name, `Alpha ${starter.name}`);
+  }
+  const aquafin = INITIAL_CREATURES.find((c) => c.id === 'aquafin');
+  const dusklynx = INITIAL_CREATURES.find((c) => c.id === 'dusklynx');
+  assert.equal(getEvolutionBranch(aquafin)[1].name, 'Tidalphin');
+  assert.equal(getEvolutionBranch(dusklynx)[1].name, 'Umbrapanther');
+});
+
+test('evaluateCombo supports 3-word sentence clauses and wearable PET_ACCESSORIES_CATALOG boosts stats', () => {
+  const pet = INITIAL_CREATURES[0];
+  const adj = INITIAL_WORDS.adjectives[0];
+  const noun = INITIAL_WORDS.nouns[0];
+  const verb = INITIAL_WORDS.verbs[0];
+
+  const threeWordClause = evaluateCombo(pet, adj, noun, verb, null);
+  assert.equal(threeWordClause.valid, true);
+  assert.equal(threeWordClause.effectName, '3-Word Clause Strike');
+  assert.ok(threeWordClause.power > 0);
+  assert.ok(threeWordClause.shieldGain > 0);
+
+  assert.equal(PET_ACCESSORIES_CATALOG.length, 6);
+  for (const acc of PET_ACCESSORIES_CATALOG) {
+    const boosted = getEffectiveCreatureStats(pet.stats, acc.id);
+    assert.ok(boosted.hp > pet.stats.hp || boosted.attack > pet.stats.attack);
   }
 });

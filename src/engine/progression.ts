@@ -71,11 +71,29 @@ export const PREHISTORIC_COMPANIONS: Record<
   light: { name: 'Solarchaeon', title: 'Dawnfeather Relic', emoji: '✨' },
 };
 
+export interface PetAccessoryMeta {
+  id: string;
+  name: string;
+  icon: string;
+  bonusLabel: string;
+}
+
+export const PET_ACCESSORIES_CATALOG: PetAccessoryMeta[] = [
+  { id: 'root_crown', name: 'Root Crown', icon: '👑', bonusLabel: '+4 HP, +1 All' },
+  { id: 'amber_fang', name: 'Amber Collar', icon: '🦷', bonusLabel: '+3 ATK, +1 All' },
+  { id: 'iron_shell', name: 'Runic Pauldrons', icon: '🛡️', bonusLabel: '+3 DEF, +1 All' },
+  { id: 'zephyr_band', name: 'Zephyr Bandana', icon: '🎗️', bonusLabel: '+3 SPD, +1 All' },
+  { id: 'scholar_glasses', name: 'Scholar Specs', icon: '👓', bonusLabel: '+2 ATK, +2 SPD' },
+  { id: 'wizard_hat', name: 'Starlight Hat', icon: '🧙', bonusLabel: '+3 ATK, +3 HP' },
+];
+
 const ACCESSORY_BONUSES: Record<string, CreatureStats> = {
   root_crown: { hp: 4, attack: 1, defense: 1, speed: 1 },
   amber_fang: { hp: 1, attack: 3, defense: 1, speed: 1 },
   iron_shell: { hp: 1, attack: 1, defense: 3, speed: 1 },
   zephyr_band: { hp: 1, attack: 1, defense: 1, speed: 3 },
+  scholar_glasses: { hp: 1, attack: 2, defense: 1, speed: 2 },
+  wizard_hat: { hp: 3, attack: 3, defense: 1, speed: 1 },
 };
 
 const SPECIALIZATION_BONUSES: Record<'vanguard' | 'bastion', CreatureStats> = {

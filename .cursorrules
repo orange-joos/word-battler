@@ -4,9 +4,9 @@ We are building an educational vocabulary pet battler. Combat is turn-based and 
 
 ## Stack
 
-- Web-first: Phaser.js for combat/scenes, React for UI/shell, Tailwind CSS for styling.
+- Web-first: React 19 for UI/scenes, inline cel-shaded SVGs + Framer Motion / CSS keyframes for pet rigs and combat animations, Tailwind CSS for styling.
 - TypeScript throughout. Keep modules small and responsibilities clear.
-- Prefer JSON schemas for creatures, moves, vocabulary entries, and combat effects.
+- Prefer JSON/TypeScript schemas for creatures, moves, vocabulary entries, and combat effects.
 
 ## Combat & Pedagogy
 

@@ -5,6 +5,10 @@ interface CreatureSpriteProps {
   creatureId: string;
   stage?: number;
   element?: ElementType;
+  secondaryElement?: ElementType;
+  accessoryId?: string;
+  isPrismatic?: boolean;
+  mood?: 'idle' | 'happy' | 'charging' | 'dizzy' | 'shielded';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   animated?: boolean;
@@ -34,14 +38,17 @@ const ELEMENT_AURA: Record<ElementType, { primary: string; secondary: string; gl
 };
 
 /**
- * Edit 13: Bold Cel-Shaded Monster-Tamer & JRPG SVG Creature Rigs
- * Inspired by Pokémon, Digimon, Fossil Fighters, Amazing Island, and Final Fantasy.
- * Features thick #1a162b ink outlines, dual anime eye catchlights, elemental crests, and stage armor.
+ * Edit 13+: Bold Cel-Shaded Monster-Tamer & JRPG Articulated SVG Creature Rigs
+ * Covers all 9 Elemental Companion Families + 9 Realm Bosses + Wearable Accessories + Dual-Element Hybrids.
  */
 export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
   creatureId,
   stage = 1,
   element = 'fire',
+  secondaryElement,
+  accessoryId,
+  isPrismatic = false,
+  mood = 'idle',
   size = 'md',
   className = '',
   animated = true,
@@ -51,11 +58,12 @@ export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
 }) => {
   const cleanId = creatureId.toLowerCase();
   const aura = ELEMENT_AURA[element] || ELEMENT_AURA.fire;
+  const secondaryAura = secondaryElement ? ELEMENT_AURA[secondaryElement] : null;
   const ink = '#1a162b';
 
-  // Reusable Anime Eyes with Dual Catchlights (Pokémon / Digimon aesthetic)
+  // Reusable Anime Eyes with Dual Catchlights & Articulated Blinking
   const renderAnimeEye = (cx: number, cy: number, irisColor: string, r = 5.5) => (
-    <g>
+    <g className={animated ? 'pet-rig-eyes' : ''}>
       <ellipse cx={cx} cy={cy} rx={r} ry={r * 1.12} fill="#ffffff" stroke={ink} strokeWidth="2.4" />
       <ellipse cx={cx} cy={cy + 0.5} rx={r * 0.68} ry={r * 0.8} fill={irisColor} />
       <ellipse cx={cx} cy={cy + 0.8} rx={r * 0.38} ry={r * 0.48} fill={ink} />
@@ -65,28 +73,30 @@ export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
     </g>
   );
 
-  // 1. EMBERFOX LINE (Pyrokit -> BlazeHound -> IgnisNine)
+  // 1. EMBERFOX LINE (Emberfox -> Pyronix -> Solarynx Sovereign)
   const renderEmberfox = () => (
     <g>
-      {/* Multi-tail fan with thick comic outline */}
-      {stage >= 3 ? (
-        <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
-          <path d="M74 78 Q112 36 102 18 Q84 28 76 58 Z" fill="#ff3d00" />
-          <path d="M76 82 Q118 58 112 36 Q92 46 78 68 Z" fill="#ff9100" />
-          <path d="M74 86 Q114 82 108 62 Q90 66 76 76 Z" fill="#ffd600" />
-          <path d="M96 24 Q104 18 98 34" fill="#fff9c4" stroke="none" />
-        </g>
-      ) : stage === 2 ? (
-        <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
-          <path d="M72 80 Q108 44 98 24 Q80 38 72 66 Z" fill="#ff5722" />
-          <path d="M74 84 Q112 68 104 46 Q86 56 74 74 Z" fill="#ffb300" />
-        </g>
-      ) : (
-        <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
-          <path d="M70 82 Q104 54 96 34 Q78 46 68 72 Z" fill="#ff5722" />
-          <path d="M96 34 Q90 48 84 46 Q90 36 96 34 Z" fill="#fff59d" />
-        </g>
-      )}
+      {/* Articulated Multi-tail fan with thick comic outline */}
+      <g className={animated ? 'pet-rig-tail' : ''}>
+        {stage >= 3 ? (
+          <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
+            <path d="M74 78 Q112 36 102 18 Q84 28 76 58 Z" fill={secondaryAura ? secondaryAura.primary : '#ff3d00'} />
+            <path d="M76 82 Q118 58 112 36 Q92 46 78 68 Z" fill="#ff9100" />
+            <path d="M74 86 Q114 82 108 62 Q90 66 76 76 Z" fill="#ffd600" />
+            <path d="M96 24 Q104 18 98 34" fill="#fff9c4" stroke="none" />
+          </g>
+        ) : stage === 2 ? (
+          <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
+            <path d="M72 80 Q108 44 98 24 Q80 38 72 66 Z" fill={secondaryAura ? secondaryAura.primary : '#ff5722'} />
+            <path d="M74 84 Q112 68 104 46 Q86 56 74 74 Z" fill="#ffb300" />
+          </g>
+        ) : (
+          <g stroke={ink} strokeWidth="3" strokeLinejoin="round">
+            <path d="M70 82 Q104 54 96 34 Q78 46 68 72 Z" fill={secondaryAura ? secondaryAura.primary : '#ff5722'} />
+            <path d="M96 34 Q90 48 84 46 Q90 36 96 34 Z" fill="#fff59d" />
+          </g>
+        )}
+      </g>
 
       {/* Body & Chest Fur */}
       <ellipse cx="56" cy="78" rx="23" ry="19" fill="#ff6d00" stroke={ink} strokeWidth="3.2" />
@@ -389,7 +399,116 @@ export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
     </g>
   );
 
-  // 8. REALM BOSSES (9 Elemental Guardian Boss Designs)
+  // 8. AQUAFIN LINE (Water: Aquafin -> Tidalphin -> Leviathor Sovereign)
+  const renderAquafin = () => (
+    <g>
+      {/* Articulated Hydro Tail Fin & Bubble Stream */}
+      <g className={animated ? 'pet-rig-tail' : ''} stroke={ink} strokeWidth="3" strokeLinejoin="round">
+        <path
+          d="M72 80 Q98 68 104 46 Q92 54 84 62 Q96 42 86 30 Q76 48 70 72 Z"
+          fill={secondaryAura ? secondaryAura.primary : '#0288d1'}
+        />
+        {stage >= 2 && (
+          <path d="M84 62 Q110 58 106 38 Q92 48 84 62 Z" fill="#80d8ff" />
+        )}
+      </g>
+      {/* Dorsal Hydro Fin & Stage 2+ Coral Wing Fins */}
+      <g className={animated ? 'pet-rig-wings' : ''} stroke={ink} strokeWidth="2.8" strokeLinejoin="round">
+        <path d="M48 30 Q58 8 72 28 Z" fill="#00b0ff" />
+        {stage >= 2 && (
+          <>
+            <path d="M32 68 Q10 52 16 76 Q26 82 36 76 Z" fill="#40c4ff" />
+            <path d="M80 68 Q102 52 96 76 Q86 82 76 76 Z" fill="#40c4ff" />
+          </>
+        )}
+      </g>
+      {/* Dolphin Body & Pearl Belly */}
+      <ellipse cx="56" cy="74" rx="23" ry="20" fill="#29b6f6" stroke={ink} strokeWidth="3.2" />
+      <path d="M40 70 Q56 92 72 70 Q62 58 56 62 Q50 58 40 70 Z" fill="#e1f5fe" stroke={ink} strokeWidth="2.4" />
+      {/* Front Flippers */}
+      <ellipse cx="38" cy="88" rx="9" ry="5" fill="#0277bd" stroke={ink} strokeWidth="2.8" />
+      <ellipse cx="74" cy="88" rx="9" ry="5" fill="#0277bd" stroke={ink} strokeWidth="2.8" />
+      {/* Head & Cheek Fins */}
+      <path
+        d="M32 48 Q32 26 56 26 Q80 26 80 48 L88 54 L76 62 Q56 68 36 62 L24 54 Z"
+        fill="#29b6f6"
+        stroke={ink}
+        strokeWidth="3.2"
+        strokeLinejoin="round"
+      />
+      {/* Aqua Pearl Forehead Gem & Stage 3 Trident Crown */}
+      <circle cx="56" cy="33" r="4.5" fill="#fff59d" stroke={ink} strokeWidth="2.2" />
+      {stage >= 3 && (
+        <polygon
+          points="44,24 48,10 54,20 56,6 58,20 64,10 68,24"
+          fill="#ffd600"
+          stroke={ink}
+          strokeWidth="2.4"
+          strokeLinejoin="round"
+        />
+      )}
+      {renderAnimeEye(45, 47, '#01579b', 5.2)}
+      {renderAnimeEye(67, 47, '#01579b', 5.2)}
+      <path d="M48 58 Q56 64 64 58" stroke={ink} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+    </g>
+  );
+
+  // 9. DUSKLYNX LINE (Shadow: Dusklynx -> Umbrapanther -> Nyxalkyrie Prime)
+  const renderDusklynx = () => (
+    <g>
+      {/* Articulated Crescent-Moon Shadow Tail */}
+      <g className={animated ? 'pet-rig-tail' : ''} stroke={ink} strokeWidth="3" strokeLinejoin="round">
+        <path
+          d="M72 80 Q106 60 98 32 Q84 44 74 72 Z"
+          fill={secondaryAura ? secondaryAura.primary : '#4527a0'}
+        />
+        <circle cx="96" cy="30" r="6.5" fill="#ffd54f" />
+        <circle cx="99" cy="28" r="4.5" fill="#311b92" stroke="none" />
+      </g>
+      {/* Stage 2+ Nebula Shadow Wings */}
+      {stage >= 2 && (
+        <g className={animated ? 'pet-rig-wings' : ''} stroke={ink} strokeWidth="2.8" strokeLinejoin="round">
+          <path d="M34 66 L10 38 L20 64 L14 78 L36 76 Z" fill="#7e57c2" />
+          <path d="M78 66 L102 38 L92 64 L98 78 L76 76 Z" fill="#7e57c2" />
+        </g>
+      )}
+      {/* Body & Starlight Ruff */}
+      <ellipse cx="56" cy="78" rx="22" ry="18" fill="#512da8" stroke={ink} strokeWidth="3.2" />
+      <path
+        d="M34 66 L45 76 L56 67 L67 76 L78 66 Q56 58 34 66 Z"
+        fill="#b388ff"
+        stroke={ink}
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+      {/* Paws */}
+      <ellipse cx="43" cy="94" rx="7" ry="4.5" fill="#311b92" stroke={ink} strokeWidth="2.8" />
+      <ellipse cx="69" cy="94" rx="7" ry="4.5" fill="#311b92" stroke={ink} strokeWidth="2.8" />
+      {/* Tufted Lynx Ears */}
+      <polygon points="34,45 20,12 49,33" fill="#4527a0" stroke={ink} strokeWidth="3.2" strokeLinejoin="round" />
+      <polygon points="35,40 26,20 45,33" fill="#ea80fc" />
+      <polygon points="78,45 92,12 63,33" fill="#4527a0" stroke={ink} strokeWidth="3.2" strokeLinejoin="round" />
+      <polygon points="77,40 86,20 67,33" fill="#ea80fc" />
+      {/* Head & Crescent Forehead Mark */}
+      <path
+        d="M31 48 Q31 27 56 27 Q81 27 81 48 L89 53 L77 62 Q56 69 35 62 L23 53 Z"
+        fill="#5e35b1"
+        stroke={ink}
+        strokeWidth="3.2"
+        strokeLinejoin="round"
+      />
+      <path d="M51 31 Q56 40 61 31 Q56 35 51 31 Z" fill="#ffd54f" stroke={ink} strokeWidth="1.8" />
+      {stage >= 3 && (
+        <circle cx="56" cy="18" r="5" fill="#e040fb" stroke={ink} strokeWidth="2.2" />
+      )}
+      {renderAnimeEye(45, 48, '#ff4081', 5.2)}
+      {renderAnimeEye(67, 48, '#ff4081', 5.2)}
+      <polygon points="54,54 58,54 56,57" fill="#ea80fc" stroke={ink} strokeWidth="1.5" />
+      <path d="M49 60 Q56 63 63 60" stroke={ink} strokeWidth="2.4" fill="none" strokeLinecap="round" />
+    </g>
+  );
+
+  // 10. REALM BOSSES (9 Elemental Guardian Boss Designs)
   const renderBoss = () => {
     if (cleanId.includes('leviathan')) {
       return (
@@ -515,24 +634,145 @@ export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
     );
   };
 
+  // Wearable Pet Accessories rendered directly onto the SVG Rig (#5)
+  const renderAccessoryOverlay = () => {
+    if (!accessoryId) return null;
+    switch (accessoryId) {
+      case 'root_crown':
+        return (
+          <g stroke={ink} strokeWidth="2.2" strokeLinejoin="round">
+            <polygon points="40,26 45,10 51,21 56,8 61,21 67,10 72,26" fill="#ffd600" />
+            <circle cx="56" cy="19" r="3.2" fill="#00e676" />
+          </g>
+        );
+      case 'amber_fang':
+        return (
+          <g stroke={ink} strokeWidth="2" strokeLinejoin="round">
+            <path d="M40 65 Q56 73 72 65" stroke="#ff6f00" strokeWidth="4" fill="none" strokeLinecap="round" />
+            <polygon points="52,67 56,79 60,67" fill="#ffd54f" />
+          </g>
+        );
+      case 'iron_shell':
+        return (
+          <g stroke={ink} strokeWidth="2.2" strokeLinejoin="round">
+            <path d="M24 72 Q22 56 36 58 L38 74 Z" fill="#90a4ae" />
+            <path d="M88 72 Q90 56 76 58 L74 74 Z" fill="#90a4ae" />
+          </g>
+        );
+      case 'zephyr_band':
+        return (
+          <g stroke={ink} strokeWidth="2" strokeLinejoin="round">
+            <path d="M34 34 Q56 29 78 34" stroke="#00e5ff" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+            <path d="M77 33 Q96 26 102 35 Q92 40 77 35 Z" fill="#00e5ff" />
+          </g>
+        );
+      case 'scholar_glasses':
+        return (
+          <g stroke={ink} strokeWidth="2.2" fill="none">
+            <circle cx="45" cy="47" r="7.5" stroke="#ffd600" strokeWidth="2.6" />
+            <circle cx="67" cy="47" r="7.5" stroke="#ffd600" strokeWidth="2.6" />
+            <line x1="52.5" y1="47" x2="59.5" y2="47" stroke="#ffd600" strokeWidth="2.6" />
+          </g>
+        );
+      case 'wizard_hat':
+        return (
+          <g stroke={ink} strokeWidth="2.2" strokeLinejoin="round">
+            <ellipse cx="56" cy="24" rx="22" ry="5" fill="#311b92" />
+            <polygon points="40,23 58,1 72,23" fill="#4527a0" />
+            <circle cx="56" cy="14" r="2.5" fill="#ffd600" stroke="none" />
+          </g>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Expressive Pet Reactions & Dual-Element / Prismatic Overlays (#4, #6)
+  const renderMoodAndHybridOverlay = () => (
+    <g>
+      {/* Dual-Element Hybrid Spliced Ring */}
+      {secondaryAura && (
+        <circle
+          cx="56"
+          cy="56"
+          r="49"
+          fill="none"
+          stroke={secondaryAura.primary}
+          strokeWidth="2.5"
+          strokeDasharray="4 6"
+        />
+      )}
+      {/* Prismatic / Shiny Holo Sparkles */}
+      {(isPrismatic || stage >= 3) && (
+        <g fill="#fde047" stroke={ink} strokeWidth="1.2">
+          <polygon points="18,22 20,27 25,29 20,31 18,36 16,31 11,29 16,27" />
+          <polygon points="94,18 96,22 100,24 96,26 94,30 92,26 88,24 92,22" />
+        </g>
+      )}
+      {/* Mood: Charging Spell Orb when student selects Word Cards */}
+      {mood === 'charging' && (
+        <g>
+          <circle cx="94" cy="56" r="10" fill={aura.secondary} stroke={ink} strokeWidth="2.2" opacity="0.9" />
+          <circle cx="94" cy="56" r="5.5" fill="#ffffff" />
+        </g>
+      )}
+      {/* Mood: Happy Affection Hearts when petted or victorious */}
+      {mood === 'happy' && (
+        <g stroke={ink} strokeWidth="1.8">
+          <path
+            d="M56 16 C53 11 45 12 45 18 C45 23 56 28 56 28 C56 28 67 23 67 18 C67 12 59 11 56 16 Z"
+            fill="#ff4081"
+          />
+        </g>
+      )}
+      {/* Mood: Comical Sweat-Drop / Grammar Confusion */}
+      {mood === 'dizzy' && (
+        <path
+          d="M84 22 Q90 32 84 37 Q78 32 84 22 Z"
+          fill="#38bdf8"
+          stroke={ink}
+          strokeWidth="2"
+        />
+      )}
+      {/* Mood: Shielded Runic Hex Dome */}
+      {mood === 'shielded' && (
+        <circle
+          cx="56"
+          cy="58"
+          r="46"
+          fill="rgba(56, 189, 248, 0.14)"
+          stroke="#38bdf8"
+          strokeWidth="2.6"
+          strokeDasharray="10 4"
+        />
+      )}
+    </g>
+  );
+
   const renderCreatureGraphic = () => {
     if (cleanId.startsWith('boss_')) return renderBoss();
-    if (cleanId.includes('rimepup') || cleanId.includes('frost') || cleanId.includes('cryo') || element === 'ice') {
+    if (cleanId.includes('aqua') || cleanId.includes('fin') || cleanId.includes('tidal') || cleanId.includes('plesio') || element === 'water') {
+      return renderAquafin();
+    }
+    if (cleanId.includes('dusk') || cleanId.includes('umbra') || cleanId.includes('nyx') || element === 'shadow') {
+      return renderDusklynx();
+    }
+    if (cleanId.includes('rimepup') || cleanId.includes('frost') || cleanId.includes('cryo') || cleanId.includes('mammoth') || element === 'ice') {
       return renderRimepup();
     }
-    if (cleanId.includes('verdant') || cleanId.includes('sylvan') || cleanId.includes('gaia') || element === 'grass') {
+    if (cleanId.includes('verdant') || cleanId.includes('sylvan') || cleanId.includes('gaia') || cleanId.includes('fern') || element === 'grass') {
       return renderVerdantsprout();
     }
     if (cleanId.includes('volt') || cleanId.includes('thunder') || element === 'electric') {
       return renderVoltowl();
     }
-    if (cleanId.includes('terra') || cleanId.includes('stone') || element === 'earth') {
+    if (cleanId.includes('terra') || cleanId.includes('stone') || cleanId.includes('boulder') || cleanId.includes('ankylo') || element === 'earth') {
       return renderTerraturtle();
     }
-    if (cleanId.includes('zephyr') || cleanId.includes('gale') || element === 'air') {
+    if (cleanId.includes('zephyr') || cleanId.includes('gale') || cleanId.includes('ptero') || element === 'air') {
       return renderZephyrkit();
     }
-    if (cleanId.includes('glimmer') || cleanId.includes('lumina') || element === 'light') {
+    if (cleanId.includes('glimmer') || cleanId.includes('lumina') || cleanId.includes('lumini') || cleanId.includes('solar') || element === 'light') {
       return renderGlimmerfae();
     }
     return renderEmberfox();
@@ -544,6 +784,8 @@ export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
       : '-translate-x-5 -translate-y-2 scale-110'
     : isHit
     ? 'scale-95 brightness-150 saturate-200'
+    : mood === 'happy'
+    ? 'pet-rig-happy'
     : '';
 
   return (
@@ -583,7 +825,13 @@ export const CreatureSprite: React.FC<CreatureSpriteProps> = ({
           />
         )}
 
-        {renderCreatureGraphic()}
+        {/* Articulated Breathing Creature Rig + Wearable Accessories */}
+        <g className={animated ? 'pet-rig-breathe' : ''}>
+          {renderCreatureGraphic()}
+          {renderAccessoryOverlay()}
+        </g>
+
+        {renderMoodAndHybridOverlay()}
       </svg>
     </div>
   );
