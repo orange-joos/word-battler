@@ -197,7 +197,121 @@ export function createForge(options: {
     };
   }
 
-  /* Process 2: Compounding */
+  /* Process 2: Compounding — Real English Compound Words */
+  const REAL_COMPOUND_BY_ELEMENT: Record<
+    ElementType,
+    { word: string; definition: string; example: string }[]
+  > = {
+    fire: [
+      {
+        word: 'wildfire',
+        definition: 'A sweeping, fast-moving fire that spreads rapidly across dry land.',
+        example: 'Emberfox leaped over the blazing wildfire.',
+      },
+      {
+        word: 'firestorm',
+        definition: 'An intense burst of swirling flames and rising heat.',
+        example: 'A roaring firestorm lit up the volcanic arena.',
+      },
+    ],
+    ice: [
+      {
+        word: 'snowstorm',
+        definition: 'A heavy storm of swirling snow and freezing wind.',
+        example: 'Rimepup tracked footprints through the winter snowstorm.',
+      },
+      {
+        word: 'frostbite',
+        definition: 'Biting, freezing cold that turns water and stone to ice.',
+        example: 'The icy wind carried a sharp chill of frostbite.',
+      },
+    ],
+    water: [
+      {
+        word: 'whirlpool',
+        definition: 'A powerful, spinning current of water that pulls things toward its center.',
+        example: 'Aquafin dove gracefully through the swirling whirlpool.',
+      },
+      {
+        word: 'waterfall',
+        definition: 'A cascade of rushing water dropping over a steep rocky cliff.',
+        example: 'Cool mist rose from the thundering waterfall.',
+      },
+    ],
+    electric: [
+      {
+        word: 'thunderbolt',
+        definition: 'A blinding flash of lightning paired with a crash of thunder.',
+        example: 'Voltowl launched a golden thunderbolt from the clouds.',
+      },
+      {
+        word: 'stormcloud',
+        definition: 'A dark, heavy cloud charged with rain and lightning.',
+        example: 'Sparks danced inside the rumbling stormcloud.',
+      },
+    ],
+    earth: [
+      {
+        word: 'earthquake',
+        definition: 'A sudden, powerful shaking of the rocky ground.',
+        example: 'Terraturtle stood firm during the rumbling earthquake.',
+      },
+      {
+        word: 'rockslide',
+        definition: 'A fast cascade of boulders and stones tumbling down a slope.',
+        example: 'The heavy rockslide blocked the canyon pass.',
+      },
+    ],
+    grass: [
+      {
+        word: 'wildflower',
+        definition: 'A hardy, colorful flower that grows naturally in meadows and forests.',
+        example: 'Sunlight warmed every wildflower in the green valley.',
+      },
+      {
+        word: 'rainforest',
+        definition: 'A lush, dense forest with tall trees and abundant rainfall.',
+        example: 'Verdantsprout climbed high into the green rainforest canopy.',
+      },
+    ],
+    air: [
+      {
+        word: 'windstorm',
+        definition: 'A powerful storm with high-speed gusts of wind.',
+        example: 'Zephyrkit rode the gusts of the roaring windstorm.',
+      },
+      {
+        word: 'whirlwind',
+        definition: 'A tall, spinning column of air moving rapidly across the sky.',
+        example: 'Leaves danced inside the sudden whirlwind.',
+      },
+    ],
+    light: [
+      {
+        word: 'starlight',
+        definition: 'The bright, gentle glow that shines down from the stars at night.',
+        example: 'Silver starlight guided the explorers across the bridge.',
+      },
+      {
+        word: 'sunbeam',
+        definition: 'A warm, golden ray of light streaming from the sun.',
+        example: 'A bright sunbeam broke through the morning clouds.',
+      },
+    ],
+    shadow: [
+      {
+        word: 'nightfall',
+        definition: 'The quiet time of evening when daylight fades into night.',
+        example: 'Dusklynx prowled silently through the woods at nightfall.',
+      },
+      {
+        word: 'moonshadow',
+        definition: 'A dark silhouette cast on the ground by the light of the moon.',
+        example: 'The panther vanished into the cool moonshadow.',
+      },
+    ],
+  };
+
   function forgeCompound(modifier: Word, head: Word): ForgeResult {
     if (modifier.id === head.id) {
       return fail('A compound needs two distinct words.');
@@ -220,16 +334,10 @@ export function createForge(options: {
       return fail('That word has been forged too many times to combine again.');
     }
 
-    const closed = modifier.word + head.word;
-    const compoundWord = closedCompounds.has(closed) ? closed : `${modifier.word}-${head.word}`;
     const resonance = modifier.element === head.element;
-
-    const definition =
-      modifier.partOfSpeech === 'adjective'
-        ? `a ${head.word} that is ${modifier.word}`
-        : resultPos === 'adjective'
-        ? `${head.word} in the manner of ${modifier.word}`
-        : `a kind of ${head.word} imbued with ${modifier.word}`;
+    const elemPool = REAL_COMPOUND_BY_ELEMENT[head.element] || REAL_COMPOUND_BY_ELEMENT.fire;
+    const pickedCompound = resonance ? elemPool[0] : elemPool[1] || elemPool[0];
+    const compoundWord = pickedCompound.word;
 
     const result: Word = {
       id: slug(compoundWord),
@@ -238,11 +346,8 @@ export function createForge(options: {
       element: head.element,
       powerBonus: COMPOUND_BONUS + (resonance ? RESONANCE_BONUS : 0),
       fusionDepth: Math.max(depthOf(modifier), depthOf(head)) + 1,
-      definition: capitalize(definition) + '.',
-      example:
-        resultPos === 'noun'
-          ? `The ${compoundWord} glowed with immense elemental energy.`
-          : `Her ${compoundWord} presence altered the battlefield.`,
+      definition: pickedCompound.definition,
+      example: pickedCompound.example,
       forge: {
         layer: 2,
         process: 'compounding',
@@ -256,15 +361,11 @@ export function createForge(options: {
       },
     };
 
-    const elementNote = resonance
-      ? `Both words share ${head.element} affinity, granting a +${RESONANCE_BONUS} Elemental Resonance bonus!`
-      : `The head "${head.word}" dictates the element (${head.element}); the modifier provides nuance.`;
-
     return {
       ok: true,
       kind: 'compound',
       result,
-      lesson: `In English compounds, the right-hand word is the head: a "${compoundWord}" is fundamentally a kind of ${head.word}. ${elementNote}`,
+      lesson: `Combining "${modifier.word}" + "${head.word}" forges the real English compound word "${compoundWord}": ${pickedCompound.definition}`,
       reasons: [`${modifier.word} + ${head.word} → ${compoundWord}`],
     };
   }

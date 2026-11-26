@@ -93,8 +93,8 @@ const PRIMARY_ISLAND_NODES: PrimaryHubNode[] = [
     x: '76%',
     y: '38%',
     width: '22%',
-    actionType: 'modal',
-    modalTarget: 'hatchery',
+    actionType: 'tab',
+    tabTarget: 'loadout',
   },
   {
     id: 'lexishop',

@@ -57,7 +57,7 @@ export const INITIAL_CREATURES: Creature[] = [
     loadout: {
       verb: "freeze",
       noun: "shard",
-      adjective: "frozen",
+      adjective: "sharp",
       adverb: "coldly"
     },
     description: "A frost-coated pup that breathes pale mist. Chills opponents with icy adjectives and crystalline nouns. (Ready to Evolve!)",
@@ -112,7 +112,7 @@ export const INITIAL_CREATURES: Creature[] = [
     title: "Stormfeather Owlet",
     loadout: {
       verb: "spark",
-      noun: "charge",
+      noun: "bolt",
       adjective: "charged",
       adverb: "rapidly"
     },
@@ -364,7 +364,7 @@ export const INITIAL_CREATURES: Creature[] = [
     elementAffinity: "electric",
     loadout: {
       verb: "spark",
-      noun: "charge",
+      noun: "bolt",
       adjective: "charged",
       adverb: "fiercely"
     },
@@ -429,7 +429,7 @@ export const INITIAL_CREATURES: Creature[] = [
     evolvesAtLevel: 10,
     spriteEmoji: "🐝",
     title: "Sparkwing Stinger",
-    loadout: { verb: "spark", noun: "charge", adjective: "charged", adverb: "rapidly" },
+    loadout: { verb: "spark", noun: "bolt", adjective: "charged", adverb: "rapidly" },
     description: "A nimble winged companion that crackles with lively electric energy.",
     stats: { hp: 44, attack: 13, defense: 9, speed: 15 },
     allowedWordTypes: ["adjective", "noun", "verb", "adverb"],
@@ -635,6 +635,14 @@ const BASE_INITIAL_WORDS: CatalogWords = {
       example: "The current carried the leaf downstream."
     },
     {
+      id: "bolt",
+      word: "bolt",
+      partOfSpeech: "noun",
+      element: "electric",
+      definition: "A bright, jagged flash of lightning across the sky.",
+      example: "A golden bolt of lightning lit up the storm clouds."
+    },
+    {
       id: "charge",
       word: "charge",
       partOfSpeech: "noun",
@@ -765,12 +773,28 @@ const BASE_INITIAL_WORDS: CatalogWords = {
       example: "The stars shine above the quiet lake."
     },
     {
+      id: "illuminate",
+      word: "illuminate",
+      partOfSpeech: "verb",
+      element: "light",
+      definition: "To light up a dark place brightly.",
+      example: "Glowing lanterns illuminate the evening garden."
+    },
+    {
       id: "grow",
       word: "grow",
       partOfSpeech: "verb",
       element: "grass",
       definition: "To develop or increase in size.",
       example: "Wildflowers grow along the sunny path."
+    },
+    {
+      id: "fortify",
+      word: "fortify",
+      partOfSpeech: "verb",
+      element: "earth",
+      definition: "To strengthen and protect a place against attack.",
+      example: "Thick stone walls fortify the mountain keep."
     },
     {
       id: "crumble",
@@ -877,6 +901,14 @@ const BASE_INITIAL_WORDS: CatalogWords = {
       element: "earth",
       definition: "With great weight or force.",
       example: "Rain fell heavily on the rocky ground."
+    },
+    {
+      id: "gracefully",
+      word: "gracefully",
+      partOfSpeech: "adverb",
+      element: "air",
+      definition: "In a smooth, elegant, and effortless way.",
+      example: "The sky fox glided gracefully on the wind."
     },
     {
       id: "lightly",

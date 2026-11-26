@@ -9,7 +9,7 @@ import {
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import { ELEMENTS, OPPOSITE_ELEMENT } from '../data/elements';
-import { evaluateCombo } from '../engine/combat';
+import { evaluateCombo, estimateCombatDamage } from '../engine/combat';
 import { getAllWordsList } from '../engine/forge';
 import { Word, PartOfSpeech, GradeTier } from '../types';
 import { juice } from '../engine/juice';
@@ -27,8 +27,6 @@ import {
   createDefaultSmartTileBag,
   drawSmartTileHand,
   applyPermanentStampToTile,
-  computeLiveCombatPreview,
-  getMultiPhaseBossConstraint,
   type SmartTileBagState,
 } from '../engine/smartTileBag';
 import {
@@ -125,7 +123,10 @@ export const BattleView: React.FC = () => {
     unlockedPets.find((c) => c.id !== player.id) ||
     unlockedPets[0];
 
-  // Equipped words for the 4 parts of speech
+  // Round counter derived from battle log
+  const roundNumber = Math.max(1, Math.ceil((log?.length || 0) / 2) + 1);
+
+  // Equipped words on Round 1, rotating fresh elemental/grade words on Round 2+ so every turn is a fresh sentence puzzle
   const playerLoadout = fullPlayerCreature.loadout || {
     adjective: 'blazing',
     noun: 'flame',
@@ -133,19 +134,27 @@ export const BattleView: React.FC = () => {
     adverb: 'fiercely',
   };
 
-  const getEquippedWord = (pos: PartOfSpeech): Word | null => {
-    const id = playerLoadout[pos];
-    if (id) {
-      const found = allWords.find((w) => w.id === id);
-      if (found) return found;
+  const getRoundWord = (pos: PartOfSpeech): Word | null => {
+    const posWords = allWords.filter((w) => w.partOfSpeech === pos);
+    if (posWords.length === 0) return null;
+
+    const equippedId = playerLoadout[pos];
+    const equippedFound = equippedId ? posWords.find((w) => w.id === equippedId) : null;
+
+    if (roundNumber === 1 && equippedFound) {
+      return equippedFound;
     }
-    return allWords.find((w) => w.partOfSpeech === pos) || null;
+
+    // Prefer words matching pet element or grade band, rotating deterministically by roundNumber
+    const elementMatches = posWords.filter((w) => w.element === player.element);
+    const pool = elementMatches.length >= 2 ? elementMatches : posWords;
+    return pool[(roundNumber - 1) % pool.length] || equippedFound || posWords[0];
   };
 
-  const equippedAdj = getEquippedWord('adjective');
-  const equippedNoun = getEquippedWord('noun');
-  const equippedVerb = getEquippedWord('verb');
-  const equippedAdv = getEquippedWord('adverb');
+  const equippedAdj = getRoundWord('adjective');
+  const equippedNoun = getRoundWord('noun');
+  const equippedVerb = getRoundWord('verb');
+  const equippedAdv = getRoundWord('adverb');
 
   const selectedWords = selectedWordIds
     .map((id) => allWords.find((w) => w.id === id) || null)
@@ -159,28 +168,19 @@ export const BattleView: React.FC = () => {
     selectedWords[3] || null
   );
 
-  // Round counter derived from battle log
-  const roundNumber = Math.max(1, Math.ceil((log?.length || 0) / 2) + 1);
-
-  // Under-the-hood Live Combat Preview for Ghost HP Bar Glow
-  const bossPhaseConstraint = getMultiPhaseBossConstraint(
-    enemy.id,
-    enemy.currentHp ?? enemy.stats.hp,
-    enemy.maxHp ?? enemy.stats.hp,
-    roundNumber
-  );
-  const livePreview = computeLiveCombatPreview({
-    words: selectedWords.map((w) => w.word),
-    validGrammar: previewCombo.valid,
-    baseComboPower: previewCombo.power,
-    playerAttack: player.stats.attack,
-    enemyDefense: enemy.stats.defense,
-    enemyHp: enemy.currentHp ?? enemy.stats.hp,
-    enemyMaxHp: enemy.maxHp ?? enemy.stats.hp,
-    enemyShield: enemy.shield ?? 0,
-    handTiles: tileBag.currentHand,
-    bossConstraint: bossPhaseConstraint,
-  });
+  // Unified Damage Preview Math: matches combat.ts damageTarget formula
+  const exactProjectedDamage = estimateCombatDamage(player, enemy, previewCombo);
+  const currentEnemyHp = enemy.currentHp ?? enemy.stats.hp;
+  const maxEnemyHp = Math.max(1, enemy.maxHp ?? enemy.stats.hp);
+  const effectiveEnemyHp = currentEnemyHp + (enemy.shield ?? 0);
+  const projectedHpAfter = Math.max(0, currentEnemyHp - Math.max(0, exactProjectedDamage - (enemy.shield ?? 0)));
+  const livePreview = {
+    isValid: previewCombo.valid,
+    projectedDamage: exactProjectedDamage,
+    projectedEnemyHpDropPct: Math.round(((currentEnemyHp - projectedHpAfter) / maxEnemyHp) * 100),
+    projectedEnemyHpAfterPct: Math.round((projectedHpAfter / maxEnemyHp) * 100),
+    wouldDefeatEnemy: previewCombo.valid && exactProjectedDamage >= effectiveEnemyHp,
+  };
 
   // Reactive Combat Lighting
   const reactiveLighting = computeReactiveLightingState({
@@ -1269,10 +1269,13 @@ export const BattleView: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Clean Word Centerpiece */}
-                    <div className="my-2.5 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/95 py-4 px-2 text-center shadow-inner">
+                    {/* Clean Word Centerpiece + Kid-Friendly Meaning */}
+                    <div className="my-2 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/95 py-2.5 px-2 text-center shadow-inner">
                       <span className={`${getDualTierTypographyClasses('tile-face')} text-xl sm:text-2xl font-black text-[#1a162b] break-words leading-tight`}>
                         {word.word}
+                      </span>
+                      <span className="mt-1 text-[11px] font-bold text-slate-600 line-clamp-1">
+                        {word.definition}
                       </span>
                     </div>
 

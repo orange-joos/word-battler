@@ -172,6 +172,152 @@ function comboShape(word1: Word, word2: Word | null): {
   };
 }
 
+const INTRANSITIVE_VERBS = new Set([
+  'grow',
+  'soar',
+  'glide',
+  'shine',
+  'spark',
+  'flare',
+  'shiver',
+  'crumble',
+  'splash',
+  'hop',
+  'run',
+  'flow',
+  'bloom',
+  'drift',
+  'gleam',
+  'glow',
+  'roar',
+]);
+
+export function conjugateThirdPersonSingular(verbWord: string): string {
+  const clean = verbWord.trim();
+  const lower = clean.toLowerCase();
+  if (lower === 'be') return 'is';
+  if (lower === 'have') return 'has';
+  if (lower === 'do') return 'does';
+  if (lower === 'go') return 'goes';
+  if (/[^aeiou]y$/i.test(clean)) {
+    return `${clean.slice(0, -1)}ies`;
+  }
+  if (/(?:s|sh|ch|x|z|o)$/i.test(clean)) {
+    return `${clean}es`;
+  }
+  return `${clean}s`;
+}
+
+function sanitizeCognateCollision(adjText: string, nounText: string, verbText: string): {
+  adj: string;
+  noun: string;
+} {
+  let adj = adjText;
+  let noun = nounText;
+  const vStem = verbText.toLowerCase().slice(0, 4);
+  if (adj.toLowerCase().startsWith(vStem) || (adj.toLowerCase() === 'frozen' && verbText.toLowerCase().includes('freez'))) {
+    adj = 'icy';
+  }
+  if (noun.toLowerCase().startsWith(adj.toLowerCase().slice(0, 5))) {
+    noun = noun.toLowerCase() === 'charge' ? 'bolt' : noun;
+  }
+  return { adj, noun };
+}
+
+export function buildNaturalCombatSentence(
+  attackerName: string,
+  parts: {
+    adj?: Word | null;
+    noun?: Word | null;
+    verb?: Word | null;
+    adv?: Word | null;
+  }
+): string {
+  const { adj, noun, verb, adv } = parts;
+
+  if (adj && noun && verb && adv) {
+    const clean = sanitizeCognateCollision(adj.word, noun.word, verb.word);
+    const vConj = conjugateThirdPersonSingular(verb.word);
+    const isIntransitive = INTRANSITIVE_VERBS.has(verb.word.toLowerCase());
+    if (isIntransitive) {
+      return `The ${clean.adj} ${clean.noun} ${vConj} ${adv.word}!`;
+    }
+    return `${attackerName} ${adv.word} ${vConj} the ${clean.adj} ${clean.noun}!`;
+  }
+
+  if (adj && noun && verb && !adv) {
+    const clean = sanitizeCognateCollision(adj.word, noun.word, verb.word);
+    const vConj = conjugateThirdPersonSingular(verb.word);
+    const isIntransitive = INTRANSITIVE_VERBS.has(verb.word.toLowerCase());
+    if (isIntransitive) {
+      return `The ${clean.adj} ${clean.noun} ${vConj}!`;
+    }
+    return `${attackerName} ${vConj} the ${clean.adj} ${clean.noun}!`;
+  }
+
+  if (!adj && noun && verb && adv) {
+    const vConj = conjugateThirdPersonSingular(verb.word);
+    const isIntransitive = INTRANSITIVE_VERBS.has(verb.word.toLowerCase());
+    if (isIntransitive) {
+      return `The ${noun.word} ${vConj} ${adv.word}!`;
+    }
+    return `${attackerName} ${adv.word} ${vConj} the ${noun.word}!`;
+  }
+
+  if (adj && noun && !verb && !adv) {
+    return `${attackerName} raises a ${adj.word} ${noun.word}!`;
+  }
+
+  if (!adj && !noun && verb && adv) {
+    const vConj = conjugateThirdPersonSingular(verb.word);
+    return `${attackerName} ${vConj} ${adv.word}!`;
+  }
+
+  if (!adj && noun && verb && !adv) {
+    const vConj = conjugateThirdPersonSingular(verb.word);
+    const isIntransitive = INTRANSITIVE_VERBS.has(verb.word.toLowerCase());
+    return isIntransitive
+      ? `The ${noun.word} ${vConj}!`
+      : `${attackerName} ${vConj} the ${noun.word}!`;
+  }
+
+  const single = verb || noun || adj || adv;
+  if (!single) return '—';
+  if (single.partOfSpeech === 'verb') {
+    return `${attackerName} ${conjugateThirdPersonSingular(single.word)}!`;
+  }
+  if (single.partOfSpeech === 'noun') {
+    return `${attackerName} summons a ${single.word}!`;
+  }
+  return `${attackerName} channels ${single.word} power!`;
+}
+
+export function estimateCombatDamage(
+  attacker: Creature,
+  defender: Creature,
+  combo: ComboEvaluation
+): number {
+  if (!combo.valid || combo.power <= 0) return 0;
+  const head = combo.word3 || combo.word2 || combo.word1;
+  if (!head) return 0;
+
+  const activeWords = [combo.word1, combo.word2, combo.word3, combo.word4]
+    .filter((w): w is Word => Boolean(w))
+    .map((w) => w.word);
+  const wordSynergies = evaluateWordPropertySynergies(activeWords);
+  const hasRareLetterCrit = wordSynergies.some((s) => s.guaranteedCrit);
+
+  let rawDamage = attacker.stats.attack + combo.power;
+  if (attacker.infusionElement === head.element) rawDamage = Math.round(rawDamage * 1.15);
+  if (attacker.empowered) rawDamage = Math.round(rawDamage * 1.5);
+  if (hasRareLetterCrit) rawDamage = Math.round(rawDamage * CRIT_MULTIPLIER);
+  if (head.partOfSpeech === 'adjective') rawDamage = Math.round(rawDamage * 1.05);
+
+  const armorPierce = head.partOfSpeech === 'noun';
+  const mitigation = Math.floor(defender.stats.defense * (armorPierce ? 0.35 : 0.8));
+  return Math.max(3, rawDamage - mitigation);
+}
+
 export function evaluateCombo(
   attacker: Creature,
   word1: Word | null,
@@ -227,7 +373,7 @@ export function evaluateCombo(
     ]);
     const anagramShield = propSynergies.reduce((sum, s) => sum + (s.bonusShield || 0), 0);
 
-    const phrase = `The ${adj.word} ${noun.word} ${verb.word}s ${adv.word}!`;
+    const phrase = buildNaturalCombatSentence(attacker.name, { adj, noun, verb, adv });
     const power = BASE_POWER + 12 + synergy;
     const shieldGain =
       Math.round(10 + attacker.stats.defense * 0.8 + (noun.powerBonus ?? 2)) + anagramShield;
@@ -268,9 +414,12 @@ export function evaluateCombo(
         synergy += w.powerBonus ?? w.forge?.powerBonus ?? 0;
         synergy += evaluateWordEconomy(w.word).bonusDamage;
       }
-      const phrase = hasAdj
-        ? `The ${hasAdj.word} ${hasNoun.word} ${hasVerb.word}s!`
-        : `The ${hasNoun.word} ${hasVerb.word}s ${hasAdv!.word}!`;
+      const phrase = buildNaturalCombatSentence(attacker.name, {
+        adj: hasAdj || null,
+        noun: hasNoun,
+        verb: hasVerb,
+        adv: hasAdv || null,
+      });
       const power = BASE_POWER + 9 + synergy;
       const shieldGain = Math.round(6 + attacker.stats.defense * 0.5);
       return {
@@ -291,12 +440,22 @@ export function evaluateCombo(
 
   const shape = comboShape(word1, word2);
   const category = shape.category || fallbackCategory;
-  const phrase = word2 ? `${word1.word} ${word2.word}` : word1.word;
   const reasons: string[] = [];
 
   if (shape.error) reasons.push(shape.error);
 
   const valid = !shape.error && reasons.length === 0;
+  const twoWordParts = {
+    adj: [word1, word2].find((w) => w?.partOfSpeech === 'adjective') || null,
+    noun: [word1, word2].find((w) => w?.partOfSpeech === 'noun') || null,
+    verb: [word1, word2].find((w) => w?.partOfSpeech === 'verb') || null,
+    adv: [word1, word2].find((w) => w?.partOfSpeech === 'adverb') || null,
+  };
+  const phrase = valid
+    ? buildNaturalCombatSentence(attacker.name, twoWordParts)
+    : word2
+    ? `${word1.word} ${word2.word}`
+    : word1.word;
   const effectInfo = getMatrixEffectInfo(category, shape.head.partOfSpeech);
   let power = 0;
   let shieldGain = 0;
@@ -349,7 +508,7 @@ export function evaluateCombo(
     effectName: effectInfo.name,
     tacticalOutcome: effectInfo.description,
     reasons: valid
-      ? [`${attacker.name} uses ${effectInfo.name.toLowerCase()} with “${phrase}.”`]
+      ? [`${attacker.name} uses ${effectInfo.name.toLowerCase()}: “${phrase}”`]
       : reasons,
   };
 }
