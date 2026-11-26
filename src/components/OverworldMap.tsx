@@ -979,8 +979,8 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                   </button>
                 </div>
 
-                {/* Companion Roster & Training Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Big, Friendly "Choose Buddy" Visual Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
                   {selectablePets.map((pet) => {
                     const isSelected = pet.id === playerId;
                     const petLevel = pet.level ?? 8;
@@ -996,222 +996,88 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
                           setPlayerId(pet.id);
                           restartBattle(pet.id);
                           juice.ding(740, 120);
-                          triggerToast(`${pet.name} is now your active companion!`);
+                          triggerToast(`${pet.name} is now your active buddy!`);
                         }}
-                        className={`flex flex-col justify-between p-3.5 rounded-2xl border-[3px] transition-all text-left cursor-pointer ${
+                        className={`flex flex-col items-center justify-between p-4 rounded-2xl border-[3px] transition-all text-center cursor-pointer ${
                           isSelected
-                            ? 'bg-gradient-to-b from-[#fff8e1] to-[#ffecb3] border-[#1a162b] shadow-[0_5px_0_#1a162b]'
+                            ? 'bg-gradient-to-b from-[#fff8e1] to-[#ffecb3] border-[#1a162b] ring-4 ring-[#fde047] shadow-[0_5px_0_#1a162b]'
                             : 'bg-white border-[#1a162b] hover:bg-[#fffdf7] shadow-[0_3px_0_#1a162b]'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-16 h-16 rounded-2xl bg-[#f5e6c8] border-[3px] border-[#1a162b] flex items-center justify-center relative shrink-0">
-                            <CreatureSprite
-                              creatureId={pet.forged?.sourceId || pet.id}
-                              stage={petStage}
-                              element={pet.element}
-                              size="sm"
-                            />
-                            <span className="absolute -bottom-1.5 -right-1.5 bg-[#1a162b] text-[#ffd54f] text-[10px] font-black px-1.5 py-0.5 rounded-md border border-[#ffd54f]">
-                              Lv.{petLevel}
-                            </span>
+                        <div className="w-full flex items-center justify-between">
+                          <span className="rounded-full border border-[#1a162b] bg-[#fef3c7] px-2.5 py-0.5 font-display text-[11px] font-black text-[#1a162b]">
+                            {ELEMENTS[pet.element]?.icon} {ELEMENTS[pet.element]?.name || pet.element}
+                          </span>
+                          <span className="rounded-lg bg-[#1a162b] text-[#ffd54f] text-xs font-black px-2 py-0.5">
+                            Lv.{petLevel}
+                          </span>
+                        </div>
+
+                        <div className="my-3 flex items-center justify-center">
+                          <CreatureSprite
+                            creatureId={pet.forged?.sourceId || pet.id}
+                            stage={petStage}
+                            element={pet.element}
+                            size="md"
+                          />
+                        </div>
+
+                        <div className="w-full space-y-2">
+                          <div className="font-display font-black text-lg text-[#1a162b] truncate">
+                            {pet.name}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <div className="font-display font-black text-base text-[#1a162b] truncate">
-                                {pet.name}
-                              </div>
-                              {isSelected && (
-                                <span className="px-2 py-0.5 rounded-md bg-[#2e7d32] text-white text-[10px] font-black uppercase shrink-0">
-                                  Active
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] font-bold text-[#5d4037] uppercase">
-                              {ELEMENTS[pet.element]?.name || pet.element} · Stage {petStage}/{maxStage} · ❤️ Bond Lv.{petBonds[pet.id] || 3}
-                            </div>
-                            <div className="flex items-center justify-between gap-2 mt-1">
-                              <span className="text-[11px] font-extrabold text-[#1a162b]">
-                                HP {pet.stats.hp} · ATK {pet.stats.attack} · DEF {pet.stats.defense}
-                              </span>
-                              {/* Feature #5: Assign Dual-Companion Support Tag-Team Partner */}
+
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPlayerId(pet.id);
+                                restartBattle(pet.id);
+                                juice.ding(740, 120);
+                                triggerToast(`${pet.name} is now your active buddy!`);
+                              }}
+                              className={`flex-1 py-2 rounded-xl border-2 border-[#1a162b] font-display font-black text-xs uppercase shadow-[0_2px_0_#1a162b] cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#2e7d32] text-white'
+                                  : 'bg-[#ffd54f] hover:bg-[#ffca28] text-[#1a162b]'
+                              }`}
+                            >
+                              {isSelected ? '✓ Active Buddy' : '🐾 Choose Buddy'}
+                            </button>
+
+                            {readyToEvolve ? (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSupportCreatureId(pet.id);
-                                  increasePetBond(pet.id, 1);
-                                  juice.ding(880, 110);
-                                  triggerToast(`🤝 ${pet.name} set as Tag-Team Support Partner!`);
+                                  juice.fanfare();
+                                  setEvolvingCreatureId(pet.id);
                                 }}
-                                className={`px-2 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
-                                  supportCreatureId === pet.id
-                                    ? 'bg-indigo-700 text-[#fde047] border-[#1a162b]'
-                                    : 'bg-indigo-50 text-indigo-900 border-indigo-300'
-                                }`}
+                                className="px-3 py-2 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
                               >
-                                {supportCreatureId === pet.id ? '🤝 Support Active' : '+ Tag-Team'}
+                                <Sparkles className="w-3.5 h-3.5" /> Evolve!
                               </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {isSelected ? (
-                          <div className="mt-3 pt-2.5 border-t-2 border-[#e6d0a7] space-y-2">
-                            <div className="flex items-center justify-between text-xs font-black text-[#92400e]">
-                              <span>★ Active Partner Care &amp; Gear Drawer</span>
-                              <span>25 🪙 per Treat</span>
-                            </div>
-                            {/* Improvement #13: Companion Bonding & Stat-Boosting Treats */}
-                            <div className="flex flex-wrap items-center gap-1">
-                              {(
-                                [
-                                  { stat: 'hp', label: '🍎 +4 HP', title: 'Heart Berry (+4 Max HP)' },
-                                  { stat: 'attack', label: '🌶️ +2 ATK', title: 'Blaze Pepper (+2 Attack)' },
-                                  { stat: 'defense', label: '🪨 +2 DEF', title: 'Iron Truffle (+2 Defense)' },
-                                  { stat: 'speed', label: '⚡ +2 SPD', title: 'Volt Melon (+2 Speed)' },
-                                ] as const
-                              ).map((treat) => (
-                                <button
-                                  key={treat.stat}
-                                  type="button"
-                                  title={`${treat.title} · 25 Lexi-Coins`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const coins = currentUser?.lexiCoins ?? 0;
-                                    if (coins < 25) {
-                                      triggerToast('Need 25 Lexi-Coins for a Bonding Treat!');
-                                      return;
-                                    }
-                                    updateProfile({ lexiCoins: coins - 25 });
-                                    feedPetStatTreat(pet.id, treat.stat);
-                                    juice.ding(840, 110);
-                                    triggerToast(`Fed ${treat.title} to ${pet.name}!`);
-                                  }}
-                                  className="px-2 py-1 rounded-lg bg-[#e8f5e9] hover:bg-[#a5d6a7] border border-[#1a162b] text-[10px] font-black text-[#1b5e20] cursor-pointer"
-                                >
-                                  {treat.label}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Feature #10 & #11: Companion Armor Slot & Stage-3 Branching Specialization */}
-                            <div className="flex flex-wrap items-center justify-between gap-1 pt-1 border-t border-[#e6d0a7]">
-                              <div className="flex items-center gap-1">
-                                {(
-                                  [
-                                    { id: 'amber_fang', icon: '🦴', label: 'Fang' },
-                                    { id: 'iron_shell', icon: '🛡️', label: 'Shell' },
-                                    { id: 'zephyr_band', icon: '🪶', label: 'Band' },
-                                    { id: 'root_crown', icon: '👑', label: 'Crown' },
-                                  ] as const
-                                ).map((acc) => {
-                                  const isEq = (petAccessories[pet.id] || 'amber_fang') === acc.id;
-                                  return (
-                                    <button
-                                      key={acc.id}
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        equipPetAccessory(pet.id, acc.id);
-                                        triggerToast(`Equipped ${acc.icon} ${acc.label} on ${pet.name}!`);
-                                      }}
-                                      className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
-                                        isEq
-                                          ? 'bg-[#1a162b] text-[#fde047] border-[#1a162b]'
-                                          : 'bg-stone-100 text-stone-700 border-stone-400'
-                                      }`}
-                                      title={`Equip ${acc.label} Armor`}
-                                    >
-                                      {acc.icon} {acc.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                {(
-                                  [
-                                    { id: 'vanguard', label: '⚔️ Vanguard' },
-                                    { id: 'bastion', label: '🛡️ Bastion' },
-                                  ] as const
-                                ).map((spec) => {
-                                  const activeSpec = petSpecializations[pet.id] === spec.id;
-                                  return (
-                                    <button
-                                      key={spec.id}
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPetSpecialization(pet.id, spec.id);
-                                        triggerToast(
-                                          `${pet.name} specialized into ${spec.label} Path!`
-                                        );
-                                      }}
-                                      className={`px-1.5 py-0.5 rounded border text-[9px] font-black cursor-pointer ${
-                                        activeSpec
-                                          ? 'bg-purple-800 text-white border-[#1a162b]'
-                                          : 'bg-purple-50 text-purple-900 border-purple-300'
-                                      }`}
-                                      title="Select Stage-3 Evolution Specialization Path"
-                                    >
-                                      {spec.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2">
+                            ) : (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const res = trainPetWithCoins(pet.id, 50);
                                   if (!res.success) {
-                                    triggerToast(res.error || 'Need 50 Lexi-Coins to train!');
+                                    triggerToast(res.error || 'Need 50 Lexi-Coins to level up!');
                                     return;
                                   }
-                                  triggerToast(`${pet.name} trained to Lv.${petLevel + 1}!`);
+                                  triggerToast(`${pet.name} leveled up to Lv.${petLevel + 1}!`);
                                 }}
-                                className="px-2.5 py-1.5 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-[11px] shadow-[0_2px_0_#1a162b] cursor-pointer"
+                                className="px-2.5 py-2 rounded-xl bg-[#fff3e0] hover:bg-[#ffe0b2] border-2 border-[#1a162b] text-[#1a162b] font-display font-black text-xs shadow-[0_2px_0_#1a162b] cursor-pointer"
+                                title={`Stage ${petStage}/${maxStage} · Level up for 50 Coins`}
                               >
-                                Train (+1 Lv · 50 🪙)
+                                +1 Lv (50 🪙)
                               </button>
-
-                              {readyToEvolve ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    juice.fanfare();
-                                    setEvolvingCreatureId(pet.id);
-                                  }}
-                                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ffca28] to-[#ff6f00] text-[#1a162b] font-display font-black text-xs border-2 border-[#1a162b] shadow-[0_2px_0_#1a162b] flex items-center gap-1 animate-bounce cursor-pointer"
-                                >
-                                  <Sparkles className="w-3.5 h-3.5" /> Evolve!
-                                </button>
-                              ) : petStage < maxStage ? (
-                                <span className="text-[10px] font-black text-[#5d4037]">
-                                  Evolves at Lv.{pet.evolvesAtLevel || 10}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-black text-[#e65100]">
-                                  ★ Max Form
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-2 pt-2 border-t border-[#e6d0a7] flex items-center justify-between text-xs font-bold text-[#5d4037]">
-                            <span>✨ Tap card to make Active Partner &amp; open Care Drawer</span>
-                            {readyToEvolve && (
-                              <span className="rounded bg-[#fde047] px-2 py-0.5 font-display text-xs font-black text-[#1a162b] border border-[#1a162b]">
-                                ★ Ready to Evolve!
-                              </span>
                             )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1820,70 +1686,39 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
       </div>
 
       {/* =====================================================================
-          EFFICIENCY #1: STREAMLINED TOP-RIGHT HUD + "🎒 EXPLORER PACK" DRAWER
+          TUCKED TOP-RIGHT "🎒 EXPLORER PACK" MENU BUTTON
+          Keeps secondary tools (Sticker Book, Museum, Quests, Badges, Seed/Bag/Decks)
+          tucked out of the main Hub view.
       ====================================================================== */}
       <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button
-            onClick={() => setActiveModal('museum')}
-            className="flex flex-col items-center group cursor-pointer"
-            title="Open Paleontology Museum & Fossil Wing"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#fde68a] to-[#d97706] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-              🦴
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Museum
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveModal('lexidex')}
-            className="flex flex-col items-center group cursor-pointer"
-          >
-            <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-b from-[#ce93d8] to-[#8e24aa] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-white group-hover:scale-105 transition-transform">
-              <BookOpen className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 px-1 rounded bg-[#ffd600] text-[#1a162b] font-black text-[8px] border border-[#1a162b]">
-                K–8
-              </span>
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Lexi-Dex
-            </span>
-          </button>
-
-          {/* Efficiency #1: Consolidated "🎒 Explorer Pack" Menu Button */}
-          <button
-            type="button"
-            onClick={() => {
-              juice.click();
-              setShowExplorerPack((p) => !p);
-            }}
-            className="flex flex-col items-center group cursor-pointer"
-            title="Open Explorer Pack (Badges, Bounties, Word Studio, Themes & Audio)"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] border-[3px] border-[#1a162b] shadow-[0_4px_0_#1a162b] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-              🎒
-            </div>
-            <span className="font-display font-black text-[10px] text-white drop-shadow-[0_2px_1px_#1a162b] mt-0.5">
-              Pack ▾
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            juice.click();
+            setShowExplorerPack((p) => !p);
+          }}
+          className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] border-[3px] border-[#1a162b] px-3.5 py-2 shadow-[0_4px_0_#1a162b] hover:scale-105 transition-transform cursor-pointer"
+          title="Open Explorer Pack"
+        >
+          <span className="text-lg">🎒</span>
+          <span className="font-display font-black text-xs text-[#1a162b]">
+            Pack {showExplorerPack ? '▴' : '▾'}
+          </span>
+        </button>
 
         {/* Collapsible Explorer Pack Drawer */}
         {showExplorerPack && (
-          <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#1a162b]/95 p-2.5 text-white shadow-[0_6px_0_#000] space-y-1.5 w-52">
+          <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#1a162b]/95 p-2.5 text-white shadow-[0_6px_0_#000] space-y-1.5 w-56">
             <button
               type="button"
               onClick={() => {
                 setShowExplorerPack(false);
-                setActiveModal('profile');
+                setActiveModal('lexidex');
               }}
               className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
             >
-              <span>🏅</span>
-              <span>Badges &amp; Field Journal</span>
+              <BookOpen className="w-4 h-4" />
+              <span>Sticker Book (Lexi-Dex)</span>
             </button>
             <button
               type="button"
@@ -1894,7 +1729,29 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
               className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
             >
               <span>📋</span>
-              <span>Quests &amp; Daily Bounties</span>
+              <span>Quests &amp; Bounties</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowExplorerPack(false);
+                setActiveModal('museum');
+              }}
+              className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
+            >
+              <span>🦴</span>
+              <span>Fossil Museum</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowExplorerPack(false);
+                setActiveModal('profile');
+              }}
+              className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
+            >
+              <span>🏅</span>
+              <span>Badges &amp; Journal</span>
             </button>
             <button
               type="button"
@@ -1904,8 +1761,8 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
               }}
               className="w-full flex items-center gap-2 rounded-xl bg-white/10 hover:bg-[#fde047] hover:text-[#1a162b] px-3 py-1.5 text-xs font-black cursor-pointer"
             >
-              <span>📝</span>
-              <span>Word Studio &amp; Themes</span>
+              <span>⚙️</span>
+              <span>Teacher &amp; Extra Tools</span>
             </button>
             <div className="flex items-center gap-1.5 pt-1 border-t border-white/15">
               <button
@@ -1930,22 +1787,10 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
             </div>
           </div>
         )}
-
-        {/* Feature #4: Live Realm Weather Forecast Pill in Sanctuary Hub */}
-        <button
-          type="button"
-          onClick={cycleRealmWeather}
-          className="flex items-center gap-1.5 rounded-full border-2 border-[#1a162b] bg-[#0f172a]/90 px-3 py-1 text-[10px] font-black text-cyan-200 shadow cursor-pointer"
-          title="Click to forecast next Elemental Tide Shift"
-        >
-          <span>{activeWeather.icon}</span>
-          <span>{activeWeather.name}:</span>
-          <span className="text-[#fde047]">{activeWeather.effectLabel}</span>
-        </button>
       </div>
 
       {/* =====================================================================
-          CENTRAL COURTYARD NEXUS: EXPLORER TAMER, ACTIVE COMPANION & TRAINING DUMMY (#14)
+          CENTRAL COURTYARD NEXUS: EXPLORER TAMER & ACTIVE COMPANION
       ====================================================================== */}
       <div
         onClick={() => setActiveModal('word-world')}
@@ -1973,33 +1818,6 @@ export const OverworldMap: React.FC<OverworldMapProps> = ({ initialPanel = null 
           ★ Sanctuary Courtyard ({clearedAreasCount}/9 Areas)
         </div>
       </div>
-
-      {/* Feature #14: Interactive Courtyard Sentence Training Dummy */}
-      <button
-        type="button"
-        onClick={() => {
-          const sampleDmg = (selectedPet.stats.attack || 16) * 2 + 12;
-          setDummyDamageText(`💥 ${sampleDmg} DMG! "Blazing flame ignites fiercely!"`);
-          juice.hit();
-          juice.speakWord('Blazing flame ignites fiercely!');
-          setTimeout(() => setDummyDamageText(null), 2400);
-        }}
-        style={{ left: '41%', top: '57%' }}
-        className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center cursor-pointer group"
-        title="Feature #14: Click to test a 4-Word Sentence Strike on the Courtyard Dummy!"
-      >
-        {dummyDamageText && (
-          <div className="mb-1 whitespace-nowrap rounded-xl border-2 border-[#1a162b] bg-[#fde047] px-2.5 py-0.5 font-mono text-[10px] font-black text-[#1a162b] shadow animate-bounce">
-            {dummyDamageText}
-          </div>
-        )}
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] bg-amber-200 text-lg shadow-[0_3px_0_#1a162b] group-hover:scale-110 transition">
-          🎯
-        </div>
-        <span className="mt-0.5 rounded bg-[#1a162b]/90 px-1.5 py-0.2 font-display text-[8px] font-black uppercase text-amber-200">
-          Test Dummy
-        </span>
-      </button>
 
       {/* =====================================================================
           5 PRIMARY SANCTUARY LANDMARK BUILDINGS AROUND THE COURTYARD RING

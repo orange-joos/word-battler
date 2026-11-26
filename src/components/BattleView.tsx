@@ -20,14 +20,6 @@ import { GRADE_TIERS, getGradeTierMeta, getPartOfSpeechMeta } from '../data/voca
 import { ZONE_BIOMES } from '../data/realms';
 import { AdaptiveTutorCoachBar } from './battle/BattleMiniGames';
 import {
-  evaluateWordEconomy,
-  evaluateWordPropertySynergies,
-  getGlobalLexiconTrie,
-  isProfaneOrSlur,
-} from '../engine/lexiconTrie';
-import {
-  getEnemyModifierForBoss,
-  evaluateEnemyModifierImpact,
   saveAtomicCombatSnapshot,
   clearAtomicCombatSnapshot,
 } from '../engine/roguelikeLoop';
@@ -49,15 +41,8 @@ import {
   getDualTierTypographyClasses,
   SEMANTIC_COLOR_GRAMMAR,
   computeReactiveLightingState,
-  computeBoardLinkedTelegraphs,
-  computeTileBankTilt,
   buildScoringCascadeSteps,
   generateInlineLootDrops,
-  detectAffixLigatures,
-  computeAnticipatoryRelicStates,
-  selectBestMatchingTileFromRack,
-  computeNextTurnDrawOdds,
-  extractChainedKeywords,
   type InlineLootDropItem,
 } from '../engine/tactileContainedUi';
 
@@ -72,7 +57,6 @@ export const BattleView: React.FC = () => {
     restartBattle,
     activeZoneId,
     activeNodeId,
-    setActiveNodeId,
     setReturnToWordWorldMap,
     setTab,
     levelUpPet,
@@ -96,46 +80,25 @@ export const BattleView: React.FC = () => {
   const [projectileBurst, setProjectileBurst] = useState<boolean>(false);
   const [tagTeamComboActive, setTagTeamComboActive] = useState<boolean>(false);
 
-  // Age-Adaptive Tactical Telemetry toggle (#1) & Echo-Cast Power Charge Mini-Game (#10)
-  const [showAdvancedTelemetry, setShowAdvancedTelemetry] = useState<boolean>(false);
-  const [echoChargeCount, setEchoChargeCount] = useState<number>(0);
-
-  // On-Demand Tutor Coach & Next-Slot Highlight (#2, #4)
+  // On-Demand Tutor Coach & Next-Slot Highlight
   const [showCoachHint, setShowCoachHint] = useState<boolean>(false);
   const [highlightedSlotIdx, setHighlightedSlotIdx] = useState<number | null>(null);
 
-  // Multi-Modal Rapid Physical Keyboard Typing + Drag-and-Drop + Crit Screen Shake + Adaptive Music (#6, #7)
-  const [typedBuffer, setTypedBuffer] = useState<string>('');
+  // Drag-and-Drop + Crit Screen Shake + Adaptive Music
   const [draggedWordId, setDraggedWordId] = useState<string | null>(null);
   const [isCritShaking, setIsCritShaking] = useState<boolean>(false);
   const [combatMusicOn, setCombatMusicOn] = useState<boolean>(() => juice.isCombatMusicPlaying());
 
-  // #11 Smart Tile Bag with Vowel Pity Timer + #13 Compound/Wildcard/Hazard Tiles + #18 Rack Shuffle Order
+  // Under-the-hood Smart Tile Bag & Scoring Cascade
   const [tileBag, setTileBag] = useState<SmartTileBagState>(() =>
     drawSmartTileHand(createDefaultSmartTileBag(), 8, 1, 'time-bomb')
   );
-  const [rackOrder, setRackOrder] = useState<number[]>([0, 1, 2, 3]);
-
-  // #26 2.5D Spring Cursor Tilt + #27 Paced Left-to-Right Scoring Cascade + #29 Inline Loot Drops + #33 Duplicate Cycle + #34 Bag Odds Drawer + #35 Hover-Locked Keywords
-  const [hoveredCardTilt, setHoveredCardTilt] = useState<Record<number, string>>({});
   const [activeCascadeIdx, setActiveCascadeIdx] = useState<number | null>(null);
-  const [flaringRelicId, setFlaringRelicId] = useState<string | null>(null);
-  const [dupCycleOffset, setDupCycleOffset] = useState<number>(0);
-  const [showBagOddsDrawer, setShowBagOddsDrawer] = useState<boolean>(false);
-  const [showKeywordDrawer, setShowKeywordDrawer] = useState<boolean>(false);
-  const [keywordLocked, setKeywordLocked] = useState<boolean>(false);
   const [inlineLootDrops, setInlineLootDrops] = useState<InlineLootDropItem[]>([]);
 
   // Karaoke-Style Word Highlighting index during TTS Read-Aloud
   const [karaokeWordIdx, setKaraokeWordIdx] = useState<number | null>(null);
   const [isListeningVoice, setIsListeningVoice] = useState<boolean>(false);
-
-  // Elemental Terrain state
-  const [activeTerrain, setActiveTerrain] = useState<{
-    name: string;
-    effect: string;
-    turnsLeft: number;
-  } | null>(null);
 
   const [playerAnim, setPlayerAnim] = useState<'idle' | 'lunge' | 'hit'>('idle');
   const [sidekickAnim, setSidekickAnim] = useState<'idle' | 'lunge'>('idle');
@@ -155,7 +118,7 @@ export const BattleView: React.FC = () => {
   const fullPlayerCreature = creatures.find((c) => c.id === player.id) || player;
   const isPlayerReadyToEvolve = canPetEvolve(fullPlayerCreature);
 
-  // Player's reserve companions for party pips & Support Tag-Team
+  // Player's reserve companions for Support Tag-Team
   const unlockedPets = creatures.filter((c) => !c.id.startsWith('boss_'));
   const sidekickPet =
     unlockedPets.find((c) => c.id === supportCreatureId && c.id !== player.id) ||
@@ -196,22 +159,10 @@ export const BattleView: React.FC = () => {
     selectedWords[3] || null
   );
 
-  // Enemy Board Modifier (#4), Word Property Synergies (#3), and Letter/Length Economy (#2)
-  const enemyModifier = getEnemyModifierForBoss(enemy.id);
-  const modifierImpact = evaluateEnemyModifierImpact(
-    enemyModifier,
-    selectedWords.map((w) => w.word)
-  );
-  const activeSynergies = evaluateWordPropertySynergies(selectedWords.map((w) => w.word));
-  const maxLengthMultiplier = selectedWords.reduce(
-    (max, w) => Math.max(max, evaluateWordEconomy(w.word).lengthMultiplier),
-    1
-  );
-
   // Round counter derived from battle log
   const roundNumber = Math.max(1, Math.ceil((log?.length || 0) / 2) + 1);
 
-  // #14 Multi-Phase Boss Rule Constraint & #12 Live Combat Preview Breakdown
+  // Under-the-hood Live Combat Preview for Ghost HP Bar Glow
   const bossPhaseConstraint = getMultiPhaseBossConstraint(
     enemy.id,
     enemy.currentHp ?? enemy.stats.hp,
@@ -231,51 +182,23 @@ export const BattleView: React.FC = () => {
     bossConstraint: bossPhaseConstraint,
   });
 
-  // #24 Reactive Combat Lighting & Vignettes
+  // Reactive Combat Lighting
   const reactiveLighting = computeReactiveLightingState({
     placedWords: selectedWords.map((w) => w.word),
     playerHp: player.currentHp ?? player.stats.hp,
     playerMaxHp: player.maxHp ?? player.stats.hp,
   });
 
-  // #25 Board-Linked Enemy Telegraphs projected onto the 4 rack slots
-  const rackTelegraphs = computeBoardLinkedTelegraphs({
-    rackWords: [
-      equippedAdj?.word || null,
-      equippedNoun?.word || null,
-      equippedVerb?.word || null,
-      equippedAdv?.word || null,
-    ],
-    enemyModifier,
-    bannedVowel: bossPhaseConstraint.bannedVowel,
-  });
-
-  // #32 Anticipatory Relic Rail states ('idle' | 'arming' | 'flaring')
-  const anticipatoryRelics = computeAnticipatoryRelicStates(selectedWords.map((w) => w.word));
-
-  // #34 Slide-Out Tactile Tile Bag Next-Turn Draw Odds
-  const nextTurnDrawOdds = computeNextTurnDrawOdds(tileBag);
-
-  // #35 Chained Keyword Tooltips
-  const chainedKeywords = extractChainedKeywords([
-    enemyModifier.name,
-    bossPhaseConstraint.badgeLabel,
-    ...activeSynergies.map((s) => s.name),
-    ...livePreview.specialTileBonuses.map((b) => b.label),
-  ]);
-
   // Clear selections on battle change
   useEffect(() => {
     setSelectedWordIds([]);
-    setTypedBuffer('');
     setRewardClaimed(false);
     setShowCoachHint(false);
-    setRackOrder([0, 1, 2, 3]);
     setInlineLootDrops(generateInlineLootDrops(activeNodeId, player.name));
     setTileBag((prev) => drawSmartTileHand(prev, 8, 1, 'time-bomb'));
   }, [playerId, activeZoneId, enemy.id, activeNodeId, player.name]);
 
-  // #11 Draw fresh Vowel-Pity-Guaranteed hand on each new round
+  // Draw fresh Vowel-Pity-Guaranteed hand on each new round under the hood
   useEffect(() => {
     if (roundNumber > 1 && !isBattleOver) {
       setTileBag((prev) =>
@@ -284,7 +207,7 @@ export const BattleView: React.FC = () => {
     }
   }, [roundNumber, isBattleOver]);
 
-  // #8 Atomic Combat State Serialization & Auto-Save at the start of each combat round + #7 Adaptive Combat Music intensity
+  // Atomic Combat State Serialization & Auto-Save at the start of each combat round
   useEffect(() => {
     if (isBattleOver) {
       clearAtomicCombatSnapshot();
@@ -334,7 +257,7 @@ export const BattleView: React.FC = () => {
     }
   }, [isBattleOver, winner, player.id, rewardClaimed, addRewards, levelUpPet, increasePetBond]);
 
-  // Combat event animations + TTS + #19 Object-Pooled Floating Numbers
+  // Combat event animations + TTS + Object-Pooled Floating Numbers
   useEffect(() => {
     if (!battleState.events || battleState.events.length === 0) return;
 
@@ -412,7 +335,6 @@ export const BattleView: React.FC = () => {
     if (isRemoving) {
       juice.click();
     } else {
-      // #7 Layered ascending pitch tone for each tile placed
       juice.playLetterPitch(selectedWordIds.length);
     }
     juice.speakWord(word.word);
@@ -441,22 +363,6 @@ export const BattleView: React.FC = () => {
     if (ids.length === 4) {
       juice.ding(920, 140);
       setSelectedWordIds(ids);
-    }
-  };
-
-  const handleQuick2WordStrike = () => {
-    if (isBattleOver) return;
-    if (equippedAdv && equippedVerb) {
-      juice.click();
-      setSelectedWordIds([equippedAdv.id, equippedVerb.id]);
-    }
-  };
-
-  const handleQuick2WordShield = () => {
-    if (isBattleOver) return;
-    if (equippedAdj && equippedNoun) {
-      juice.click();
-      setSelectedWordIds([equippedAdj.id, equippedNoun.id]);
     }
   };
 
@@ -524,55 +430,15 @@ export const BattleView: React.FC = () => {
     }, wordsToRead.length * 420 + 250);
   };
 
-  const handleShuffleRack = () => {
-    juice.click();
-    setRackOrder((prev) => {
-      const next = [...prev];
-      for (let i = next.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [next[i], next[j]] = [next[j], next[i]];
-      }
-      if (next.every((v, idx) => v === prev[idx])) {
-        return [...prev].reverse();
-      }
-      return next;
-    });
-  };
-
   const handleLaunchWordStrike = () => {
     if (isBattleOver || !previewCombo.valid || selectedWords.length === 0) return;
-    const isCritStrike =
-      selectedWords.length === 4 ||
-      echoChargeCount >= 2 ||
-      activeSynergies.some((s) => s.guaranteedCrit) ||
-      maxLengthMultiplier >= 1.75;
+    const isCritStrike = selectedWords.length === 4;
 
-    // #10 Echo-Cast Action Command Power Charge Bonus
-    if (echoChargeCount > 0) {
-      addRewards({ coins: echoChargeCount * 10, tokens: 0, xp: echoChargeCount * 8 });
-      const pooled = floatingNumberPool.acquire();
-      pooled.id = ++floatSeq.current;
-      pooled.target = 'enemy';
-      pooled.text = `⚡ ECHO-CAST +${echoChargeCount * 15}%!`;
-      pooled.color = 'text-amber-900 border-[#1a162b] bg-[#fde047]';
-      setFloatingNumbers((prev) => [
-        ...prev,
-        { id: pooled.id, target: pooled.target, text: pooled.text, color: pooled.color },
-      ]);
-      setTimeout(() => {
-        setFloatingNumbers((prev) => prev.filter((item) => item.id !== pooled.id));
-        floatingNumberPool.release(pooled);
-      }, 1150);
-    }
-
-    // #27 Choreograph Paced Left-to-Right Scoring Cascade across placed tiles & relics
+    // Choreograph Paced Left-to-Right Scoring Cascade across placed tiles
     const cascadeSteps = buildScoringCascadeSteps(selectedWords.map((w) => w.word));
     cascadeSteps.forEach((step) => {
       setTimeout(() => {
         setActiveCascadeIdx(step.stepIndex);
-        if (step.triggeredRelicId) {
-          setFlaringRelicId(step.triggeredRelicId);
-        }
         juice.playLetterPitch(step.pitchSemitoneIndex);
       }, step.delayMs);
     });
@@ -580,10 +446,9 @@ export const BattleView: React.FC = () => {
       cascadeSteps.length > 0 ? cascadeSteps[cascadeSteps.length - 1].delayMs + 140 : 120;
     setTimeout(() => {
       setActiveCascadeIdx(null);
-      setFlaringRelicId(null);
     }, totalCascadeDuration);
 
-    // #17 Record cast in lifetime Lexicon Compendium
+    // Record cast in lifetime Lexicon Compendium
     recordCastInCompendium(
       loadLexiconCompendium(),
       selectedWords.map((w) => w.word),
@@ -591,7 +456,7 @@ export const BattleView: React.FC = () => {
       livePreview.projectedDamage
     );
 
-    // #7 Satisfying low-end sub-bass thud + screen shake on crits
+    // Satisfying low-end sub-bass thud + screen shake on 3-4 word combos
     juice.playSubmitThud(isCritStrike);
     if (isCritStrike || selectedWords.length >= 3) {
       setIsCritShaking(true);
@@ -601,20 +466,10 @@ export const BattleView: React.FC = () => {
     if (selectedWords.length === 4) {
       setSidekickAnim('lunge');
       setTagTeamComboActive(true);
-      const elemName = ELEMENTS[player.element]?.name || 'Elemental';
-      setActiveTerrain({
-        name: `${ELEMENTS[player.element]?.icon || '✨'} ${elemName} Sanctum Turf`,
-        effect: `${elemName} Tablets +4 Power & +3 Regen`,
-        turnsLeft: 3,
-      });
       setTimeout(() => {
         setSidekickAnim('idle');
         setTagTeamComboActive(false);
       }, 900);
-    } else if (activeTerrain) {
-      setActiveTerrain((prev) =>
-        prev && prev.turnsLeft > 1 ? { ...prev, turnsLeft: prev.turnsLeft - 1 } : null
-      );
     }
     increasePetBond(player.id, 1);
     submitCombo(
@@ -624,136 +479,11 @@ export const BattleView: React.FC = () => {
       selectedWords[3]?.id || null
     );
     setSelectedWordIds([]);
-    setTypedBuffer('');
-    setDupCycleOffset(0);
-    setEchoChargeCount(0);
     setShowCoachHint(false);
   };
 
-  // #6, #18 & #33 Simultaneous Keyboard + Mouse Harmony (1-4 to toggle tablets, Tab to cycle duplicate prefix matches or Shuffle Rack, Esc to Recall All, Backspace safety, Space/Enter to Cast)
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
-      if (e.key === 'Tab' && !isBattleOver) {
-        e.preventDefault();
-        if (typedBuffer.length > 0) {
-          setDupCycleOffset((prev) => prev + 1);
-          juice.click();
-        } else {
-          handleShuffleRack();
-        }
-      } else if (e.key === '1' && equippedAdj) {
-        e.preventDefault();
-        handleToggleWordCard(equippedAdj);
-      } else if (e.key === '2' && equippedNoun) {
-        e.preventDefault();
-        handleToggleWordCard(equippedNoun);
-      } else if (e.key === '3' && equippedVerb) {
-        e.preventDefault();
-        handleToggleWordCard(equippedVerb);
-      } else if (e.key === '4' && equippedAdv) {
-        e.preventDefault();
-        handleToggleWordCard(equippedAdv);
-      } else if ((e.key === ' ' || e.key === 'Enter') && previewCombo.valid && selectedWords.length > 0 && !isBattleOver) {
-        e.preventDefault();
-        handleLaunchWordStrike();
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        // #6 & #18 Backspace safety: remove last typed letter first, or pop last placed word tile
-        if (typedBuffer.length > 0) {
-          setTypedBuffer((prev) => prev.slice(0, -1));
-        } else if (selectedWordIds.length > 0) {
-          setSelectedWordIds((prev) => prev.slice(0, -1));
-        }
-      } else if (e.key === 'Escape') {
-        if (typedBuffer.length > 0) setTypedBuffer('');
-        else if (showBagOddsDrawer) setShowBagOddsDrawer(false);
-        else if (showKeywordDrawer) {
-          setShowKeywordDrawer(false);
-          setKeywordLocked(false);
-        } else if (showReserveDrawer) setShowReserveDrawer(false);
-        else if (showCoachHint) setShowCoachHint(false);
-        else if (selectedWordIds.length > 0) setSelectedWordIds([]);
-      } else if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !isBattleOver) {
-        const nextBuf = (typedBuffer + e.key).toLowerCase();
-        // #1 Profanity/slur filter check
-        if (isProfaneOrSlur(nextBuf)) {
-          setTypedBuffer('');
-          return;
-        }
-        juice.playLetterPitch(nextBuf.length - 1);
-        const equippedCards = [equippedAdj, equippedNoun, equippedVerb, equippedAdv].filter(
-          (w): w is Word => Boolean(w)
-        );
-        // #33 Pluck highest-scoring matching tile from rack (respecting Tab duplicate cycle offset)
-        const pluckResult = selectBestMatchingTileFromRack(
-          equippedCards,
-          nextBuf,
-          selectedWordIds,
-          dupCycleOffset
-        );
-        const trie = getGlobalLexiconTrie();
-        if (
-          pluckResult.bestMatch &&
-          (pluckResult.duplicateCount === 1 || nextBuf.length >= 3 || pluckResult.bestMatch.word.toLowerCase() === nextBuf) &&
-          nextBuf.length >= 2
-        ) {
-          handleToggleWordCard(pluckResult.bestMatch);
-          setTypedBuffer('');
-          setDupCycleOffset(0);
-        } else if (pluckResult.duplicateCount > 0 || trie.hasPrefix(nextBuf)) {
-          setTypedBuffer(nextBuf);
-        } else {
-          setTypedBuffer('');
-        }
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  });
-
   const displayEnemyName = activeEnemyName || enemy.name;
   const displayEnemyStage: 1 | 2 | 3 = activeEnemyStage || 3;
-  const enemyStageBadge =
-    displayEnemyStage === 1
-      ? '★ Vanguard 12'
-      : displayEnemyStage === 2
-      ? '★★ Mid-Boss 20'
-      : '★★★ Guardian 30';
-
-  const enemyIntent =
-    roundNumber % 3 === 1
-      ? {
-          icon: '⚔️',
-          title: 'Heavy Crush Incoming',
-          hint: 'Counter: Build a 2-Word Shield (Adj + Noun)!',
-          actionLabel: 'Auto-Guard',
-          onCounter: handleQuick2WordShield,
-          color: 'from-amber-500 to-orange-600 border-amber-200',
-        }
-      : roundNumber % 3 === 2
-      ? {
-          icon: '🛡️',
-          title: 'Iron Guard Stance',
-          hint: 'Counter: Pierce with a 2-Word Strike (Adv + Verb)!',
-          actionLabel: 'Auto-Pierce',
-          onCounter: handleQuick2WordStrike,
-          color: 'from-sky-500 to-blue-600 border-sky-200',
-        }
-      : {
-          icon: '⚡',
-          title: 'Elemental Surge Charging',
-          hint: 'Counter: Weave a 4-Word Tag-Team Ultimate!',
-          actionLabel: 'Weave 4-Word',
-          onCounter: handleWeaveFullSentence,
-          color: 'from-purple-600 to-rose-600 border-yellow-300',
-        };
 
   const playerHpPct = Math.max(
     0,
@@ -782,35 +512,52 @@ export const BattleView: React.FC = () => {
   const isCoachVisible = showCoachHint || hasGrammarMistake;
 
   const runeSlots = [
-    { pos: 'adjective' as PartOfSpeech, short: 'ADJ', label: 'Adjective', word: equippedAdj, color: '#f59e0b', bg: 'from-amber-400 to-orange-500' },
-    { pos: 'noun' as PartOfSpeech, short: 'NOUN', label: 'Noun', word: equippedNoun, color: '#0ea5e9', bg: 'from-sky-400 to-blue-600' },
-    { pos: 'verb' as PartOfSpeech, short: 'VERB', label: 'Verb', word: equippedVerb, color: '#ef4444', bg: 'from-rose-500 to-red-600' },
-    { pos: 'adverb' as PartOfSpeech, short: 'ADV', label: 'Adverb', word: equippedAdv, color: '#a855f7', bg: 'from-purple-500 to-indigo-600' },
+    {
+      pos: 'adjective' as PartOfSpeech,
+      short: 'ADJ',
+      label: 'Adjective',
+      word: equippedAdj,
+      slotBg: 'bg-amber-100 border-amber-500 text-amber-950',
+      slotActiveBg: 'bg-amber-300 border-[#1a162b] text-[#1a162b]',
+    },
+    {
+      pos: 'noun' as PartOfSpeech,
+      short: 'NOUN',
+      label: 'Noun',
+      word: equippedNoun,
+      slotBg: 'bg-sky-100 border-sky-500 text-sky-950',
+      slotActiveBg: 'bg-sky-300 border-[#1a162b] text-[#1a162b]',
+    },
+    {
+      pos: 'verb' as PartOfSpeech,
+      short: 'VERB',
+      label: 'Verb',
+      word: equippedVerb,
+      slotBg: 'bg-rose-100 border-rose-500 text-rose-950',
+      slotActiveBg: 'bg-rose-300 border-[#1a162b] text-[#1a162b]',
+    },
+    {
+      pos: 'adverb' as PartOfSpeech,
+      short: 'ADV',
+      label: 'Adverb',
+      word: equippedAdv,
+      slotBg: 'bg-purple-100 border-purple-500 text-purple-950',
+      slotActiveBg: 'bg-purple-300 border-[#1a162b] text-[#1a162b]',
+    },
   ];
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#120e24] p-1.5 sm:p-2.5 select-none">
-      <div className="mx-auto max-w-[1320px] space-y-2 pb-4">
+    <div className="h-full w-full overflow-y-auto bg-[#120e24] p-2 sm:p-3 select-none">
+      <div className="mx-auto max-w-[1260px] space-y-2.5 pb-4">
         {/* ====================================================================
-            1. PANORAMIC 2.5D BATTLE ARENA CANVAS
-               Combines:
-               - Prodigy Painterly Lawn, Ocean Horizon, Mushrooms & Floating Inline HP Bars
-               - Dragon Quest Monsters Diamond Ranks, Round Counter & Fast Toggle
-               - Pokémon Skewed Status Plates & Party Pips
-               - Head-to-Head Hanging Wooden Turn Sign & Center Glowing 2x2 Rune Grid
+            ZONE 1: TOP ARENA
+            Pet vs. Boss Pet with 1 clean HP bar (with Ghost HP glow) and 1 Element badge each.
            ==================================================================== */}
         <div
-          className={`relative overflow-hidden rounded-3xl border-[4px] border-[#1a162b] shadow-[0_8px_0_#090714] min-h-[430px] sm:min-h-[460px] flex flex-col justify-between transition-transform ${
+          className={`relative overflow-hidden rounded-3xl border-[4px] border-[#1a162b] shadow-[0_8px_0_#090714] min-h-[390px] sm:min-h-[420px] flex flex-col justify-between transition-transform ${
             isCritShaking ? 'translate-x-1 -translate-y-0.5 ring-4 ring-[#fde047]' : ''
           } ${reactiveLighting.lowHpVignetteActive ? 'crimson-low-hp-vignette' : ''}`}
         >
-          {/* #24 Reactive Combat Lighting: Ambient background dim when 6+ letter word spotlight is active */}
-          {reactiveLighting.spotlightActive && (
-            <div
-              className="pointer-events-none absolute inset-0 z-10 bg-slate-950 transition-opacity duration-300"
-              style={{ opacity: reactiveLighting.ambientDimOpacity }}
-            />
-          )}
           {/* Dynamic 2.5D Storybook + Stadium SVG Backdrop */}
           <svg
             viewBox="0 0 1280 500"
@@ -834,10 +581,8 @@ export const BattleView: React.FC = () => {
               </radialGradient>
             </defs>
 
-            {/* Sky Backdrop */}
             <rect width="1280" height="500" fill={`url(#sky-${activeZoneId})`} />
 
-            {/* Distant Fluffy Clouds & Pine Silhouette Hills (Head-to-Head + Prodigy style) */}
             <g opacity="0.35" fill={biome.horizonColor}>
               <circle cx="140" cy="180" r="70" />
               <circle cx="230" cy="190" r="55" />
@@ -845,7 +590,6 @@ export const BattleView: React.FC = () => {
               <circle cx="1150" cy="190" r="60" />
             </g>
 
-            {/* Shimmering Ocean / Elemental Horizon Band (Prodigy Reference #3) */}
             <rect x="0" y="165" width="1280" height="90" fill="url(#oceanHorizon)" opacity="0.75" />
             <path
               d="M80,190 H320 M480,205 H790 M920,188 H1180 M210,220 H540"
@@ -855,7 +599,6 @@ export const BattleView: React.FC = () => {
               opacity="0.55"
             />
 
-            {/* Rolling Storybook Meadow & Arena Lawn */}
             <path
               d="M0,245 Q340,205 640,235 T1280,225 L1280,500 L0,500 Z"
               fill={biome.groundColor}
@@ -868,21 +611,17 @@ export const BattleView: React.FC = () => {
               opacity="0.28"
             />
 
-            {/* Pokémon Stadium / Champions Court Lines on the Turf (Reference #2) */}
             <g stroke="#ffffff" strokeWidth="3" opacity="0.45" fill="none">
               <ellipse cx="640" cy="390" rx="520" ry="95" />
               <ellipse cx="640" cy="390" rx="135" ry="42" />
               <line x1="640" y1="295" x2="640" y2="485" />
             </g>
 
-            {/* Left Storybook Props: Pastel Trees & Spotted Red Mushroom (Prodigy Reference #3) */}
+            {/* Left Storybook Props */}
             <g stroke="#1a162b" strokeWidth="3" strokeLinejoin="round">
-              {/* Trunk */}
               <path d="M55,255 L42,155 L82,155 L70,255 Z" fill="#7c4dff" opacity="0.85" />
-              {/* Pastel Turquoise & Pink Canopy */}
               <ellipse cx="45" cy="145" rx="48" ry="34" fill="#2dd4bf" />
               <ellipse cx="95" cy="130" rx="52" ry="36" fill="#f472b6" />
-              {/* Spotted Toadstool Mushroom */}
               <path d="M148,268 Q145,242 155,242 L175,242 Q185,242 182,268 Z" fill="#fef3c7" />
               <path d="M122,246 Q165,195 208,246 Z" fill="#ef4444" />
               <circle cx="150" cy="228" r="7" fill="#fef3c7" stroke="none" />
@@ -890,55 +629,32 @@ export const BattleView: React.FC = () => {
               <circle cx="165" cy="218" r="4.5" fill="#fef3c7" stroke="none" />
             </g>
 
-            {/* Right Storybook Props: Carved Tree Stump & Crystal Spire (Prodigy Reference #3) */}
+            {/* Right Storybook Props */}
             <g stroke="#1a162b" strokeWidth="3" strokeLinejoin="round">
               <path d="M1135,260 L1150,215 L1215,215 L1232,260 Z" fill="#8d6e63" />
               <ellipse cx="1182" cy="215" rx="32" ry="11" fill="#d7ccc8" />
               <ellipse cx="1182" cy="215" rx="18" ry="6" fill="none" stroke="#5d4037" strokeWidth="2" />
             </g>
 
-            {/* Stepped 3D Stone Pedestals for Left Squad (Reference #5) */}
+            {/* Left Stone Pedestals */}
             <g stroke="#1a162b" strokeWidth="3.5" strokeLinejoin="round">
-              {/* Tamer Rear Stone Platform */}
               <ellipse cx="145" cy="348" rx="62" ry="20" fill="#78716c" />
               <ellipse cx="145" cy="340" rx="58" ry="17" fill="#a8a29e" />
-              {/* Sidekick Lower Stone Platform */}
               <ellipse cx="120" cy="435" rx="58" ry="19" fill="#78716c" />
               <ellipse cx="120" cy="427" rx="54" ry="16" fill="#a8a29e" />
-              {/* Active Companion Main Forward Stone Pedestal + Glowing Cyan Caster Ring (Reference #3) */}
               <ellipse cx="330" cy="395" rx="95" ry="30" fill="#57534e" />
               <ellipse cx="330" cy="385" rx="90" ry="26" fill="#a8a29e" />
-              <ellipse
-                cx="330"
-                cy="383"
-                rx="78"
-                ry="21"
-                fill="none"
-                stroke="#22d3ee"
-                strokeWidth="5"
-              />
+              <ellipse cx="330" cy="383" rx="78" ry="21" fill="none" stroke="#22d3ee" strokeWidth="5" />
             </g>
 
-            {/* Stepped 3D Stone Pedestals for Right Boss & Minion (Reference #5) */}
+            {/* Right Stone Pedestal */}
             <g stroke="#1a162b" strokeWidth="3.5" strokeLinejoin="round">
-              {/* Boss Main Stone Platform */}
               <ellipse cx="950" cy="395" rx="102" ry="32" fill="#44403c" />
               <ellipse cx="950" cy="385" rx="96" ry="27" fill="#78716c" />
-              <ellipse
-                cx="950"
-                cy="383"
-                rx="84"
-                ry="22"
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth="5"
-              />
-              {/* Boss Sentinel / Minion Rear Platform */}
-              <ellipse cx="1135" cy="350" rx="60" ry="19" fill="#57534e" />
-              <ellipse cx="1135" cy="342" rx="56" ry="16" fill="#a8a29e" />
+              <ellipse cx="950" cy="383" rx="84" ry="22" fill="none" stroke="#f59e0b" strokeWidth="5" />
             </g>
 
-            {/* Word Strike Starburst Projectile Trail + 2-Pet Tag-Team Beam on Attack */}
+            {/* Projectile Burst Trail */}
             {projectileBurst && (
               <g>
                 <line
@@ -975,199 +691,139 @@ export const BattleView: React.FC = () => {
             )}
           </svg>
 
-          {/* ==================================================================
-              TOP ARENA HUD OVERLAY:
-              - Left: Skewed Pokémon/Head-to-Head Player Plate + 3 Hearts + Party Pips
-              - Center: Hanging Wooden Turn Signboard + DQM Diamond Enemy Roster
-              - Right: Skewed Boss Status Plate + Round Diamond + World Map Exit
-          =================================================================== */}
+          {/* TOP ARENA HEADER: 1 Clean HP Bar + 1 Element Badge Each */}
           <div className="relative z-20 flex flex-wrap items-start justify-between gap-2 px-3 pt-2.5 sm:px-5">
-            {/* TOP-LEFT: SKEWED PLAYER TAMER & PARTY PLATE (References #2 & #5) */}
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTab('hub')}
-                  className="flex items-center gap-1 rounded-xl border-[3px] border-[#1a162b] bg-[#fff8e7] hover:bg-[#ffd54f] px-2.5 py-1.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
-                  title="Return to Overworld Map"
-                >
-                  <Map className="h-3.5 w-3.5" />
-                  <span>Map</span>
-                </button>
+            {/* TOP-LEFT: PLAYER PET HP BAR + 1 ELEMENT BADGE */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setTab('hub')}
+                className="flex items-center gap-1 rounded-xl border-[3px] border-[#1a162b] bg-[#fff8e7] hover:bg-[#ffd54f] px-2.5 py-2 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                title="Back to World Hub"
+              >
+                <Map className="h-3.5 w-3.5" />
+                <span>Hub</span>
+              </button>
 
-                {/* #7 Adaptive Combat Music Toggle */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const playing = juice.toggleCombatMusic();
-                    setCombatMusicOn(playing);
-                  }}
-                  className={`flex items-center justify-center rounded-xl border-[3px] border-[#1a162b] px-2 py-1.5 text-xs font-black shadow-[0_3px_0_#1a162b] cursor-pointer ${
-                    combatMusicOn
-                      ? 'bg-[#fde047] text-[#1a162b]'
-                      : 'bg-[#1e293b]/90 text-slate-300 hover:bg-slate-800'
-                  }`}
-                  title="Toggle Adaptive Combat Synth Music"
-                >
-                  {combatMusicOn ? '🎵 On' : '🎵'}
-                </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const playing = juice.toggleCombatMusic();
+                  setCombatMusicOn(playing);
+                }}
+                className={`flex items-center justify-center rounded-xl border-[3px] border-[#1a162b] px-2.5 py-2 text-xs font-black shadow-[0_3px_0_#1a162b] cursor-pointer ${
+                  combatMusicOn
+                    ? 'bg-[#fde047] text-[#1a162b]'
+                    : 'bg-[#1e293b]/90 text-slate-300 hover:bg-slate-800'
+                }`}
+                title="Toggle Battle Music"
+              >
+                {combatMusicOn ? '🎵 On' : '🎵'}
+              </button>
 
-                {/* Single Clean Player Health Plate (#1) */}
-                <div className="w-52 sm:w-60 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span>{playerElem.icon}</span>
-                      <span className="font-display text-xs sm:text-sm font-black text-[#fde047] truncate">
-                        {player.name}
-                      </span>
-                    </div>
-                    <span className="shrink-0 font-mono text-xs font-black text-emerald-300">
-                      Lv.{fullPlayerCreature.level || 8}
-                    </span>
-                  </div>
-                  <div className="relative h-5 w-full overflow-hidden rounded-lg border-2 border-[#1a162b] bg-slate-950">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#22c55e] via-[#4ade80] to-[#86efac] transition-all duration-500"
-                      style={{ width: `${playerHpPct}%` }}
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-black text-white drop-shadow-[0_1px_1px_#000]">
-                      {player.currentHp ?? player.stats.hp} / {player.maxHp ?? player.stats.hp} HP
-                      {(player.shield ?? 0) > 0 ? ` (+🛡️${player.shield})` : ''}
-                    </span>
-                  </div>
+              <div className="w-56 sm:w-64 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2.5 text-white shadow-[0_4px_0_#1a162b]">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="font-display text-sm sm:text-base font-black text-[#fde047] truncate">
+                    {player.name}
+                  </span>
+                  {/* 1 Clean Element Badge */}
+                  <span className="shrink-0 rounded-full border border-[#1a162b] bg-white/95 px-2.5 py-0.5 font-display text-xs font-black text-[#1a162b] shadow-xs">
+                    {playerElem.icon} {playerElem.name}
+                  </span>
+                </div>
+                <div className="relative h-6 w-full overflow-hidden rounded-xl border-2 border-[#1a162b] bg-slate-950">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#22c55e] via-[#4ade80] to-[#86efac] transition-all duration-500"
+                    style={{ width: `${playerHpPct}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-black text-white drop-shadow-[0_1px_1px_#000]">
+                    ❤️ {player.currentHp ?? player.stats.hp} / {player.maxHp ?? player.stats.hp} HP
+                    {(player.shield ?? 0) > 0 ? ` (+🛡️${player.shield})` : ''}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* TOP-CENTER: CLEAN STAGE & TURN BANNER ONLY (#3) */}
-            <div className="relative flex flex-col items-center">
-              <div className="flex w-44 justify-between px-6 -mb-1">
-                <div className="h-3 w-2 bg-[#78350f] border border-[#1a162b]" />
-                <div className="h-3 w-2 bg-[#78350f] border border-[#1a162b]" />
-              </div>
-              <div className="relative rounded-2xl border-[3px] border-[#451a03] bg-gradient-to-b from-[#b45309] via-[#92400e] to-[#78350f] px-6 py-1.5 text-center shadow-[0_5px_0_#270e02]">
-                <span className="absolute -left-2.5 -top-1 text-base select-none">🌿</span>
-                <span className="absolute -right-2.5 -top-1 text-base select-none">🌿</span>
-                <div className={`${getDualTierTypographyClasses('boss-banner')} text-sm sm:text-base font-black text-white drop-shadow-[0_1.5px_0_#1a162b]`}>
+            {/* TOP-CENTER: SIMPLE TURN SIGNBOARD */}
+            <div className="relative hidden md:flex flex-col items-center">
+              <div className="rounded-2xl border-[3px] border-[#451a03] bg-gradient-to-b from-[#b45309] via-[#92400e] to-[#78350f] px-5 py-1.5 text-center shadow-[0_4px_0_#270e02]">
+                <div className="font-display text-sm sm:text-base font-black text-white drop-shadow-[0_1.5px_0_#1a162b]">
                   {isBattleOver
                     ? winner === player.id
-                      ? '🏆 Realm Cleared!'
-                      : '⚡ Battle Complete'
-                    : `${player.name}'s Turn · Round ${roundNumber}`}
+                      ? '🏆 You Won!'
+                      : '⚡ Battle Over'
+                    : `Your Turn!`}
                 </div>
-                <div className="text-xs font-black text-[#fde047]">
-                  Stage {activeNodeId} · {biome.title}
+                <div className="text-[11px] font-black text-[#fde047]">
+                  Stage {activeNodeId}
                 </div>
               </div>
             </div>
 
-            {/* TOP-RIGHT: SINGLE CLEAN BOSS HEALTH PLATE (#1) + ENEMY BOARD MODIFIER (#4) + GHOST HP & LETHAL SHATTER (#31) */}
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2">
-                <div className="w-56 sm:w-64 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2 text-white shadow-[0_4px_0_#1a162b]">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span>{enemyElem.icon}</span>
-                      <span className={`${getDualTierTypographyClasses('boss-banner')} text-xs sm:text-sm font-black text-rose-300 truncate`}>
-                        {displayEnemyName}
-                      </span>
-                    </div>
-                    <span className="shrink-0 font-mono text-xs font-black text-amber-300">
-                      {livePreview.wouldDefeatEnemy ? '💀 LETHAL!' : enemyStageBadge}
-                    </span>
-                  </div>
-                  <div
-                    className={`relative h-5 w-full overflow-hidden rounded-lg border-2 border-[#1a162b] bg-slate-950 transition-all ${
-                      livePreview.wouldDefeatEnemy ? 'lethal-shatter-bar' : ''
-                    }`}
-                  >
-                    {/* #12 & #31 Pulsing Ghost HP Segment showing exact post-armor damage before submitting */}
-                    <div
-                      className={`absolute inset-y-0 left-0 bg-amber-400/85 transition-all duration-300 ${
-                        livePreview.isValid && livePreview.projectedDamage > 0 ? 'animate-pulse' : ''
-                      }`}
-                      style={{ width: `${enemyHpPct}%` }}
-                    />
-                    <div
-                      className="relative h-full bg-gradient-to-r from-[#e11d48] via-[#f43f5e] to-[#fb7185] transition-all duration-300"
-                      style={{
-                        width: `${
-                          livePreview.isValid && livePreview.projectedEnemyHpDropPct > 0
-                            ? livePreview.projectedEnemyHpAfterPct
-                            : enemyHpPct
-                        }%`,
-                      }}
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-black text-white drop-shadow-[0_1px_1px_#000]">
-                      {enemy.currentHp ?? enemy.stats.hp} / {enemy.maxHp ?? enemy.stats.hp} HP
-                      {livePreview.isValid && livePreview.projectedDamage > 0
-                        ? ` (−${livePreview.projectedDamage}${livePreview.wouldDefeatEnemy ? ' 💀' : ''})`
-                        : (enemy.shield ?? 0) > 0
-                        ? ` (+🛡️${enemy.shield})`
-                        : ''}
-                    </span>
-                  </div>
-                  {/* #4 Enemy Board Modifier + #14 Multi-Phase Boss Rule + #3 Active Status Badges */}
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[11px] font-black">
-                    <span
-                      className="rounded-md bg-slate-900/90 border border-amber-400/50 px-1.5 py-0.5 text-amber-200 truncate"
-                      title={`${enemyModifier.name}: ${enemyModifier.shortRule} (${enemyModifier.counterplayTip})`}
-                    >
-                      {enemyModifier.icon} {enemyModifier.name}
-                    </span>
-                    <span
-                      className="rounded-md bg-fuchsia-950/90 border border-fuchsia-400/60 px-1.5 py-0.5 text-fuchsia-200 truncate"
-                      title={bossPhaseConstraint.description}
-                    >
-                      {bossPhaseConstraint.icon} {bossPhaseConstraint.badgeLabel}
-                    </span>
-                    {enemy.statuses && enemy.statuses.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        {enemy.statuses.map((st) => (
-                          <span
-                            key={st.name}
-                            className="rounded-md bg-sky-900 border border-sky-300 px-1.5 py-0.5 text-sky-200"
-                          >
-                            {st.name === 'Freeze' ? '❄️' : st.name === 'Bleed' ? '🩸' : '🔥'} {st.name} ({st.duration}t)
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+            {/* TOP-RIGHT: BOSS PET HP BAR (WITH GHOST HP GLOW) + 1 ELEMENT BADGE */}
+            <div className="flex items-center gap-2">
+              <div className="w-56 sm:w-64 rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-2.5 text-white shadow-[0_4px_0_#1a162b]">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="font-display text-sm sm:text-base font-black text-rose-300 truncate">
+                    {displayEnemyName}
+                  </span>
+                  {/* 1 Clean Element Badge */}
+                  <span className="shrink-0 rounded-full border border-[#1a162b] bg-white/95 px-2.5 py-0.5 font-display text-xs font-black text-[#1a162b] shadow-xs">
+                    {enemyElem.icon} {enemyElem.name}
+                  </span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => restartBattle()}
-                  className="flex items-center gap-1 rounded-xl border-[3px] border-[#1a162b] bg-[#1a162b]/90 hover:bg-slate-800 px-2.5 py-2 text-xs font-black text-amber-200 shadow-[0_3px_0_#090714] cursor-pointer"
-                  title="Restart Battle"
+                <div
+                  className={`relative h-6 w-full overflow-hidden rounded-xl border-2 border-[#1a162b] bg-slate-950 transition-all ${
+                    livePreview.wouldDefeatEnemy ? 'lethal-shatter-bar' : ''
+                  }`}
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </button>
+                  {/* Pulsing Ghost HP Glow showing projected damage before casting */}
+                  <div
+                    className={`absolute inset-y-0 left-0 bg-amber-400/85 transition-all duration-300 ${
+                      livePreview.isValid && livePreview.projectedDamage > 0 ? 'animate-pulse' : ''
+                    }`}
+                    style={{ width: `${enemyHpPct}%` }}
+                  />
+                  <div
+                    className="relative h-full bg-gradient-to-r from-[#e11d48] via-[#f43f5e] to-[#fb7185] transition-all duration-300"
+                    style={{
+                      width: `${
+                        livePreview.isValid && livePreview.projectedEnemyHpDropPct > 0
+                          ? livePreview.projectedEnemyHpAfterPct
+                          : enemyHpPct
+                      }%`,
+                    }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-black text-white drop-shadow-[0_1px_1px_#000]">
+                    ❤️ {enemy.currentHp ?? enemy.stats.hp} / {enemy.maxHp ?? enemy.stats.hp} HP
+                    {livePreview.isValid && livePreview.projectedDamage > 0
+                      ? ` (−${livePreview.projectedDamage})`
+                      : ''}
+                  </span>
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => restartBattle()}
+                className="flex items-center gap-1 rounded-xl border-[3px] border-[#1a162b] bg-[#1a162b]/90 hover:bg-slate-800 px-2.5 py-2 text-xs font-black text-amber-200 shadow-[0_3px_0_#090714] cursor-pointer"
+                title="Restart Battle"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
 
-          {/* ==================================================================
-              MAIN ARENA STAGE (#1 No Under-Sprite HP Cards; #2 On-Demand Coach):
-          =================================================================== */}
+          {/* MAIN ARENA STAGE: PET VS. BOSS PET */}
           <div className="relative z-20 grid grid-cols-1 md:grid-cols-12 items-end gap-2 px-3 pb-4 pt-2 sm:px-6">
-            {/* LEFT 4 COLS: PLAYER SQUAD ON STEPPED STONE PEDESTALS */}
-            <div className="md:col-span-4 relative flex items-end justify-center gap-3 min-h-[210px]">
-              {/* Rear Left: Explorer Tamer Avatar + Sidekick Companion */}
+            {/* LEFT 4 COLS: PLAYER SQUAD */}
+            <div className="md:col-span-4 relative flex items-end justify-center gap-3 min-h-[195px]">
               <div className="hidden sm:flex flex-col items-center gap-2 pb-2 opacity-95">
-                <div className="flex flex-col items-center">
-                  <div
-                    className="relative flex h-14 w-14 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] text-3xl shadow-[0_4px_0_#1a162b]"
-                    style={{ backgroundColor: currentUser?.avatarConfig?.colorTheme || '#3b82f6' }}
-                  >
-                    <span>{currentUser?.avatarConfig?.emoji || '🦊'}</span>
-                    {currentUser?.avatarConfig?.headgearEmoji && (
-                      <span className="absolute -top-2.5 right-0 text-sm">
-                        {currentUser.avatarConfig.headgearEmoji}
-                      </span>
-                    )}
-                  </div>
+                <div
+                  className="relative flex h-12 w-12 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] text-2xl shadow-[0_4px_0_#1a162b]"
+                  style={{ backgroundColor: currentUser?.avatarConfig?.colorTheme || '#3b82f6' }}
+                >
+                  <span>{currentUser?.avatarConfig?.emoji || '🦊'}</span>
                 </div>
 
                 {sidekickPet && (
@@ -1184,11 +840,6 @@ export const BattleView: React.FC = () => {
                         : 'hover:scale-105'
                     }`}
                   >
-                    {tagTeamComboActive && (
-                      <span className="absolute -top-5 whitespace-nowrap rounded-full border-2 border-[#1a162b] bg-[#fde047] px-2 py-0.5 font-display text-xs font-black text-[#1a162b] shadow animate-bounce">
-                        ⚡ Tag-Team Assist!
-                      </span>
-                    )}
                     <CreatureSprite
                       creatureId={sidekickPet.forged?.sourceId || sidekickPet.id}
                       stage={sidekickPet.stage || 1}
@@ -1205,7 +856,6 @@ export const BattleView: React.FC = () => {
                 )}
               </div>
 
-              {/* Forward Main Caster: Clean Active Companion Sprite Only (#1) */}
               <div className="relative flex flex-col items-center pb-2">
                 {floatingNumbers
                   .filter((f) => f.target === 'player')
@@ -1246,65 +896,40 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* CENTER 4 COLS: SPACIOUS ARENA CENTER WITH ON-DEMAND COACH (#2) */}
+            {/* CENTER 4 COLS: ON-DEMAND HELP HINT / LAST SPOKEN SENTENCE */}
             <div className="md:col-span-4 flex flex-col items-center justify-end my-1 gap-2">
               {battleState.lastPlayerResolution && !isCoachVisible && (
                 <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-[#fff8e7]/95 px-4 py-2 text-center shadow-[0_4px_0_#1a162b]">
-                  <div className="text-xs font-bold text-[#5d4037]">Last Spoken Cast:</div>
+                  <div className="text-xs font-bold text-[#5d4037]">Last Spell Cast:</div>
                   <span className="font-display text-sm sm:text-base font-black text-[#1a162b] block truncate">
                     “{battleState.lastPlayerResolution.combo.phrase}”
                   </span>
                 </div>
               )}
 
-              {activeTerrain && !isCoachVisible && (
-                <div className="w-full max-w-xs rounded-xl border-2 border-emerald-300 bg-emerald-950/90 px-3 py-1.5 text-center text-xs font-black text-emerald-200">
-                  <div>
-                    {activeTerrain.name} ({activeTerrain.turnsLeft}t)
-                  </div>
-                </div>
-              )}
-
-              {/* Adaptive Tutor Coach Bar — On-Demand Only (#2: slides in when 💡 Help is clicked or on sentence-order mistake) */}
               {isCoachVisible && (
-                <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-3 text-white shadow-[0_5px_0_#1a162b] space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-[#1e293b]/95 p-3 text-white shadow-[0_5px_0_#1a162b] space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-display text-xs font-black text-[#fde047]">
-                      💡 {hasGrammarMistake ? 'Grammar Order Tip' : tutorInsight.badgeLabel}
+                      💡 {hasGrammarMistake ? 'Word Order Tip' : 'Sentence Helper'}
                     </span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          juice.speakWord(
-                            hasGrammarMistake
-                              ? previewCombo.reasons[0] || 'Try Adjective, Noun, Verb, then Adverb!'
-                              : tutorInsight.coachTip
-                          )
-                        }
-                        className="flex items-center gap-1 rounded-lg border border-[#1a162b] bg-[#fde047] hover:bg-white px-2 py-0.5 text-xs font-black text-[#1a162b] cursor-pointer"
-                      >
-                        <Volume2 className="h-3.5 w-3.5" />
-                        <span>Listen</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowCoachHint(false)}
-                        className="rounded-lg bg-white/15 hover:bg-rose-500 px-2 py-0.5 text-xs font-black text-white cursor-pointer"
-                      >
-                        ✕
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCoachHint(false)}
+                      className="rounded-lg bg-white/15 hover:bg-rose-500 px-2 py-0.5 text-xs font-black text-white cursor-pointer"
+                    >
+                      ✕
+                    </button>
                   </div>
                   {hasGrammarMistake ? (
                     <div className="rounded-xl bg-amber-500/20 border border-amber-300/60 p-2 text-xs font-bold text-amber-100 space-y-1.5">
-                      <p>{previewCombo.reasons[0] || 'Try Adjective → Noun → Verb → Adverb!'}</p>
+                      <p>{previewCombo.reasons[0] || 'Put your words in order: Adjective → Noun → Verb → Adverb!'}</p>
                       <button
                         type="button"
                         onClick={handleFixGrammarOrder}
                         className="w-full rounded-lg border border-[#1a162b] bg-[#fde047] py-1 font-display text-xs font-black text-[#1a162b] cursor-pointer"
                       >
-                        ⇄ Auto-Fix Grammar Order
+                        ⇄ Fix Word Order for Me!
                       </button>
                     </div>
                   ) : (
@@ -1314,29 +939,9 @@ export const BattleView: React.FC = () => {
               )}
             </div>
 
-            {/* RIGHT 4 COLS: GUARDIAN BOSS SPRITE ONLY (#1 No Under-Sprite HP Card) */}
-            <div className="md:col-span-4 relative flex items-end justify-center gap-2 min-h-[210px]">
+            {/* RIGHT 4 COLS: BOSS PET SPRITE */}
+            <div className="md:col-span-4 relative flex items-end justify-center gap-2 min-h-[195px]">
               <div className="relative flex flex-col items-center pb-2">
-                {!isBattleOver && (
-                  <div
-                    className={`mb-2 flex items-center justify-between gap-2 rounded-2xl border-2 bg-gradient-to-r ${enemyIntent.color} px-3 py-1 text-white shadow-[0_3px_0_#1a162b] max-w-[250px]`}
-                  >
-                    <div className="text-left leading-tight">
-                      <div className="font-display text-xs font-black uppercase tracking-wide flex items-center gap-1">
-                        <span>{enemyIntent.icon}</span>
-                        <span>{enemyIntent.title}</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={enemyIntent.onCounter}
-                      className="shrink-0 rounded-lg border border-[#1a162b] bg-[#fde047] hover:bg-white px-2 py-0.5 font-display text-xs font-black uppercase text-[#1a162b] shadow cursor-pointer"
-                    >
-                      {enemyIntent.actionLabel}
-                    </button>
-                  </div>
-                )}
-
                 {floatingNumbers
                   .filter((f) => f.target === 'enemy')
                   .map((f) => (
@@ -1361,7 +966,7 @@ export const BattleView: React.FC = () => {
             </div>
           </div>
 
-          {/* DEFEAT OVERLAY ONLY (Victory uses #29 Inline Post-Combat Loot Drops on the cleared letter board below!) */}
+          {/* DEFEAT OVERLAY */}
           {isBattleOver && winner !== player.id && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#1a162b]/85 p-4 backdrop-blur-xs">
               <div className="w-full max-w-md rounded-3xl border-[4px] border-[#1a162b] bg-[#fff8e7] p-6 text-center shadow-[0_10px_0_#1a162b] space-y-4">
@@ -1369,35 +974,25 @@ export const BattleView: React.FC = () => {
                   <Award className="h-10 w-10 text-[#1a162b]" />
                 </div>
                 <h3 className={`${getDualTierTypographyClasses('boss-banner')} text-2xl sm:text-3xl font-black text-[#1a162b]`}>
-                  ⚡ Try Again, Tamer!
+                  ⚡ Try Again!
                 </h3>
                 <p className="text-xs sm:text-sm font-bold text-[#4e342e]">
-                  {`${enemy.name} held Stage ${activeNodeId} this time. Weave a 4-Tablet Ultimate Sentence or exploit its ${enemyWeakElem.name} weakness!`}
+                  {`Build a full 4-word sentence or use ${enemyWeakElem.name} words to beat ${enemy.name}!`}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => restartBattle()}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#ffd54f] hover:bg-[#ffca28] px-3.5 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#ffd54f] hover:bg-[#ffca28] px-4 py-2.5 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    Replay
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReturnToWordWorldMap(true);
-                      setTab('hub');
-                    }}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#38bdf8] to-[#0284c7] hover:brightness-110 px-3.5 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
-                  >
-                    🗺️ Node Map
+                    Try Again
                   </button>
                   <button
                     type="button"
                     onClick={() => setTab('hub')}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#4caf50] hover:bg-[#66bb6a] px-3.5 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
+                    className="rounded-xl border-[3px] border-[#1a162b] bg-[#4caf50] hover:bg-[#66bb6a] px-4 py-2.5 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    Hub
+                    Back to Hub
                   </button>
                 </div>
               </div>
@@ -1406,22 +1001,21 @@ export const BattleView: React.FC = () => {
         </div>
 
         {/* ====================================================================
-            2. STREAMLINED SENTENCE BUILDER TRAY & 4 TACTILE WORD TABLET CARDS
-               (#21 Materiality, #22 Dual Typography, #23 Semantic Colors, #24 Spotlight,
-                #25 Telegraphs, #26 Spring 2.5D Tilt, #27 Cascade, #29 Inline Loot Drops,
-                #30 Affix Ligatures, #31 Finisher, #32 Relic Rail, #34 Bag Odds, #35 Keywords)
+            ZONE 2 & ZONE 3 CONTAINER:
+            - Zone 2: Center Sentence Tray (4 colored slots + 🔊 Read Aloud + 💡 Help)
+            - Zone 3: Bottom Rack (4 clean Word Cards) + Action Dock (⚡ CAST SPELL + Pet Skill + Clear)
            ==================================================================== */}
         <div className="rounded-3xl border-[4px] border-[#1a162b] bg-[#1e293b] p-3 text-white shadow-[0_7px_0_#090714] space-y-3">
-          {/* INLINE POST-COMBAT LOOT DROPS ON CLEARED LETTER BOARD */}
+          {/* VICTORY BANNER & LOOT */}
           {isBattleOver && winner === player.id ? (
             <div className="rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#fef9c3] via-[#fde68a] to-[#fcd34d] p-4 text-[#1a162b] shadow-[0_5px_0_#1a162b] space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <span className="rounded-lg bg-[#1a162b] px-2.5 py-0.5 font-display text-xs font-black uppercase text-[#fde047]">
-                    🏆 Stage {activeNodeId} Cleared · Treasure Drops!
+                    🏆 Stage {activeNodeId} Victory!
                   </span>
-                  <h3 className={`${getDualTierTypographyClasses('boss-banner')} text-lg sm:text-xl font-black text-[#1a162b] mt-1`}>
-                    🎉 {enemy.name} Defeated! Click Loot Tokens on the Board to Collect:
+                  <h3 className="font-display text-lg sm:text-xl font-black text-[#1a162b] mt-1">
+                    🎉 You defeated {enemy.name}! Tap your rewards below:
                   </h3>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1433,30 +1027,17 @@ export const BattleView: React.FC = () => {
                     }}
                     className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] hover:brightness-110 px-4 py-2 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    ⚔️ Fight Next Stage →
+                    ⚔️ Next Battle →
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      const parts = activeNodeId.split('-');
-                      const zNum = Number(parts[0] || 1);
-                      const sNum = Number(parts[1] || 1);
-                      if (sNum < 10) {
-                        setActiveNodeId(`${zNum}-${sNum + 1}`);
-                      }
                       setReturnToWordWorldMap(true);
                       setTab('hub');
                     }}
                     className="rounded-xl border-[3px] border-[#1a162b] bg-gradient-to-b from-[#38bdf8] to-[#0284c7] hover:brightness-110 px-3.5 py-2 text-xs font-black uppercase text-white shadow-[0_3px_0_#1a162b] cursor-pointer"
                   >
-                    🗺️ Node Map
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => restartBattle()}
-                    className="rounded-xl border-[3px] border-[#1a162b] bg-white hover:bg-amber-100 px-3 py-2 text-xs font-black uppercase text-[#1a162b] shadow-[0_3px_0_#1a162b] cursor-pointer"
-                  >
-                    Replay
+                    🗺️ Map
                   </button>
                 </div>
               </div>
@@ -1503,7 +1084,7 @@ export const BattleView: React.FC = () => {
                           loot.claimed ? 'bg-emerald-600 text-white' : `${sem.badgeBg} ${sem.badgeText}`
                         }`}
                       >
-                        {loot.claimed ? '✓ Collected' : 'Pick Up'}
+                        {loot.claimed ? '✓ Got It!' : 'Tap!'}
                       </span>
                     </button>
                   );
@@ -1512,180 +1093,39 @@ export const BattleView: React.FC = () => {
             </div>
           ) : null}
 
-          {/* TOP ROW: VISUAL 4-SLOT SENTENCE TRAY + 1-TAP RECIPES (#2) + AGE-ADAPTIVE TELEMETRY (#1) */}
+          {/* ==================================================================
+              ZONE 2: CENTER SENTENCE TRAY
+              Only the 4 colored sentence slots (Adjective, Noun, Verb, Adverb)
+              + 🔊 Read Aloud + 💡 Help.
+             ================================================================== */}
           <div
-            className={`rounded-2xl border-[3px] border-[#1a162b] p-2.5 text-[#1a162b] transition-all space-y-2 ${
-              previewCombo.valid ? 'valid-ligature-tray' : 'bg-[#fef9c3]/90 shadow-inner'
-            } ${reactiveLighting.spotlightActive ? 'combat-spotlight-tray' : ''}`}
+            className={`rounded-2xl border-[3px] border-[#1a162b] p-3 text-[#1a162b] transition-all space-y-2.5 ${
+              previewCombo.valid ? 'valid-ligature-tray' : 'bg-[#fef9c3]/95 shadow-inner'
+            }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="rounded-lg bg-[#1a162b] px-2.5 py-1 font-display text-xs font-black uppercase text-[#fde047]">
-                  {previewCombo.valid ? '🔗 Valid Spell Ignited' : '✨ Sentence Puzzle'}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-xl bg-[#1a162b] px-3 py-1 font-display text-xs font-black uppercase text-[#fde047]">
+                  {previewCombo.valid ? '✨ Spell Ready!' : '🧩 Build Your Sentence'}
                 </span>
-                <span className="text-xs sm:text-sm font-black text-[#451a03]">
+                <span className="text-sm sm:text-base font-black text-[#451a03]">
                   {selectedWords.length > 0
                     ? `“${previewCombo.phrase}”`
-                    : 'Tap a 1-Click Recipe or pick Word Cards below to build your spell!'}
+                    : 'Tap the Word Cards below to build your spell!'}
                 </span>
-
-                {/* Live Rapid Keyboard Typing Buffer Pill */}
-                {typedBuffer.length > 0 && (
-                  <span className="rounded-lg border-2 border-[#1a162b] bg-indigo-600 px-2 py-0.5 font-mono text-xs font-black text-white shadow">
-                    ⌨️ {typedBuffer.toUpperCase()}…
-                  </span>
-                )}
-
-                {/* Projected Damage Pill */}
-                {livePreview.isValid && livePreview.projectedDamage > 0 && (
-                  <span
-                    className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR['raw-attack'].badgeBg} ${SEMANTIC_COLOR_GRAMMAR['raw-attack'].badgeText} px-2 py-0.5 font-mono text-xs font-black shadow`}
-                  >
-                    🎯 −{livePreview.projectedDamage} HP
-                  </span>
-                )}
-
-                {/* Advanced Math & Synergies shown in 6-8 Scholar mode or when toggled (#1) */}
-                {(preferredGradeBand === '6-8' || showAdvancedTelemetry) && (
-                  <>
-                    {maxLengthMultiplier > 1 && (
-                      <span
-                        className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR.multiplier.badgeBg} ${SEMANTIC_COLOR_GRAMMAR.multiplier.badgeText} px-2 py-0.5 font-mono text-xs font-black shadow`}
-                      >
-                        ×{maxLengthMultiplier.toFixed(2)} Length
-                      </span>
-                    )}
-
-                    {livePreview.specialTileBonuses.map((bonus) => (
-                      <span
-                        key={bonus.label}
-                        className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR['vowel-heal'].badgeBg} ${SEMANTIC_COLOR_GRAMMAR['vowel-heal'].badgeText} px-2 py-0.5 font-display text-xs font-black shadow`}
-                      >
-                        {bonus.label}
-                      </span>
-                    ))}
-
-                    {activeSynergies.map((syn) => (
-                      <span
-                        key={syn.id}
-                        className={`rounded-lg border-2 border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR.block.badgeBg} ${SEMANTIC_COLOR_GRAMMAR.block.badgeText} px-2 py-0.5 font-display text-xs font-black shadow`}
-                        title={syn.description}
-                      >
-                        {syn.name}
-                      </span>
-                    ))}
-                  </>
-                )}
-
-                {/* Boss Phase Constraint Note */}
-                {(modifierImpact.note || livePreview.bossPhaseNote) && (
-                  <span
-                    className={`rounded-lg border border-[#1a162b] ${SEMANTIC_COLOR_GRAMMAR['hex-poison'].badgeBg} ${SEMANTIC_COLOR_GRAMMAR['hex-poison'].badgeText} px-2 py-0.5 font-display text-xs font-black`}
-                  >
-                    {livePreview.bossPhaseNote || modifierImpact.note}
-                  </span>
-                )}
               </div>
 
-              {/* Action Helpers + Age-Adaptive Telemetry Toggle (#1) */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(preferredGradeBand === '6-8' || showAdvancedTelemetry) && (
-                  <>
-                    {/* Anticipatory Relic Rail */}
-                    <div className="hidden sm:flex items-center gap-1 rounded-xl border-2 border-[#1a162b] bg-[#1a162b]/90 px-2 py-0.5">
-                      {anticipatoryRelics.map((rel) => {
-                        const isCascadeFlaring = flaringRelicId === rel.id;
-                        const isFlaring = rel.state === 'flaring' || isCascadeFlaring;
-                        const isArming = rel.state === 'arming';
-                        return (
-                          <span
-                            key={rel.id}
-                            title={`${rel.name}: ${rel.description} (${rel.progressLabel})`}
-                            className={`rounded-lg px-1.5 py-0.5 text-xs font-black transition-all ${
-                              isFlaring
-                                ? 'bg-[#fde047] text-[#1a162b] ring-2 ring-emerald-400 scale-110'
-                                : isArming
-                                ? 'bg-amber-500/30 text-amber-200 animate-pulse'
-                                : 'text-slate-400 opacity-75'
-                            }`}
-                          >
-                            {rel.icon}
-                          </span>
-                        );
-                      })}
-                    </div>
-
-                    {/* Slide-Out Tactile Tile Bag Odds Drawer Trigger */}
-                    <button
-                      type="button"
-                      onClick={() => setShowBagOddsDrawer((prev) => !prev)}
-                      className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
-                        showBagOddsDrawer
-                          ? 'bg-[#fde047] text-[#1a162b]'
-                          : 'bg-emerald-200 hover:bg-emerald-300 text-[#1a162b]'
-                      }`}
-                      title="Peek inside Tactile Tile Bag & live next-turn Vowel/Consonant draw odds"
-                    >
-                      🎒 Bag ({nextTurnDrawOdds.nextDrawVowelPct}% V)
-                    </button>
-
-                    {/* Chained Keyword Tooltips & Hover-Lock Trigger */}
-                    <button
-                      type="button"
-                      onMouseEnter={() => setShowKeywordDrawer(true)}
-                      onMouseLeave={() => {
-                        if (!keywordLocked) setShowKeywordDrawer(false);
-                      }}
-                      onClick={() => {
-                        setKeywordLocked((prev) => !prev);
-                        setShowKeywordDrawer(true);
-                      }}
-                      className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
-                        keywordLocked
-                          ? 'bg-rose-500 text-white'
-                          : showKeywordDrawer
-                          ? 'bg-[#fde047] text-[#1a162b]'
-                          : 'bg-stone-200 hover:bg-stone-300 text-[#1a162b]'
-                      }`}
-                    >
-                      {keywordLocked ? '📌 Locked' : '📌 Terms'}
-                    </button>
-                  </>
-                )}
-
-                {preferredGradeBand !== '6-8' && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedTelemetry((prev) => !prev)}
-                    className={`rounded-xl border-2 border-[#1a162b] px-2.5 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
-                      showAdvancedTelemetry
-                        ? 'bg-[#1a162b] text-[#fde047]'
-                        : 'bg-white hover:bg-slate-100 text-[#1a162b]'
-                    }`}
-                    title="Toggle Advanced Scholar Stats (Bag Odds, Relics & Glossary)"
-                  >
-                    📊 {showAdvancedTelemetry ? 'Hide Stats' : 'Stats'}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleShuffleRack}
-                  className="rounded-xl border-2 border-[#1a162b] bg-violet-200 hover:bg-violet-300 px-2.5 py-1 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
-                  title="Shuffle Word Rack order (Hotkey: Tab)"
-                >
-                  🔀 Shuffle
-                </button>
-
+              {/* Only 🔊 Read Aloud + 💡 Help */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleKaraokeReadSentence}
-                  className={`rounded-xl border-2 border-[#1a162b] px-3 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
+                  className={`rounded-xl border-2 border-[#1a162b] px-3.5 py-1.5 text-xs sm:text-sm font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
                     karaokeWordIdx !== null || isListeningVoice
                       ? 'bg-rose-500 text-white animate-pulse'
                       : 'bg-sky-200 hover:bg-sky-300 text-[#1a162b]'
                   }`}
-                  title="Read your sentence aloud with word-by-word highlighting"
+                  title="Read your sentence aloud"
                 >
                   🔊 Read Aloud
                 </button>
@@ -1693,172 +1133,28 @@ export const BattleView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleHelpButton}
-                  className={`rounded-xl border-2 border-[#1a162b] px-3 py-1 text-xs font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
+                  className={`rounded-xl border-2 border-[#1a162b] px-3.5 py-1.5 text-xs sm:text-sm font-display font-black shadow-[0_2px_0_#1a162b] cursor-pointer ${
                     showCoachHint || highlightedSlotIdx !== null
                       ? 'bg-[#fde047] text-[#1a162b]'
                       : 'bg-amber-200 hover:bg-amber-300 text-[#1a162b]'
                   }`}
-                  title="Highlight the next slot needed and open the Tutor Coach hint"
+                  title="Get a helpful hint"
                 >
                   💡 Help
                 </button>
               </div>
             </div>
 
-            {/* #2: 1-TAP SENTENCE RECIPE BLUEPRINTS BAR FOR ELEMENTARY & MIDDLE STUDENTS */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className="text-[11px] font-black uppercase tracking-wide text-[#78350f]">
-                🧩 Quick Sentence Recipes:
-              </span>
-              <button
-                type="button"
-                onClick={handleQuick2WordShield}
-                className="rounded-xl border-2 border-[#1a162b] bg-sky-200 hover:bg-sky-300 px-2.5 py-0.5 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
-              >
-                🛡️ Shield Pair (Adj + Noun)
-              </button>
-              <button
-                type="button"
-                onClick={handleQuick2WordStrike}
-                className="rounded-xl border-2 border-[#1a162b] bg-rose-200 hover:bg-rose-300 px-2.5 py-0.5 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
-              >
-                ⚔️ Strike Pair (Adv + Verb)
-              </button>
-              <button
-                type="button"
-                onClick={handleWeaveFullSentence}
-                className="rounded-xl border-2 border-[#1a162b] bg-gradient-to-r from-amber-300 to-yellow-300 hover:brightness-105 px-2.5 py-0.5 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
-              >
-                🌟 4-Word Tag-Team Ultimate (All 4)
-              </button>
-            </div>
-
-            {/* SLIDE-OUT TACTILE TILE BAG DRAWER */}
-            {showBagOddsDrawer && (
-              <div className="rounded-xl border-2 border-[#1a162b] bg-[#1e293b] p-2.5 text-white space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-black">
-                  <span className="text-[#fde047]">
-                    🎒 Tactile Tile Bag — {nextTurnDrawOdds.totalRemaining} Tiles Remaining
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
-                    <span className="rounded bg-emerald-500/20 border border-emerald-400 px-2 py-0.5 text-emerald-200">
-                      Vowel Draw: {nextTurnDrawOdds.nextDrawVowelPct}% (Pity Guaranteed)
-                    </span>
-                    <span className="rounded bg-sky-500/20 border border-sky-400 px-2 py-0.5 text-sky-200">
-                      Consonant: {nextTurnDrawOdds.nextDrawConsonantPct}%
-                    </span>
-                    <span className="rounded bg-amber-500/20 border border-amber-400 px-2 py-0.5 text-amber-200">
-                      Compound/Wild: {nextTurnDrawOdds.nextDrawSpecialPct}%
-                    </span>
-                    <span className="rounded bg-purple-500/20 border border-purple-400 px-2 py-0.5 text-purple-200">
-                      Stamped: {nextTurnDrawOdds.nextDrawStampedPct}%
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-                  <div className="rounded-lg border border-emerald-400/40 bg-slate-900/90 p-2">
-                    <div className="font-black text-emerald-300 mb-1">
-                      Vowels ({nextTurnDrawOdds.vowelTiles.length})
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {nextTurnDrawOdds.vowelTiles.slice(0, 12).map((t) => (
-                        <span
-                          key={t.id}
-                          className="tile-mat-ivory font-tile-face rounded px-1.5 py-0.5 text-[10px] font-black text-[#1a162b]"
-                        >
-                          {t.letters}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-sky-400/40 bg-slate-900/90 p-2">
-                    <div className="font-black text-sky-300 mb-1">
-                      Consonants ({nextTurnDrawOdds.consonantTiles.length})
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {nextTurnDrawOdds.consonantTiles.slice(0, 12).map((t) => (
-                        <span
-                          key={t.id}
-                          className={`${
-                            t.stamp !== 'none' ? 'tile-mat-gilded' : 'tile-mat-bone'
-                          } font-tile-face rounded px-1.5 py-0.5 text-[10px] font-black text-[#1a162b]`}
-                        >
-                          {t.letters}
-                          {t.stamp !== 'none' ? '✨' : ''}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-amber-400/40 bg-slate-900/90 p-2">
-                    <div className="font-black text-amber-300 mb-1">
-                      Compound &amp; Wildcards ({nextTurnDrawOdds.specialTiles.length})
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {nextTurnDrawOdds.specialTiles.map((t) => (
-                        <span
-                          key={t.id}
-                          className="tile-mat-amber font-tile-face rounded px-1.5 py-0.5 text-[10px] font-black text-[#1a162b]"
-                        >
-                          {t.letters} ({t.basePoints}pt)
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* CHAINED KEYWORD TOOLTIPS & HOVER-LOCK STACK */}
-            {showKeywordDrawer && (
-              <div className="rounded-xl border-2 border-[#1a162b] bg-[#1e293b] p-2.5 text-white space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-black text-[#fde047]">
-                  <span>
-                    📌 Battle Keyword Glossary {keywordLocked ? '· Hover-Locked' : ''}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setKeywordLocked(false);
-                      setShowKeywordDrawer(false);
-                    }}
-                    className="rounded bg-white/15 hover:bg-rose-500 px-2 py-0.5 text-[10px] text-white cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {chainedKeywords.map((kw) => {
-                    const sem = SEMANTIC_COLOR_GRAMMAR[kw.semanticCategory];
-                    return (
-                      <div
-                        key={kw.id}
-                        className={`rounded-lg border ${sem.borderClass} bg-slate-900/95 p-2 text-xs`}
-                      >
-                        <div className="flex items-center gap-1.5 font-black text-white">
-                          <span>{kw.icon}</span>
-                          <span>{kw.term}</span>
-                        </div>
-                        <p className="text-[11px] font-semibold text-slate-300 mt-0.5">
-                          {kw.summary}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 4 Numbered Visual Grammar Puzzle Slots */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(['adjective', 'noun', 'verb', 'adverb'] as PartOfSpeech[]).map((pos, idx) => {
+            {/* 4 Colored Sentence Slots (Adjective, Noun, Verb, Adverb) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {runeSlots.map((slotConfig, idx) => {
+                const { pos } = slotConfig;
                 const posMeta = getPartOfSpeechMeta(pos);
                 const wordAtSlot = selectedWords[idx] || null;
                 const isKaraokeActive = karaokeWordIdx === idx;
                 const isCascadePopping = activeCascadeIdx === idx;
                 const isNextSlotHighlighted = highlightedSlotIdx === idx;
                 const wordMeta = wordAtSlot ? getPartOfSpeechMeta(wordAtSlot.partOfSpeech) : posMeta;
-                const ligature = wordAtSlot ? detectAffixLigatures(wordAtSlot.word) : null;
-                const slotEcon = wordAtSlot ? evaluateWordEconomy(wordAtSlot.word) : null;
 
                 return (
                   <div
@@ -1876,75 +1172,59 @@ export const BattleView: React.FC = () => {
                     onClick={() => {
                       if (wordAtSlot) {
                         handleToggleWordCard(wordAtSlot);
-                      } else {
-                        const eq = runeSlots.find((r) => r.pos === pos)?.word;
-                        if (eq) handleToggleWordCard(eq);
+                      } else if (slotConfig.word) {
+                        handleToggleWordCard(slotConfig.word);
                       }
                     }}
-                    className={`spring-tile-motion flex items-center justify-between rounded-xl border-2 px-3 py-2 cursor-pointer ${
+                    className={`spring-tile-motion flex flex-col justify-center rounded-2xl border-[3px] px-3.5 py-2.5 cursor-pointer transition-all ${
                       isCascadePopping
-                        ? 'border-[#1a162b] tile-mat-gilded -translate-y-2 scale-105 ring-4 ring-emerald-400'
+                        ? 'border-[#1a162b] bg-[#fde047] -translate-y-1.5 scale-105 ring-4 ring-emerald-400'
                         : isKaraokeActive
                         ? 'border-[#1a162b] bg-[#fde047] ring-4 ring-rose-500 scale-105'
                         : isNextSlotHighlighted
                         ? 'border-[#1a162b] bg-[#fde047] ring-4 ring-amber-400 scale-105 animate-pulse'
                         : wordAtSlot
-                        ? 'border-[#1a162b] tile-mat-ivory'
-                        : 'border-dashed border-[#1a162b]/40 bg-amber-50/60 hover:bg-amber-100/80'
+                        ? slotConfig.slotActiveBg
+                        : `${slotConfig.slotBg} border-dashed hover:brightness-95`
                     }`}
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 text-xs font-black uppercase text-[#5d4037]">
-                        <span>
-                          {idx + 1}. {wordMeta.shape} {wordMeta.icon} {wordMeta.label}
-                        </span>
-                      </div>
-                      <div className={`${getDualTierTypographyClasses('tile-face')} text-sm sm:text-base font-black text-[#1a162b] truncate`}>
-                        {wordAtSlot ? (
-                          ligature && ligature.hasAffix && previewCombo.valid ? (
-                            <span title={`Affix Ligature Detected: ${ligature.formattedWithBrackets}`}>
-                              {ligature.formattedWithBrackets}
-                            </span>
-                          ) : (
-                            wordAtSlot.word
-                          )
-                        ) : (
-                          <span className="text-stone-400 font-bold">
-                            + {posMeta.helperLabel}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {wordAtSlot && slotEcon && (
-                      <span className="ml-1 shrink-0 rounded-full bg-[#fde047] border border-[#1a162b] px-2 py-0.5 font-mono text-xs font-black text-[#1a162b]">
-                        +{slotEcon.rawLetterPoints}pt
+                    <div className="flex items-center gap-1 text-xs font-black uppercase opacity-85">
+                      <span>
+                        {idx + 1}. {wordMeta.icon} {wordMeta.label}
                       </span>
-                    )}
+                    </div>
+                    <div className={`${getDualTierTypographyClasses('tile-face')} text-base sm:text-lg font-black text-[#1a162b] truncate mt-0.5`}>
+                      {wordAtSlot ? (
+                        wordAtSlot.word
+                      ) : (
+                        <span className="opacity-55 font-bold text-sm">
+                          + Tap {posMeta.label}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* MAIN ROW: 4 TACTILE MATERIAL WORD CARDS + STREAMLINED CAST / ECHO-CHARGE PANEL (#10) */}
+          {/* ==================================================================
+              ZONE 3: BOTTOM RACK + ACTION DOCK
+              Only the 4 clean Word Cards (Word + color-coded Role Pill + 🔊)
+              and 1 big ⚡ CAST SPELL button (plus Pet Skill and Clear).
+             ================================================================== */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
-            {/* 4 Tactile Material Word Tablet Cards (8 Cols) */}
+            {/* 4 Clean Word Cards (8 Cols) */}
             <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {rackOrder.map((origIdx) => {
-                const slot = runeSlots[origIdx];
-                if (!slot || !slot.word) return null;
+              {runeSlots.map((slot, origIdx) => {
+                if (!slot.word) return null;
                 const { pos, word } = slot;
                 const slotIndex = selectedWordIds.indexOf(word.id);
                 const isSelected = slotIndex !== -1;
                 const isKaraokeActive = isSelected && karaokeWordIdx === slotIndex;
                 const isNextSlotHighlighted = !isSelected && highlightedSlotIdx === origIdx;
                 const posMeta = getPartOfSpeechMeta(pos);
-                const telegraph = rackTelegraphs[origIdx];
-                const material = getTactileTileMaterial({
-                  word: word.word,
-                  isLockedByEnemy: telegraph?.threatActive && enemyModifier.id === 'locked-consonants',
-                });
-                const tiltTransform = hoveredCardTilt[origIdx] || '';
+                const material = getTactileTileMaterial({ word: word.word });
 
                 return (
                   <div
@@ -1955,23 +1235,8 @@ export const BattleView: React.FC = () => {
                       e.dataTransfer.setData('text/plain', word.id);
                     }}
                     onDragEnd={() => setDraggedWordId(null)}
-                    onMouseMove={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const relX = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
-                      const relY = ((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1;
-                      const tilt = computeTileBankTilt(relX, relY);
-                      setHoveredCardTilt((prev) => ({ ...prev, [origIdx]: tilt.cssTransform }));
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredCardTilt((prev) => {
-                        const copy = { ...prev };
-                        delete copy[origIdx];
-                        return copy;
-                      });
-                    }}
                     onClick={() => handleToggleWordCard(word)}
-                    style={tiltTransform ? { transform: tiltTransform } : undefined}
-                    title={`${word.word} (${posMeta.label} · ${material.name}): ${word.definition}`}
+                    title={`${word.word} (${posMeta.label}): ${word.definition}`}
                     className={`spring-tile-motion relative flex flex-col justify-between rounded-2xl border-[3px] p-3 cursor-pointer ${material.cssClass} ${
                       isKaraokeActive
                         ? 'ring-4 ring-rose-500 scale-105 border-[#1a162b]'
@@ -1982,29 +1247,12 @@ export const BattleView: React.FC = () => {
                         : 'border-[#1a162b] hover:-translate-y-1'
                     }`}
                   >
-                    {/* Board-Linked Enemy Telegraph Badge projected onto the rack slot */}
-                    {telegraph && telegraph.shortLabel && (
-                      <div
-                        title={telegraph.tooltip}
-                        className={`mb-1 flex items-center justify-between rounded-lg border border-[#1a162b] px-2 py-0.5 text-[10px] font-black ${
-                          telegraph.threatActive
-                            ? `${SEMANTIC_COLOR_GRAMMAR[telegraph.semanticCategory].badgeBg} ${SEMANTIC_COLOR_GRAMMAR[telegraph.semanticCategory].badgeText}`
-                            : 'bg-emerald-200 text-[#1a162b]'
-                        }`}
-                      >
-                        <span>
-                          {telegraph.icon} {telegraph.shortLabel}
-                        </span>
-                        <span className="opacity-80">{material.name.split(' ')[0]}</span>
-                      </div>
-                    )}
-
-                    {/* Data Point 1: Color-Coded Role Badge + 🔊 Speaker Button */}
+                    {/* Color-Coded Role Pill + 🔊 Speaker Button */}
                     <div className="flex items-center justify-between gap-1">
                       <span
-                        className={`rounded-lg border px-2 py-0.5 font-display text-xs font-black ${posMeta.pillBg} ${posMeta.pillText} ${posMeta.cardBorder}`}
+                        className={`rounded-xl border-2 px-2.5 py-0.5 font-display text-xs font-black ${posMeta.pillBg} ${posMeta.pillText} ${posMeta.cardBorder}`}
                       >
-                        {posMeta.shape} {posMeta.icon} {posMeta.label}
+                        {posMeta.icon} {posMeta.label}
                       </span>
 
                       <button
@@ -2014,16 +1262,16 @@ export const BattleView: React.FC = () => {
                           juice.speakWord(`${word.word}. ${word.definition}`);
                         }}
                         className="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-[#1a162b] bg-white text-[#1a162b] hover:bg-[#fde047] shadow-[0_2px_0_#1a162b] cursor-pointer"
-                        title={`Hear "${word.word}" and its meaning`}
+                        title={`Hear "${word.word}"`}
                         aria-label={`Hear ${word.word}`}
                       >
                         <Volume2 className="h-4 w-4" />
                       </button>
                     </div>
 
-                    {/* Data Point 2: High-Legibility Dual-Tier Slab Word Centerpiece */}
-                    <div className="my-2 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/25 bg-white/95 py-3.5 px-2 text-center shadow-inner">
-                      <span className={`${getDualTierTypographyClasses('tile-face')} text-lg sm:text-xl font-black text-[#1a162b] break-words leading-tight`}>
+                    {/* Clean Word Centerpiece */}
+                    <div className="my-2.5 flex flex-col items-center justify-center rounded-xl border-2 border-[#1a162b]/20 bg-white/95 py-4 px-2 text-center shadow-inner">
+                      <span className={`${getDualTierTypographyClasses('tile-face')} text-xl sm:text-2xl font-black text-[#1a162b] break-words leading-tight`}>
                         {word.word}
                       </span>
                     </div>
@@ -2038,57 +1286,23 @@ export const BattleView: React.FC = () => {
               })}
             </div>
 
-            {/* RIGHT 4 COLS: STREAMLINED ACTION PANEL — Giant ⚡ CAST SPELL + #10 ECHO-CAST POWER CHARGE */}
-            <div className="lg:col-span-4 flex flex-col justify-between gap-2 rounded-2xl border-[3px] border-[#2dd4bf] bg-[#fef9c3] p-3 text-[#1a162b] shadow-[0_5px_0_#0f766e]">
-              {/* #10 Interactive Echo-Cast Power Charge Mini-Challenge when Spell is Valid */}
-              {previewCombo.valid && !isBattleOver && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextCharge = Math.min(3, echoChargeCount + 1);
-                    setEchoChargeCount(nextCharge);
-                    juice.ding(660 + nextCharge * 140, 120);
-                  }}
-                  className={`flex items-center justify-between rounded-xl border-2 border-[#1a162b] px-3 py-1.5 font-display text-xs font-black uppercase transition cursor-pointer ${
-                    echoChargeCount >= 3
-                      ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-400 text-[#1a162b] ring-2 ring-rose-500'
-                      : 'bg-amber-200 hover:bg-amber-300 text-[#1a162b]'
-                  }`}
-                  title="Tap 3 times before casting to supercharge your spell!"
-                >
-                  <span>
-                    🔥 {echoChargeCount >= 3 ? 'MAX ECHO-CHARGE!' : 'Tap to Power-Charge Spell!'}
-                  </span>
-                  <span className="rounded-md bg-[#1a162b] px-2 py-0.5 font-mono text-[10px] text-[#fde047]">
-                    {echoChargeCount}/3 (+{echoChargeCount * 15}%)
-                  </span>
-                </button>
-              )}
-
-              {/* Big, Unmistakable ⚡ CAST SPELL or 💀 EXECUTE FINISHER Button */}
+            {/* Action Dock: 1 Big ⚡ CAST SPELL Button + Pet Skill + Clear (4 Cols) */}
+            <div className="lg:col-span-4 flex flex-col justify-between gap-2.5 rounded-2xl border-[3px] border-[#2dd4bf] bg-[#fef9c3] p-3 text-[#1a162b] shadow-[0_5px_0_#0f766e]">
               <button
                 type="button"
                 disabled={!previewCombo.valid || isBattleOver}
                 onClick={handleLaunchWordStrike}
-                className={`spring-tile-motion flex-1 flex items-center justify-center gap-2.5 rounded-2xl border-[3px] px-5 py-3.5 font-display text-base sm:text-lg font-black uppercase tracking-wider ${
+                className={`spring-tile-motion flex-1 flex items-center justify-center gap-2.5 rounded-2xl border-[3px] px-5 py-4 font-display text-lg sm:text-xl font-black uppercase tracking-wider ${
                   previewCombo.valid && !isBattleOver
-                    ? livePreview.wouldDefeatEnemy
-                      ? 'border-[#1a162b] bg-gradient-to-r from-[#e11d48] via-[#f59e0b] to-[#fde047] text-white shadow-[0_5px_0_#1a162b] hover:brightness-110 cursor-pointer animate-pulse'
-                      : 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_5px_0_#1a162b] hover:brightness-105 cursor-pointer'
+                    ? 'border-[#1a162b] bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-[#1a162b] shadow-[0_5px_0_#1a162b] hover:brightness-105 cursor-pointer'
                     : 'border-slate-400 bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
               >
                 <Zap className="h-6 w-6 fill-current" />
-                <span>
-                  {livePreview.wouldDefeatEnemy
-                    ? '💀 EXECUTE FINISHER!'
-                    : echoChargeCount > 0
-                    ? `⚡ SUPER CAST (+${echoChargeCount * 15}%)`
-                    : '⚡ CAST SPELL'}
-                </span>
+                <span>⚡ CAST SPELL</span>
               </button>
 
-              {/* Small Pet Skill, Swap Words, & Clear Buttons */}
+              {/* Pet Skill & Clear Buttons */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -2099,8 +1313,8 @@ export const BattleView: React.FC = () => {
                       handleWeaveFullSentence();
                     }
                   }}
-                  className="flex-1 rounded-xl border-2 border-[#1a162b] bg-purple-200 hover:bg-purple-300 px-3 py-1.5 font-display text-xs font-black uppercase text-purple-950 shadow-[0_2px_0_#1a162b] cursor-pointer"
-                  title="Use Companion Pet Skill (4-Word Ultimate Weave or Evolve)"
+                  className="flex-1 rounded-xl border-2 border-[#1a162b] bg-purple-200 hover:bg-purple-300 px-3 py-2 font-display text-xs sm:text-sm font-black uppercase text-purple-950 shadow-[0_2px_0_#1a162b] cursor-pointer"
+                  title="Use Pet Skill (Auto-build 4-Word Sentence or Evolve)"
                 >
                   {isPlayerReadyToEvolve ? '★ Evolve Pet' : '🐾 Pet Skill'}
                 </button>
@@ -2108,8 +1322,8 @@ export const BattleView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowReserveDrawer((prev) => !prev)}
-                  className="rounded-xl border-2 border-[#1a162b] bg-amber-200 hover:bg-amber-300 px-3 py-1.5 font-display text-xs font-black uppercase text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
-                  title="Open Lexicon Field Guide to swap equipped words"
+                  className="rounded-xl border-2 border-[#1a162b] bg-amber-200 hover:bg-amber-300 px-3 py-2 font-display text-xs sm:text-sm font-black uppercase text-[#1a162b] shadow-[0_2px_0_#1a162b] cursor-pointer"
+                  title="Swap Word Cards"
                 >
                   {showReserveDrawer ? 'Close' : '📖 Words'}
                 </button>
@@ -2117,11 +1331,8 @@ export const BattleView: React.FC = () => {
                 <button
                   type="button"
                   disabled={selectedWords.length === 0}
-                  onClick={() => {
-                    setSelectedWordIds([]);
-                    setEchoChargeCount(0);
-                  }}
-                  className={`rounded-xl border-2 px-3 py-1.5 font-display text-xs font-black uppercase transition ${
+                  onClick={() => setSelectedWordIds([])}
+                  className={`rounded-xl border-2 px-3.5 py-2 font-display text-xs sm:text-sm font-black uppercase transition ${
                     selectedWords.length > 0
                       ? 'border-[#1a162b] bg-white hover:bg-rose-100 text-rose-700 shadow-[0_2px_0_#1a162b] cursor-pointer'
                       : 'border-stone-300 bg-stone-200 text-stone-400 cursor-not-allowed'
@@ -2134,14 +1345,12 @@ export const BattleView: React.FC = () => {
           </div>
         </div>
 
-        {/* ====================================================================
-            3. COLLAPSIBLE K–8 LEXICON FIELD GUIDE DRAWER
-           ==================================================================== */}
+        {/* OPTIONAL WORD SWAP DRAWER */}
         {showReserveDrawer && (
           <div className="rounded-2xl border-[3px] border-[#1a162b] bg-[#fff8e7] p-3 shadow-[0_5px_0_#1a162b] space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-display text-xs sm:text-sm font-black text-[#1a162b]">
-                📖 K–8 Lexicon Field Guide — Click Any Word Tablet to Equip &amp; Slot into Battle
+                📖 Pick Any Word Card to Swap into Your Deck
               </span>
               <div className="flex flex-wrap items-center gap-1">
                 <button
@@ -2153,7 +1362,7 @@ export const BattleView: React.FC = () => {
                       : 'bg-emerald-100 text-[#1a162b]'
                   }`}
                 >
-                  All Tiers
+                  All
                 </button>
                 {GRADE_TIERS.map((t) => (
                   <button
@@ -2201,7 +1410,7 @@ export const BattleView: React.FC = () => {
                         {tMeta.shortLabel}
                       </span>
                     </div>
-                    <div className="my-0.5 font-serif text-sm font-black text-[#2b1d12]">
+                    <div className="my-0.5 font-display text-sm font-black text-[#2b1d12]">
                       {el.icon} {w.word}
                     </div>
                     <div className="text-[10px] text-[#6b4423] line-clamp-1">{w.definition}</div>
