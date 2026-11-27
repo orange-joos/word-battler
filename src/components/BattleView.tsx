@@ -9,7 +9,11 @@ import {
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import { ELEMENTS, OPPOSITE_ELEMENT } from '../data/elements';
-import { evaluateCombo, estimateCombatDamage } from '../engine/combat';
+import {
+  evaluateCombo,
+  estimateCombatDamage,
+  hasElementalWeaknessAdvantage,
+} from '../engine/combat';
 import { getAllWordsList } from '../engine/forge';
 import { Word, PartOfSpeech, GradeTier } from '../types';
 import { juice } from '../engine/juice';
@@ -66,6 +70,7 @@ export const BattleView: React.FC = () => {
     supportCreatureId,
     increasePetBond,
     advanceToNextNode,
+    completeMapNode,
     tutorInsight,
     petAccessories,
     petBonds,
@@ -77,6 +82,14 @@ export const BattleView: React.FC = () => {
   const [gradeFilter, setGradeFilter] = useState<GradeTier | 'all'>('all');
   const [projectileBurst, setProjectileBurst] = useState<boolean>(false);
   const [tagTeamComboActive, setTagTeamComboActive] = useState<boolean>(false);
+
+  // Per-slot word choice offset so kids can swap between candidate words right on each card (#3)
+  const [slotChoiceOffset, setSlotChoiceOffset] = useState<Record<PartOfSpeech, number>>({
+    adjective: 0,
+    noun: 0,
+    verb: 0,
+    adverb: 0,
+  });
 
   // On-Demand Tutor Coach & Next-Slot Highlight
   const [showCoachHint, setShowCoachHint] = useState<boolean>(false);
@@ -101,6 +114,7 @@ export const BattleView: React.FC = () => {
   const [playerAnim, setPlayerAnim] = useState<'idle' | 'lunge' | 'hit'>('idle');
   const [sidekickAnim, setSidekickAnim] = useState<'idle' | 'lunge'>('idle');
   const [enemyAnim, setEnemyAnim] = useState<'idle' | 'lunge' | 'hit'>('idle');
+  const [bossCounterBanner, setBossCounterBanner] = useState<string | null>(null);
   const [floatingNumbers, setFloatingNumbers] = useState<
     { id: number; target: 'player' | 'enemy'; text: string; color: string }[]
   >([]);
@@ -126,7 +140,6 @@ export const BattleView: React.FC = () => {
   // Round counter derived from battle log
   const roundNumber = Math.max(1, Math.ceil((log?.length || 0) / 2) + 1);
 
-  // Equipped words on Round 1, rotating fresh elemental/grade words on Round 2+ so every turn is a fresh sentence puzzle
   const playerLoadout = fullPlayerCreature.loadout || {
     adjective: 'blazing',
     noun: 'flame',
@@ -134,27 +147,56 @@ export const BattleView: React.FC = () => {
     adverb: 'fiercely',
   };
 
+  // Fix #3 & #5: Actively filter battle hand by preferredGradeBand and allow per-card word swapping
   const getRoundWord = (pos: PartOfSpeech): Word | null => {
     const posWords = allWords.filter((w) => w.partOfSpeech === pos);
     if (posWords.length === 0) return null;
 
-    const equippedId = playerLoadout[pos];
-    const equippedFound = equippedId ? posWords.find((w) => w.id === equippedId) : null;
+    const matchesGradeBand = (w: Word): boolean => {
+      const tier = w.gradeTier || '3';
+      if (preferredGradeBand === 'k-2') return ['K', '1', '2'].includes(tier);
+      if (preferredGradeBand === '3-5') return ['3', '4', '5'].includes(tier);
+      if (preferredGradeBand === '6-8') return ['5', 'extender'].includes(tier);
+      return true;
+    };
 
-    if (roundNumber === 1 && equippedFound) {
+    const gradeFiltered = posWords.filter(matchesGradeBand);
+    const activePool = gradeFiltered.length > 0 ? gradeFiltered : posWords;
+    const choiceOffset = slotChoiceOffset[pos] || 0;
+
+    const equippedId = playerLoadout[pos];
+    const equippedFound = equippedId ? activePool.find((w) => w.id === equippedId) : null;
+
+    if (roundNumber === 1 && choiceOffset === 0 && preferredGradeBand === 'all' && equippedFound) {
       return equippedFound;
     }
 
-    // Prefer words matching pet element or grade band, rotating deterministically by roundNumber
-    const elementMatches = posWords.filter((w) => w.element === player.element);
-    const pool = elementMatches.length >= 2 ? elementMatches : posWords;
-    return pool[(roundNumber - 1) % pool.length] || equippedFound || posWords[0];
+    const elementMatches = activePool.filter((w) => w.element === player.element);
+    const orderedPool =
+      elementMatches.length > 0
+        ? [
+            ...elementMatches,
+            ...activePool.filter((w) => w.element !== player.element),
+          ]
+        : activePool;
+
+    const idx = (roundNumber - 1 + choiceOffset) % orderedPool.length;
+    return orderedPool[idx] || equippedFound || posWords[0];
   };
 
   const equippedAdj = getRoundWord('adjective');
   const equippedNoun = getRoundWord('noun');
   const equippedVerb = getRoundWord('verb');
   const equippedAdv = getRoundWord('adverb');
+
+  const handleCycleSlotWord = (pos: PartOfSpeech, currentWord: Word) => {
+    juice.click();
+    setSelectedWordIds((prev) => prev.filter((id) => id !== currentWord.id));
+    setSlotChoiceOffset((prev) => ({
+      ...prev,
+      [pos]: (prev[pos] || 0) + 1,
+    }));
+  };
 
   const selectedWords = selectedWordIds
     .map((id) => allWords.find((w) => w.id === id) || null)
@@ -168,7 +210,10 @@ export const BattleView: React.FC = () => {
     selectedWords[3] || null
   );
 
-  // Unified Damage Preview Math: matches combat.ts damageTarget formula
+  // Unified Damage Preview Math + Super Effective Elemental Weakness Check (#2 & #4)
+  const isSuperEffective =
+    selectedWords.length > 0 &&
+    hasElementalWeaknessAdvantage(enemy.element, selectedWords, player.element);
   const exactProjectedDamage = estimateCombatDamage(player, enemy, previewCombo);
   const currentEnemyHp = enemy.currentHp ?? enemy.stats.hp;
   const maxEnemyHp = Math.max(1, enemy.maxHp ?? enemy.stats.hp);
@@ -194,9 +239,16 @@ export const BattleView: React.FC = () => {
     setSelectedWordIds([]);
     setRewardClaimed(false);
     setShowCoachHint(false);
+    setBossCounterBanner(null);
+    setSlotChoiceOffset({ adjective: 0, noun: 0, verb: 0, adverb: 0 });
     setInlineLootDrops(generateInlineLootDrops(activeNodeId, player.name));
     setTileBag((prev) => drawSmartTileHand(prev, 8, 1, 'time-bomb'));
   }, [playerId, activeZoneId, enemy.id, activeNodeId, player.name]);
+
+  // Reset selected words when student switches Grade Band in top navigation dock (#5)
+  useEffect(() => {
+    setSelectedWordIds([]);
+  }, [preferredGradeBand]);
 
   // Draw fresh Vowel-Pity-Guaranteed hand on each new round under the hood
   useEffect(() => {
@@ -247,87 +299,123 @@ export const BattleView: React.FC = () => {
     selectedWordIds,
   ]);
 
-  // Reward & Pet EXP on Victory + Companion Bond Increase
+  // Fix #9: Automatically save stage stars (1-3 ★) via completeMapNode immediately upon victory
   useEffect(() => {
     if (isBattleOver && winner === player.id && !rewardClaimed) {
       setRewardClaimed(true);
+      const hpRatio =
+        (player.currentHp ?? player.stats.hp) / Math.max(1, player.maxHp ?? player.stats.hp);
+      const earnedStars = hpRatio >= 0.5 ? 3 : hpRatio >= 0.25 ? 2 : 1;
+      completeMapNode(activeZoneId, activeNodeId, earnedStars);
       addRewards({ coins: 65, tokens: 1, xp: 45, wonBattle: true });
       levelUpPet(player.id, 1);
       increasePetBond(player.id, 1);
     }
-  }, [isBattleOver, winner, player.id, rewardClaimed, addRewards, levelUpPet, increasePetBond]);
+  }, [
+    isBattleOver,
+    winner,
+    player.id,
+    player.currentHp,
+    player.maxHp,
+    player.stats.hp,
+    rewardClaimed,
+    activeZoneId,
+    activeNodeId,
+    completeMapNode,
+    addRewards,
+    levelUpPet,
+    increasePetBond,
+  ]);
 
-  // Combat event animations + TTS + Object-Pooled Floating Numbers
+  // Fix #1: Staggered Player-then-Boss Turn Choreography (0ms Player attack -> 950ms Boss counter-attack)
   useEffect(() => {
     if (!battleState.events || battleState.events.length === 0) return;
 
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    const spawnFloatingBadge = (target: 'player' | 'enemy', text: string, color: string) => {
+      const pooled = floatingNumberPool.acquire();
+      pooled.id = ++floatSeq.current;
+      pooled.target = target;
+      pooled.text = text;
+      pooled.color = color;
+
+      setFloatingNumbers((prev) => [
+        ...prev,
+        {
+          id: pooled.id,
+          target: pooled.target,
+          text: pooled.text,
+          color: pooled.color,
+        },
+      ]);
+      const clearTimer = setTimeout(() => {
+        setFloatingNumbers((prev) => prev.filter((item) => item.id !== pooled.id));
+        floatingNumberPool.release(pooled);
+      }, 1250);
+      timeouts.push(clearTimer);
+    };
+
     battleState.events.forEach((ev) => {
-      if (ev.type === 'SPEAK' && ev.phrase) {
-        juice.speakWord(ev.phrase);
-      }
-      if (ev.type === 'DAMAGE' && ev.amount) {
-        const isEnemyTarget = ev.targetId === enemy.id;
-        if (isEnemyTarget) {
-          setPlayerAnim('lunge');
-          setProjectileBurst(true);
-          setTimeout(() => setEnemyAnim('hit'), 150);
-          setTimeout(() => {
-            setPlayerAnim('idle');
-            setEnemyAnim('idle');
-            setProjectileBurst(false);
-          }, 550);
-        } else {
-          setEnemyAnim('lunge');
-          setTimeout(() => setPlayerAnim('hit'), 150);
-          setTimeout(() => {
-            setEnemyAnim('idle');
-            setPlayerAnim('idle');
-          }, 550);
+      const isPlayerAction = ev.attackerId === player.id || ev.targetId === enemy.id;
+      const delayMs = isPlayerAction ? 0 : 950;
+
+      const t = setTimeout(() => {
+        if (ev.type === 'SPEAK' && ev.phrase) {
+          if (ev.attackerId === player.id) {
+            juice.speakWord(ev.phrase);
+          } else {
+            setBossCounterBanner(`⚔️ ${enemy.name}: “${ev.phrase}”`);
+            const hideBanner = setTimeout(() => setBossCounterBanner(null), 2100);
+            timeouts.push(hideBanner);
+          }
         }
+        if (ev.type === 'DAMAGE' && ev.amount) {
+          const isEnemyTarget = ev.targetId === enemy.id;
+          if (isEnemyTarget) {
+            setPlayerAnim('lunge');
+            setProjectileBurst(true);
+            timeouts.push(setTimeout(() => setEnemyAnim('hit'), 150));
+            timeouts.push(
+              setTimeout(() => {
+                setPlayerAnim('idle');
+                setEnemyAnim('idle');
+                setProjectileBurst(false);
+              }, 550)
+            );
+          } else {
+            setEnemyAnim('lunge');
+            timeouts.push(setTimeout(() => setPlayerAnim('hit'), 150));
+            timeouts.push(
+              setTimeout(() => {
+                setEnemyAnim('idle');
+                setPlayerAnim('idle');
+              }, 550)
+            );
+          }
 
-        const pooled = floatingNumberPool.acquire();
-        pooled.id = ++floatSeq.current;
-        pooled.target = isEnemyTarget ? 'enemy' : 'player';
-        pooled.text = `-${ev.amount} HP`;
-        pooled.color = 'text-red-600 border-[#1a162b] bg-[#fff8e7]';
+          spawnFloatingBadge(
+            isEnemyTarget ? 'enemy' : 'player',
+            `-${ev.amount} HP`,
+            'text-red-600 border-[#1a162b] bg-[#fff8e7]'
+          );
+        } else if (ev.type === 'SHIELD' && ev.amount) {
+          const isPlayerTarget = ev.attackerId === player.id;
+          spawnFloatingBadge(
+            isPlayerTarget ? 'player' : 'enemy',
+            `+${ev.amount} SHIELD`,
+            'text-sky-600 border-[#1a162b] bg-[#fff8e7]'
+          );
+        }
+      }, delayMs);
 
-        setFloatingNumbers((prev) => [
-          ...prev,
-          {
-            id: pooled.id,
-            target: pooled.target,
-            text: pooled.text,
-            color: pooled.color,
-          },
-        ]);
-        setTimeout(() => {
-          setFloatingNumbers((prev) => prev.filter((item) => item.id !== pooled.id));
-          floatingNumberPool.release(pooled);
-        }, 1200);
-      } else if (ev.type === 'SHIELD' && ev.amount) {
-        const isPlayerTarget = ev.attackerId === player.id;
-        const pooled = floatingNumberPool.acquire();
-        pooled.id = ++floatSeq.current;
-        pooled.target = isPlayerTarget ? 'player' : 'enemy';
-        pooled.text = `+${ev.amount} SHIELD`;
-        pooled.color = 'text-sky-600 border-[#1a162b] bg-[#fff8e7]';
-
-        setFloatingNumbers((prev) => [
-          ...prev,
-          {
-            id: pooled.id,
-            target: pooled.target,
-            text: pooled.text,
-            color: pooled.color,
-          },
-        ]);
-        setTimeout(() => {
-          setFloatingNumbers((prev) => prev.filter((item) => item.id !== pooled.id));
-          floatingNumberPool.release(pooled);
-        }, 1200);
-      }
+      timeouts.push(t);
     });
-  }, [battleState.events, enemy.id, player.id]);
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, [battleState.events, enemy.id, enemy.name, player.id]);
 
   const handleToggleWordCard = (word: Word) => {
     if (isBattleOver) return;
@@ -896,9 +984,17 @@ export const BattleView: React.FC = () => {
               </div>
             </div>
 
-            {/* CENTER 4 COLS: ON-DEMAND HELP HINT / LAST SPOKEN SENTENCE */}
+            {/* CENTER 4 COLS: ON-DEMAND HELP HINT / LAST SPOKEN SENTENCE / BOSS COUNTER BANNER */}
             <div className="md:col-span-4 flex flex-col items-center justify-end my-1 gap-2">
-              {battleState.lastPlayerResolution && !isCoachVisible && (
+              {bossCounterBanner && (
+                <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-rose-600 px-4 py-2 text-center text-white shadow-[0_4px_0_#1a162b] animate-bounce">
+                  <span className="font-display text-xs sm:text-sm font-black block truncate">
+                    {bossCounterBanner}
+                  </span>
+                </div>
+              )}
+
+              {battleState.lastPlayerResolution && !isCoachVisible && !bossCounterBanner && (
                 <div className="w-full max-w-xs rounded-2xl border-[3px] border-[#1a162b] bg-[#fff8e7]/95 px-4 py-2 text-center shadow-[0_4px_0_#1a162b]">
                   <div className="text-xs font-bold text-[#5d4037]">Last Spell Cast:</div>
                   <span className="font-display text-sm sm:text-base font-black text-[#1a162b] block truncate">
@@ -1108,10 +1204,15 @@ export const BattleView: React.FC = () => {
                 <span className="rounded-xl bg-[#1a162b] px-3 py-1 font-display text-xs font-black uppercase text-[#fde047]">
                   {previewCombo.valid ? '✨ Spell Ready!' : '🧩 Build Your Sentence'}
                 </span>
+                {isSuperEffective && (
+                  <span className="rounded-xl border-2 border-[#1a162b] bg-gradient-to-r from-amber-300 to-rose-400 px-2.5 py-0.5 font-display text-xs font-black uppercase text-[#1a162b] shadow animate-pulse">
+                    💥 Super Effective! ({enemyWeakElem.icon} 1.35×)
+                  </span>
+                )}
                 <span className="text-sm sm:text-base font-black text-[#451a03]">
                   {selectedWords.length > 0
                     ? `“${previewCombo.phrase}”`
-                    : 'Tap the Word Cards below to build your spell!'}
+                    : 'Tap Word Cards below (or tap 🔄 Choice on a card to pick another word)!'}
                 </span>
               </div>
 
@@ -1210,7 +1311,7 @@ export const BattleView: React.FC = () => {
 
           {/* ==================================================================
               ZONE 3: BOTTOM RACK + ACTION DOCK
-              Only the 4 clean Word Cards (Word + color-coded Role Pill + 🔊)
+              Only the 4 clean Word Cards (Word + color-coded Role Pill + 🔊 + 🔄 Choice)
               and 1 big ⚡ CAST SPELL button (plus Pet Skill and Clear).
              ================================================================== */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
@@ -1277,6 +1378,22 @@ export const BattleView: React.FC = () => {
                       <span className="mt-1 text-[11px] font-bold text-slate-600 line-clamp-1">
                         {word.definition}
                       </span>
+                    </div>
+
+                    {/* Fix #3: 1-Tap Word Choice Cycling Pill on Card */}
+                    <div className="flex items-center justify-between text-[10px] font-black text-[#1a162b]">
+                      <span>{ELEMENTS[word.element]?.icon} {ELEMENTS[word.element]?.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCycleSlotWord(pos, word);
+                        }}
+                        className="rounded-lg border border-[#1a162b] bg-amber-100 hover:bg-[#fde047] px-2 py-0.5 text-[10px] font-black text-[#1a162b] cursor-pointer"
+                        title={`Pick a different ${posMeta.label} word`}
+                      >
+                        🔄 Choice
+                      </button>
                     </div>
 
                     {isSelected && (

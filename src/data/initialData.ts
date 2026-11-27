@@ -216,10 +216,10 @@ export const INITIAL_CREATURES: Creature[] = [
     element: "earth",
     elementAffinity: "earth",
     loadout: {
-      verb: "ignite",
+      verb: "fortify",
       noun: "boulder",
       adjective: "sturdy",
-      adverb: "fiercely"
+      adverb: "heavily"
     },
     description: "Guardian of Root Village. An ancient mossy stone beast that channels Greek and Latin root monoliths.",
     stats: {

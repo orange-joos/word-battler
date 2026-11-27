@@ -439,9 +439,11 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-3 mb-3">
                       <div className="flex items-center gap-3">
                         <CreatureSprite
-                          creatureId={pet.id}
+                          creatureId={pet.forged?.sourceId || pet.id}
                           stage={pet.stage || 1}
                           element={pet.element}
+                          secondaryElement={pet.infusionElement || pet.allowedElements?.[1]}
+                          accessoryId={petAccessories[pet.id]}
                           size="sm"
                         />
                         <div>
@@ -452,6 +454,14 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                             <span className="rounded-md bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-black uppercase text-amber-900">
                               {elInfo.icon} {elInfo.name} · Lv.{pet.level || 8} (Stage {pet.stage || 1})
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => juice.speakWord(`${pet.name}. ${pet.description}`)}
+                              className="flex items-center gap-1 rounded-lg border border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-950 hover:bg-amber-200 cursor-pointer"
+                            >
+                              <Volume2 className="h-3 w-3" />
+                              <span>Speak</span>
+                            </button>
                           </div>
                           <p className="text-xs font-bold text-[#7c4a27]">{pet.description}</p>
                         </div>
@@ -484,7 +494,7 @@ export const LexiDexModal: React.FC<LexiDexModalProps> = ({
                               : 'border-[#5a2e12] bg-amber-100 text-[#3d1e0d] hover:bg-amber-200'
                           }`}
                         >
-                          {isSelected ? '✓ Active Companion' : 'Set Active Companion'}
+                          {isSelected ? '✓ Active Buddy' : '🐾 Choose Buddy'}
                         </button>
                         <button
                           type="button"

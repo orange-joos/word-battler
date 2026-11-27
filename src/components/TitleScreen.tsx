@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Swords, Sparkles, User, KeyRound, Dices, ArrowRight, ShieldCheck, Flame, Compass } from 'lucide-react';
+import { Swords, Sparkles, User, KeyRound, Dices, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { juice } from '../engine/juice';
 import { useGame } from '../context/GameContext';
 import { getAuthDestination } from '../data/gameFlow';
+import { CreatureSprite } from './CreatureSprite';
 
 const FUN_NAMES = [
   'EmberKnight',
@@ -113,25 +114,27 @@ export const TitleScreen: React.FC = () => {
       <div className="pointer-events-none absolute -bottom-10 left-1/3 h-64 w-64 rounded-full bg-rose-300/30 blur-3xl"></div>
 
       {/* Main Container */}
-      <div className="relative z-10 mx-auto max-w-4xl px-4 py-8 sm:py-12 flex-1 flex flex-col items-center justify-center">
+      <div className="relative z-10 mx-auto max-w-4xl px-4 py-6 sm:py-10 flex-1 flex flex-col items-center justify-center">
         
         {/* Title Header Hero Banner */}
-        <div className="text-center space-y-3 mb-6 sm:mb-8">
+        <div className="text-center space-y-2.5 mb-5 sm:mb-6">
           <div className="inline-flex items-center gap-2 rounded-full border-3 border-[#7b4632] bg-amber-300 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-[#542d1d] shadow-[0_3px_0_#7b4632] animate-bounce">
             <Sparkles className="h-4 w-4 text-amber-700" />
-            <span>Educational Vocabulary Pet Battler · Grades 3–5</span>
+            <span>Educational Vocabulary Pet Battler · Grades K–8</span>
           </div>
 
           <div className="relative inline-block">
             <h1 className="font-serif text-5xl sm:text-7xl font-black tracking-tight text-[#4e2717] drop-shadow-[0_4px_0_#ffce7a]">
               WORD BATTLER
             </h1>
-            <div className="flex justify-center items-center gap-3 mt-1 text-2xl sm:text-3xl">
-              <span className="animate-[bounce_2s_infinite]">🦊</span>
-              <span className="text-sm sm:text-base font-extrabold uppercase tracking-widest text-[#8c4b27] bg-white/70 px-3 py-0.5 rounded-xl border border-amber-300">
+            <div className="flex justify-center items-center gap-2 sm:gap-4 mt-2">
+              <CreatureSprite creatureId="emberfox" element="fire" size="sm" facing="right" />
+              <CreatureSprite creatureId="aquafin" element="water" size="sm" facing="right" />
+              <span className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-[#8c4b27] bg-white/85 px-3.5 py-1.5 rounded-2xl border-2 border-[#7b4632] shadow-sm">
                 Linguistic Arena &amp; Morphology Forge
               </span>
-              <span className="animate-[bounce_2.5s_infinite]">🐺</span>
+              <CreatureSprite creatureId="rimepup" element="ice" size="sm" facing="left" />
+              <CreatureSprite creatureId="verdantsprout" element="grass" size="sm" facing="left" />
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { ArrowRight, Compass, Hammer, Swords, Sparkles, CheckCircle2 } from 'luc
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { juice } from '../engine/juice';
+import { CreatureSprite } from './CreatureSprite';
 
 export const TutorialScreen: React.FC = () => {
   const { currentUser, updateProfile } = useAuth();
@@ -10,7 +11,12 @@ export const TutorialScreen: React.FC = () => {
     useGame();
   const starterPet = creatures.find((creature) => creature.id === playerId);
 
-  const [demoTabletLinked, setDemoTabletLinked] = useState<string[]>(['Blazing', 'Flame']);
+  const [demoTabletLinked, setDemoTabletLinked] = useState<string[]>([
+    'fiercely',
+    'ignites',
+    'blazing',
+    'flame',
+  ]);
   const [demoFossilCleared, setDemoFossilCleared] = useState<boolean>(false);
 
   const enterWorld = () => {
@@ -28,14 +34,25 @@ export const TutorialScreen: React.FC = () => {
     );
   };
 
+  const petName = starterPet?.name || 'Emberfox';
+  const demoSentence =
+    demoTabletLinked.length > 0
+      ? `${petName} ${demoTabletLinked.join(' ')}!`
+      : 'Tap the Word Cards above to build a sentence!';
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#1e1b4b] via-[#312e81] to-[#0f172a] px-4 py-6 select-none">
       <section className="w-full max-w-4xl rounded-3xl border-[4px] border-[#1a162b] bg-[#fff8e7] p-5 shadow-[0_10px_0_#090714] sm:p-7 space-y-5">
         {/* Header Banner */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border-[3px] border-[#1a162b] bg-gradient-to-r from-[#283593] via-[#3949ab] to-[#1a237e] p-4 text-white">
           <div className="flex items-center gap-3.5">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] bg-[#ffd54f] text-4xl shadow">
-              {starterPet?.spriteEmoji || '🐾'}
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-[3px] border-[#1a162b] bg-[#ffd54f]/20 shadow shrink-0">
+              <CreatureSprite
+                creatureId={starterPet?.id || 'emberfox'}
+                stage={starterPet?.stage || 1}
+                element={starterPet?.element || 'fire'}
+                size="sm"
+              />
             </div>
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-[#ffd54f]">
@@ -45,12 +62,12 @@ export const TutorialScreen: React.FC = () => {
                 Welcome to Aetheria Sky-Sanctuary!
               </h1>
               <p className="text-xs font-bold text-sky-100">
-                Partnered with <strong>{starterPet?.name || 'Pyro-Pup'}</strong> · Master K–8 Word Tablets across 9 Elemental Realms
+                Partnered with <strong>{petName}</strong> · Master K–8 Word Cards across 9 Elemental Realms
               </p>
             </div>
           </div>
 
-          {/* Grade Band Quick Selector (#15) */}
+          {/* Grade Band Quick Selector */}
           <div className="flex flex-col items-end gap-1">
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-200">
               Select Grade Band:
@@ -98,10 +115,10 @@ export const TutorialScreen: React.FC = () => {
                 </span>
               </div>
               <h2 className="mt-2.5 font-display text-base font-black text-[#1a162b]">
-                9 Winding Elemental Maps &amp; Fossil Dig Sites
+                9 Winding Elemental Maps &amp; Dig Sites
               </h2>
               <p className="mt-1 text-xs font-bold text-[#5d4037] leading-relaxed">
-                Travel from <strong>Stage 1-1 to 9-10</strong>. At Stage <strong>X-4</strong>, use your Rock Hammer and Brush to excavate buried <strong>Word Tablets</strong>!
+                Travel from <strong>Stage 1-1 to 9-10</strong>. Tap any rock or sand tile at Stage <strong>X-4</strong> to unearth rare <strong>Word Tablets</strong>!
               </p>
             </div>
 
@@ -127,7 +144,7 @@ export const TutorialScreen: React.FC = () => {
             </button>
           </article>
 
-          {/* Step 2: 2x2 Word Tablet Matrix */}
+          {/* Step 2: Natural Action Sentences */}
           <article className="flex flex-col justify-between rounded-2xl border-[3px] border-[#1a162b] bg-white p-4 shadow-[0_4px_0_#1a162b]">
             <div>
               <div className="flex items-center justify-between">
@@ -135,20 +152,20 @@ export const TutorialScreen: React.FC = () => {
                   <Swords className="h-5 w-5" />
                 </span>
                 <span className="rounded-full bg-[#1a162b] px-2.5 py-0.5 font-mono text-[10px] font-black text-[#ffd54f]">
-                  STEP 2 · WORD TABLETS
+                  STEP 2 · WORD CARDS
                 </span>
               </div>
               <h2 className="mt-2.5 font-display text-base font-black text-[#1a162b]">
-                Weave 1, 2, or 4-Tablet Sentences
+                Build Real English Battle Sentences
               </h2>
               <p className="mt-1 text-xs font-bold text-[#5d4037] leading-relaxed">
-                Link <strong>Adj + Noun</strong> for a Shield, <strong>Adv + Verb</strong> for a Strike, or all 4 for a <strong>2-Pet Tag-Team Ultimate</strong>!
+                Tap 1–4 <strong>Word Cards</strong> (or tap <strong>🔄 Choice</strong> to swap words) to cast natural English action sentences!
               </p>
             </div>
 
             <div className="mt-3 space-y-1.5">
               <div className="grid grid-cols-2 gap-1.5">
-                {['Blazing', 'Flame', 'Ignites', 'Fiercely'].map((w) => {
+                {['fiercely', 'ignites', 'blazing', 'flame'].map((w) => {
                   const active = demoTabletLinked.includes(w);
                   return (
                     <button
@@ -165,12 +182,12 @@ export const TutorialScreen: React.FC = () => {
                 })}
               </div>
               <div className="rounded-lg bg-[#1a162b] px-2 py-1 text-center font-display text-[11px] font-black text-[#fde047] truncate">
-                “{demoTabletLinked.join(' ') || 'Tap Tablets above!'}”
+                “{demoSentence}”
               </div>
             </div>
           </article>
 
-          {/* Step 3: Stone Tablet Chisel Anvil */}
+          {/* Step 3: Word Forge */}
           <article className="flex flex-col justify-between rounded-2xl border-[3px] border-[#1a162b] bg-white p-4 shadow-[0_4px_0_#1a162b]">
             <div>
               <div className="flex items-center justify-between">
@@ -182,19 +199,22 @@ export const TutorialScreen: React.FC = () => {
                 </span>
               </div>
               <h2 className="mt-2.5 font-display text-base font-black text-[#1a162b]">
-                Chisel Prefixes, Suffixes &amp; Hybrids
+                Merge Real Compounds, Prefixes &amp; Buddies
               </h2>
               <p className="mt-1 text-xs font-bold text-[#5d4037] leading-relaxed">
-                Visit the <strong>Stone Tablet Chisel Anvil</strong> to fuse prefixes (<em>un-</em>, <em>re-</em>), suffixes (<em>-ful</em>, <em>-ness</em>), and splice hybrid companions!
+                Visit the <strong>Word Forge</strong> to combine prefixes (<em>un- + frozen → unfrozen</em>), compounds, and Dual-Element hybrid buddies!
               </p>
             </div>
 
-            <div className="mt-3 rounded-xl border-2 border-[#1a162b] bg-[#f5e6c8] p-2.5 text-center">
+            <div className="mt-3 rounded-xl border-2 border-[#1a162b] bg-[#f5e6c8] p-2.5 text-center space-y-0.5">
               <div className="font-mono text-[10px] font-black uppercase text-[#78350f]">
-                Live Spelling Rule Preview
+                Real-English Forge Recipes
               </div>
-              <div className="font-display text-xs font-black text-[#1a162b] mt-0.5">
-                HAPPY + -NESS → <span className="text-[#b45309]">HAPPINESS</span> (Y → I!)
+              <div className="font-display text-xs font-black text-[#1a162b]">
+                blazing + flame → <span className="text-[#b45309]">wildfire</span>
+              </div>
+              <div className="font-display text-[11px] font-black text-[#1a162b]">
+                chilly + -ness → <span className="text-[#b45309]">chilliness</span> (Y → I!)
               </div>
             </div>
           </article>

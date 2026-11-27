@@ -199,34 +199,29 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
     }
   };
 
-  // Improvement #2: Interactive 6-Tile Fossil Cleaning Grid Handler
+  // Improvement #2: Interactive 6-Tile Fossil Cleaning Grid Handler (Smart Auto-Tool)
   const handleStrikeFossilTile = (tileIdx: number) => {
     if (!selectedNode.digSiteTablet || tabletUnearthed) return;
     const currentLayer = fossilGrid[tileIdx];
     if (currentLayer <= 0) return;
 
     const nextGrid = [...fossilGrid];
-    let nextCracks = fossilCracks;
-
-    if (excavationTool === 'hammer') {
-      if (currentLayer === 1) {
-        nextCracks += 1;
-        juice.boing();
-      } else {
-        juice.ding(580, 110);
-      }
-      nextGrid[tileIdx] = Math.max(0, currentLayer - 2);
+    if (currentLayer === 2) {
+      setExcavationTool('hammer');
+      juice.ding(580, 110);
+      nextGrid[tileIdx] = 0;
     } else {
+      setExcavationTool('brush');
       juice.ding(760, 90);
-      nextGrid[tileIdx] = Math.max(0, currentLayer - 1);
+      nextGrid[tileIdx] = 0;
     }
 
     setFossilGrid(nextGrid);
-    setFossilCracks(nextCracks);
+    setFossilCracks(0);
 
     if (nextGrid.every((val) => val === 0)) {
       const tablet = selectedNode.digSiteTablet;
-      const flawlessBonus = nextCracks === 0 ? 2 : 0;
+      const flawlessBonus = 2;
       const newWordCard: Word = {
         id: tablet.id,
         word: tablet.word,
@@ -240,9 +235,9 @@ export const ElementalNodeMap: React.FC<ElementalNodeMapProps> = ({
       };
       commitWord(newWordCard);
       updatePetLoadout(activePet.id, tablet.partOfSpeech, tablet.id);
-      completeMapNode(selectedBiome.zoneId, selectedNode.nodeId, nextCracks === 0 ? 3 : 2);
+      completeMapNode(selectedBiome.zoneId, selectedNode.nodeId, 3);
       addRewards({
-        coins: selectedNode.rewardCoins + (flawlessBonus ? 25 : 0),
+        coins: selectedNode.rewardCoins + 25,
         tokens: selectedNode.rewardGems,
         xp: 50,
       });

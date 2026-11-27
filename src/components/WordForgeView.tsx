@@ -347,7 +347,9 @@ export const WordForgeView: React.FC = () => {
                         type="button"
                         onClick={() =>
                           juice.speakWord(
-                            'word' in preview.result! ? preview.result.word : preview.result!.name
+                            'word' in preview.result!
+                              ? `${preview.result.word}. ${preview.result.definition}`
+                              : preview.result!.name
                           )
                         }
                         className="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-[#1a162b] bg-[#fde047] text-[#1a162b] cursor-pointer"
@@ -356,6 +358,9 @@ export const WordForgeView: React.FC = () => {
                         <Volume2 className="h-4 w-4" />
                       </button>
                     </div>
+                    <p className="text-xs font-bold text-amber-100 leading-snug px-1">
+                      {'word' in preview.result ? preview.result.definition : preview.result.description}
+                    </p>
                     <button
                       type="button"
                       onClick={handleMerge}
@@ -371,7 +376,7 @@ export const WordForgeView: React.FC = () => {
                       🤔 Try a Different Pair!
                     </span>
                     <p className="text-xs font-bold text-amber-100/90">
-                      Pair a Word Part + Word, two Words, or two Buddies!
+                      {preview.reasons?.[0] || 'Pair a Word Part + Word, two Words, or two Buddies!'}
                     </p>
                   </div>
                 )
@@ -381,7 +386,7 @@ export const WordForgeView: React.FC = () => {
                     Ready to Merge!
                   </span>
                   <p className="text-xs font-bold text-amber-200/80">
-                    Fill Slot A and Slot B to see your new creation!
+                    Fill Slot A and Slot B or tap a Popular Combo below!
                   </p>
                 </div>
               )}
@@ -393,6 +398,24 @@ export const WordForgeView: React.FC = () => {
             BOTTOM FRIENDLY CARD PICKER (3 Big Tabs: Word Parts, Words, Buddies)
            ==================================================================== */}
         <div className="rounded-3xl border-[4px] border-[#1a162b] bg-[#fff8e7] p-4 sm:p-5 shadow-[0_7px_0_#1a162b] space-y-4">
+          {/* 1-Tap Popular Real-Word Combos Bar */}
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-[#1a162b] bg-amber-100/80 px-3 py-2">
+            <span className="text-[11px] font-display font-black uppercase text-[#1a162b]">
+              ✨ 1-Tap Real-Word Recipes:
+            </span>
+            {FORGE_BLUEPRINTS.map((bp) => (
+              <button
+                key={bp.id}
+                type="button"
+                onClick={() => handleLoadBlueprint(bp)}
+                className="rounded-xl border-2 border-[#1a162b] bg-white hover:bg-[#fde047] px-2.5 py-1 text-xs font-display font-black text-[#1a162b] shadow-[0_2px_0_#1a162b] transition cursor-pointer"
+                title={bp.ruleNote}
+              >
+                {bp.title}
+              </button>
+            ))}
+          </div>
+
           {/* 3 Big Category Tabs */}
           <div className="grid grid-cols-3 gap-2 rounded-2xl bg-[#e6d0a7] p-1.5 border-2 border-[#1a162b]">
             <button

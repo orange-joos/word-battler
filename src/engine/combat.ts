@@ -17,7 +17,7 @@ import type {
   StatusEffect,
   Word,
 } from '../types.ts';
-import { ELEMENTS } from '../data/elements.ts';
+import { ELEMENTS, OPPOSITE_ELEMENT } from '../data/elements.ts';
 import { getAllWordsList } from './forge.ts';
 import { selectBossTacticalMove } from '../agents/bossTacticianAgent.ts';
 import {
@@ -292,6 +292,17 @@ export function buildNaturalCombatSentence(
   return `${attackerName} channels ${single.word} power!`;
 }
 
+export function hasElementalWeaknessAdvantage(
+  defenderElement: Creature['element'],
+  words: (Word | null | undefined)[],
+  attackerElement?: Creature['element']
+): boolean {
+  const weakElem = OPPOSITE_ELEMENT[defenderElement];
+  if (!weakElem) return false;
+  if (attackerElement === weakElem) return true;
+  return words.some((w) => w && w.element === weakElem);
+}
+
 export function estimateCombatDamage(
   attacker: Creature,
   defender: Creature,
@@ -301,15 +312,22 @@ export function estimateCombatDamage(
   const head = combo.word3 || combo.word2 || combo.word1;
   if (!head) return 0;
 
-  const activeWords = [combo.word1, combo.word2, combo.word3, combo.word4]
-    .filter((w): w is Word => Boolean(w))
-    .map((w) => w.word);
+  const activeWordObjs = [combo.word1, combo.word2, combo.word3, combo.word4].filter(
+    (w): w is Word => Boolean(w)
+  );
+  const activeWords = activeWordObjs.map((w) => w.word);
   const wordSynergies = evaluateWordPropertySynergies(activeWords);
   const hasRareLetterCrit = wordSynergies.some((s) => s.guaranteedCrit);
+  const isSuperEffective = hasElementalWeaknessAdvantage(
+    defender.element,
+    activeWordObjs,
+    attacker.element
+  );
 
   let rawDamage = attacker.stats.attack + combo.power;
   if (attacker.infusionElement === head.element) rawDamage = Math.round(rawDamage * 1.15);
   if (attacker.empowered) rawDamage = Math.round(rawDamage * 1.5);
+  if (isSuperEffective) rawDamage = Math.round(rawDamage * 1.35);
   if (hasRareLetterCrit) rawDamage = Math.round(rawDamage * CRIT_MULTIPLIER);
   if (head.partOfSpeech === 'adjective') rawDamage = Math.round(rawDamage * 1.05);
 
@@ -686,11 +704,17 @@ export function createBattle(options: {
       return { damage: 0, shieldGain: 0 };
     }
 
-    const activeWords = [combo.word1, combo.word2, combo.word3, combo.word4]
-      .filter((w): w is Word => Boolean(w))
-      .map((w) => w.word);
+    const activeWordObjs = [combo.word1, combo.word2, combo.word3, combo.word4].filter(
+      (w): w is Word => Boolean(w)
+    );
+    const activeWords = activeWordObjs.map((w) => w.word);
     const wordSynergies = evaluateWordPropertySynergies(activeWords);
     const hasRareLetterCrit = wordSynergies.some((s) => s.guaranteedCrit);
+    const isSuperEffective = hasElementalWeaknessAdvantage(
+      defender.element,
+      activeWordObjs,
+      attacker.element
+    );
 
     let rawDamage = attacker.stats.attack + combo.power;
     if (attacker.infusionElement === head.element) rawDamage = Math.round(rawDamage * 1.15);
@@ -698,6 +722,7 @@ export function createBattle(options: {
       rawDamage = Math.round(rawDamage * 1.5);
       attacker.empowered = false;
     }
+    if (isSuperEffective) rawDamage = Math.round(rawDamage * 1.35);
     const canCrit =
       hasRareLetterCrit || head.partOfSpeech === 'adverb' || modifier?.partOfSpeech === 'adverb';
     const isCrit = hasRareLetterCrit || (canCrit && Math.random() < 0.4);

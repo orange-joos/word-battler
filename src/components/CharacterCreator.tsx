@@ -24,6 +24,8 @@ import {
 } from '../types/auth';
 import { juice } from '../engine/juice';
 import { ELEMENTS } from '../data/elements';
+import { CreatureSprite } from './CreatureSprite';
+import { ElementType } from '../types';
 
 interface CharacterCreatorProps {
   onClose?: () => void;
@@ -175,14 +177,18 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onClose, isI
 
               {/* Headgear Layer */}
               {selectedHeadgear.emoji && selectedHeadgear.emoji !== '✖️' && (
-                <div className="absolute top-6 z-20 text-4xl sm:text-5xl drop-shadow-md animate-[bounce_2.5s_infinite]">
+                <div className="absolute top-2 z-20 text-3xl sm:text-4xl drop-shadow-md animate-[bounce_2.5s_infinite]">
                   {selectedHeadgear.emoji}
                 </div>
               )}
 
-              {/* Creature Sprite */}
-              <div className="relative z-10 text-7xl sm:text-8xl drop-shadow-[0_8px_4px_rgba(0,0,0,0.25)] select-none animate-[bounce_3s_ease-in-out_infinite]">
-                {selectedArchetype.emoji}
+              {/* Illustrated Creature Sprite */}
+              <div className="relative z-10 select-none">
+                <CreatureSprite
+                  creatureId={selectedArchetype.id}
+                  element={(selectedArchetype.element as ElementType) || 'fire'}
+                  size="lg"
+                />
               </div>
 
               {/* Aura / Element Badge */}
@@ -353,7 +359,12 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onClose, isI
                       : 'border-amber-200 bg-white hover:bg-amber-50 shadow-xs'
                   }`}
                 >
-                  <span className="text-4xl">{a.emoji}</span>
+                  <CreatureSprite
+                    creatureId={a.id}
+                    element={(a.element as ElementType) || 'fire'}
+                    size="sm"
+                    animated={false}
+                  />
                   <span className="mt-1 font-serif text-xs font-black text-[#542d1d]">
                     {a.name}
                   </span>

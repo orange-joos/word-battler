@@ -130,6 +130,123 @@ export function createForge(options: {
     return { error: `Unknown token kind: ${token.kind}` };
   }
 
+  /* Curated Real-English Affixation Dictionary */
+  const REAL_AFFIXED_WORDS: Record<
+    string,
+    { word: string; definition: string; example: string }
+  > = {
+    'un+frozen': {
+      word: 'unfrozen',
+      definition: 'Thawed and melted free from ice so it can move or flow again.',
+      example: 'The unfrozen river rushed cheerfully down the mountain valley.',
+    },
+    'un+hidden': {
+      word: 'unhidden',
+      definition: 'Brought out into the open where everyone can clearly see it.',
+      example: 'The glowing crystal lay unhidden on the sanctuary steps.',
+    },
+    'un+sturdy': {
+      word: 'unsteady',
+      definition: 'Wobbly and not firmly balanced on the ground.',
+      example: 'The old rope bridge felt unsteady in the strong canyon wind.',
+    },
+    'un+bright': {
+      word: 'unlit',
+      definition: 'Dark and not shining with any flame or lantern light.',
+      example: 'Dusklynx crept quietly down the unlit stone corridor.',
+    },
+    'un+blazing': {
+      word: 'unburned',
+      definition: 'Untouched by fire and safe from heat or flames.',
+      example: 'The ancient green forest remained unburned after the storm.',
+    },
+    're+ignite': {
+      word: 'reignite',
+      definition: 'To spark a fire or glowing flame back to life again.',
+      example: 'Emberfox blew a warm spark to reignite the campfire.',
+    },
+    're+freeze': {
+      word: 'refreeze',
+      definition: 'To turn melted water back into solid ice again.',
+      example: 'The cold night air will refreeze the puddles by morning.',
+    },
+    're+surge': {
+      word: 'resurge',
+      definition: 'To rise and rush forward again with renewed energy.',
+      example: 'The ocean waves began to resurge against the rocky cliff.',
+    },
+    're+bloom': {
+      word: 'rebloom',
+      definition: 'To open fresh flowers again in a new season.',
+      example: 'Spring rain helped the meadow wildflowers rebloom.',
+    },
+    're+fortify': {
+      word: 'refortify',
+      definition: 'To strengthen and rebuild a wall or shield once more.',
+      example: 'Terraturtle helped refortify the stone sanctuary gate.',
+    },
+    'flame+less': {
+      word: 'flameless',
+      definition: 'Glowing or warm without any open fire or sparks.',
+      example: 'A flameless crystal lantern lit the underwater cave.',
+    },
+    'frost+less': {
+      word: 'frostless',
+      definition: 'Warm and clear of any freezing ice crystals.',
+      example: 'The sunny greenhouse stayed frostless all winter long.',
+    },
+    'wave+less': {
+      word: 'waveless',
+      definition: 'Calm, smooth, and completely still like a mirror.',
+      example: 'The moonlight reflected across the waveless blue lake.',
+    },
+    'spark+less': {
+      word: 'sparkless',
+      definition: 'Quiet and dark without any flying electrical sparks.',
+      example: 'The resting battery remained completely sparkless.',
+    },
+    'shadow+less': {
+      word: 'cloudless',
+      definition: 'Bright and clear without a single dark shadow or cloud.',
+      example: 'Golden sunlight poured down from a cloudless sky.',
+    },
+    'chilly+ness': {
+      word: 'chilliness',
+      definition: 'A brisk, nippy feeling of coldness in the air.',
+      example: 'Rimepup loved the crisp chilliness of the snowy morning.',
+    },
+    'sturdy+ness': {
+      word: 'sturdiness',
+      definition: 'Solid strength that lets something stand firm without breaking.',
+      example: 'The oak tree was famous for the sturdiness of its trunk.',
+    },
+    'swift+ness': {
+      word: 'swiftness',
+      definition: 'Great speed and quickness when moving or flying.',
+      example: 'Zephyrkit dashed across the meadow with amazing swiftness.',
+    },
+    'bright+ness': {
+      word: 'brightness',
+      definition: 'The clear, shining radiance of a light or star.',
+      example: 'Glimmerfae filled the dark cavern with warm brightness.',
+    },
+    'sharp+ness': {
+      word: 'sharpness',
+      definition: 'A keen, focused edge or clear mental alertness.',
+      example: 'Voltowl spotted the hidden rune with eagle-eyed sharpness.',
+    },
+    'flame+ling': {
+      word: 'flameling',
+      definition: 'A tiny, dancing spirit made of warm living fire.',
+      example: 'A cheerful little flameling hopped beside Emberfox.',
+    },
+    'frost+ling': {
+      word: 'frostling',
+      definition: 'A small creature born from winter snowflakes and ice.',
+      example: 'The playful frostling left sparkly footprints in the snow.',
+    },
+  };
+
   /* Process 1: Affixation */
   function forgeAffixation(
     affixSlot: { entry: Affix },
@@ -155,10 +272,33 @@ export function createForge(options: {
       return fail(`"${base.word}" has reached maximum forge depth (${MAX_FORGE_DEPTH}) and cannot change again.`);
     }
 
-    const newWordText = attachAffix(base.word, affix);
+    const lookupKey =
+      affix.type === 'prefix'
+        ? `${affix.id}+${base.word.toLowerCase()}`
+        : `${base.word.toLowerCase()}+${affix.id}`;
+    const curated = REAL_AFFIXED_WORDS[lookupKey];
+
+    const needsStrictDropE =
+      affix.respell.includes('dropSilentE') &&
+      /^[aeiou]/i.test(affix.text) &&
+      base.word.endsWith('e');
+
+    const newWordText =
+      curated && !needsStrictDropE ? curated.word : attachAffix(base.word, affix);
     const newElement =
       affix.elementEffect === 'invert' ? invertElement(base.element) : base.element;
     const definitionTemplate = affix.definition.replace('{base}', base.word);
+
+    const naturalDefinition = curated
+      ? curated.definition
+      : capitalize(definitionTemplate) + '.';
+    const naturalExample = curated
+      ? curated.example
+      : affix.to === 'noun'
+      ? `The ${newWordText} was easy to spot across the arena.`
+      : affix.to === 'verb'
+      ? `Our companion can ${newWordText} whenever the battle heats up.`
+      : `The explorer used a ${newWordText} strategy to win the round.`;
 
     const result: Word = {
       id: slug(newWordText),
@@ -167,11 +307,8 @@ export function createForge(options: {
       element: newElement,
       powerBonus: AFFIXATION_BONUS,
       fusionDepth: depthOf(base) + 1,
-      definition: capitalize(definitionTemplate) + '.',
-      example:
-        affix.to === 'noun'
-          ? `The ${newWordText} filled the room with wonder.`
-          : `It was a ${newWordText} moment on the battlefield.`,
+      definition: naturalDefinition,
+      example: naturalExample,
       forge: {
         layer: 2,
         process: 'affixation',
@@ -192,7 +329,7 @@ export function createForge(options: {
       ok: true,
       kind: 'affixation',
       result,
-      lesson: `"${label}" means "${affix.gloss}". Combining ${base.word} (${base.partOfSpeech}) + ${label} makes "${newWordText}", an elemental ${affix.to}.${flipped}`,
+      lesson: `"${label}" means "${affix.gloss}". Combining ${base.word} (${base.partOfSpeech}) + ${label} makes "${newWordText}": ${naturalDefinition}${flipped}`,
       reasons: [`${label} + ${base.word} → ${newWordText}`],
     };
   }
@@ -641,7 +778,7 @@ export const FORGE_BLUEPRINTS: ForgeBlueprint[] = [
   },
   {
     id: 'bp-compound',
-    title: 'blazing + flame → blazingflame',
+    title: 'blazing + flame → wildfire',
     category: 'Compound Word',
     ruleNote: 'Compound Head Rule: Second word ("flame") sets the Noun part of speech!',
     token1: { kind: 'word', id: 'blazing' },

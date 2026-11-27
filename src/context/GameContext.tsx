@@ -146,8 +146,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [activeZoneId, setActiveZoneId] = useState<string>('area-grass');
   const [activeNodeId, setActiveNodeId] = useState<string>('1-1');
-  const [activeEnemyName, setActiveEnemyName] = useState<string | null>(null);
-  const [activeEnemyStage, setActiveEnemyStage] = useState<1 | 2 | 3>(3);
+  const [activeEnemyName, setActiveEnemyName] = useState<string | null>('Moss-Horn Sproutling');
+  const [activeEnemyStage, setActiveEnemyStage] = useState<1 | 2 | 3>(1);
   const [returnToWordWorldMap, setReturnToWordWorldMap] = useState<boolean>(false);
   const [enemyId, setEnemyId] = useState<string>('boss_galecrest');
 
@@ -196,9 +196,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
   const [recruitedZones, setRecruitedZones] = useState<string[]>(initialSave.recruitedZones);
 
-  // Item #7: Purely derive effective stats from baseCreatures + accessories + specializations
+  // Item #7: Purely derive effective stats from baseCreatures + accessories + specializations (filtering out duplicate starter-* clones)
   const creatures = useMemo(
-    () => applyDerivedGearToRoster(baseCreatures, petAccessories, petSpecializations),
+    () =>
+      applyDerivedGearToRoster(
+        baseCreatures.filter((c) => !c.id.startsWith('starter-')),
+        petAccessories,
+        petSpecializations
+      ),
     [baseCreatures, petAccessories, petSpecializations]
   );
 
@@ -222,15 +227,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (creature) => creature.element === element && !creature.id.startsWith('boss_')
       ) || createStarterCreature(element, getAllWordsList(words));
 
-    if (!baseCreatures.some((creature) => creature.id === starterPet.id)) {
-      setBaseCreatures((previous) => [...previous, starterPet]);
-    }
-
     setPlayerId(starterPet.id);
     setGameState((previous) => ({
       ...previous,
       activeScreen: 'tutorial',
-      unlockedPetIds: Array.from(new Set([...previous.unlockedPetIds, starterPet.id])),
+      unlockedPetIds: [starterPet.id],
     }));
   };
 
